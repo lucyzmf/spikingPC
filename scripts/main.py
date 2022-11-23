@@ -45,13 +45,14 @@ transform = T.Compose(
 batch_size = 128
 
 traindata = torchvision.datasets.MNIST(root='./data', train=True,
-                                        download=True, transform=transform)
+                                       download=True, transform=transform)
 
 testdata = torchvision.datasets.MNIST(root='./data', train=False,
-                                       download=True, transform=transform)
+                                      download=True, transform=transform)
 
 # select classes you want to include in your subset
 classes = [0, 1, 2, 3, 4]
+
 
 def get_idx(data, classes=classes):
     """get index of selected classes
@@ -62,11 +63,12 @@ def get_idx(data, classes=classes):
 
     Returns:
         idx: list of indices for classes 
-    """    
+    """
     idx = torch.zeros(len(data))
     for i in classes:
         idx += data.targets == i
     return idx
+
 
 # get indices that correspond to one of the selected classes
 train_indices = get_idx(traindata)
@@ -99,9 +101,9 @@ test_dataset = data.TensorDataset(testDataSeq, testTarget)
 # %%
 # data loading 
 train_loader = data.DataLoader(train_dataset, batch_size=batch_size,
-                                          shuffle=True, num_workers=2)
+                               shuffle=True, num_workers=2)
 test_loader = data.DataLoader(test_dataset, batch_size=batch_size,
-                                          shuffle=True, num_workers=2)                                          
+                              shuffle=True, num_workers=2)
 
 # check data loading correctness
 
@@ -113,4 +115,4 @@ test_loader = data.DataLoader(test_dataset, batch_size=batch_size,
 # %%
 # TODO train and test function 
 # %%
-# TODO 
+# TODO
