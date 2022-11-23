@@ -1,0 +1,292 @@
+# %%
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import torchaudio
+import sys
+import os
+import shutil
+
+from torch.nn.parameter import Parameter
+from torch.nn import init
+from torch.autograd import Variable
+import math
+import numpy as np
+
+import matplotlib.pyplot as plt
+import IPython.display as ipd
+
+from tqdm import tqdm
+# %%
+# %%
+###############################################################
+# DEFINE NETWORK
+###############################################################
+
+"""
+Liquid time constant snn
+"""
+
+def create_exp_dir(path, scripts_to_save=None):
+    if not os.path.exists(path):
+        os.mkdir(path)
+
+    print('Experiment dir : {}'.format(path))
+    if scripts_to_save is not None:
+        os.mkdir(os.path.join(path, 'scripts'))
+        for script in scripts_to_save:
+            dst_file = os.path.join(path, 'scripts', os.path.basename(script))
+            shutil.copyfile(script, dst_file)
+            
+
+def model_save(fn, model, criterion, optimizer):
+    with open(fn, 'wb') as f:
+        torch.save([model, criterion, optimizer], f)
+
+def model_load(fn):
+    with open(fn, 'rb') as f:
+        model, criterion, optimizer = torch.load(f)
+    return model, criterion, optimizer
+
+def save_checkpoint(state, is_best, prefix, filename='_rec2_bias_checkpoint.pth.tar'):
+    print('saving at ', prefix+filename)
+    torch.save(state, prefix+filename)
+    if is_best:
+        shutil.copyfile(prefix+filename, prefix+ '_rec2_bias_model_best.pth.tar')
+
+
+def count_parameters(model):
+    return sum(p.numel() for p in model.network.parameters() if p.requires_grad)
+
+# %%
+###############################################################################################
+###############################    Define SNN layer   #########################################
+###############################################################################################
+
+b_j0 = .1  # neural threshold baseline
+R_m = 3  # membrane resistance
+dt = 1  
+gamma = .5  # gradient scale
+lens = 0.5
+
+def gaussian(x, mu=0., sigma=.5):
+    return torch.exp(-((x - mu) ** 2) / (2 * sigma ** 2)) / torch.sqrt(2 * torch.tensor(math.pi)) / sigma
+
+
+class ActFun_adp(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):  # input = membrane potential- threshold
+        ctx.save_for_backward(input)
+        return input.gt(0).float()  # is firing ???
+
+    @staticmethod
+    def backward(ctx, grad_output):  # approximate the gradients
+        input, = ctx.saved_tensors
+        grad_input = grad_output.clone()
+        # temp = abs(input) < lens
+        scale = 6.0
+        hight = .15
+        # temp = torch.exp(-(input**2)/(2*lens**2))/torch.sqrt(2*torch.tensor(math.pi))/lens
+        temp = gaussian(input, mu=0., sigma=lens) * (1. + hight) \
+               - gaussian(input, mu=lens, sigma=scale * lens) * hight \
+               - gaussian(input, mu=-lens, sigma=scale * lens) * hight
+        # temp =  gaussian(input, mu=0., sigma=lens)
+        return grad_input * temp.float() * gamma
+        # return grad_input
+
+
+act_fun_adp = ActFun_adp.apply
+
+def mem_update_adp(inputs, mem, spike, tau_adp,tau_m, b, dt=1, isAdapt=1):
+    alpha = tau_m
+    
+    ro = tau_adp
+
+    if isAdapt:
+        beta = 1.8
+    else:
+        beta = 0.
+
+    b = ro * b + (1 - ro) * spike
+    B = b_j0 + beta * b
+    
+
+
+    d_mem = -mem + inputs
+    mem = mem + d_mem*alpha
+    inputs_ = mem - B
+
+    spike = act_fun_adp(inputs_)  # act_fun : approximation firing function
+    mem = (1-spike)*mem
+
+    return mem, spike, B, b
+
+
+def output_Neuron(inputs, mem, tau_m, dt=1):
+    """
+    The read out neuron is leaky integrator without spike
+    """
+    d_mem = -mem  +  inputs
+    mem = mem+d_mem*tau_m
+    return mem
+# %%
+###############################################################################################
+###############################################################################################
+###############################################################################################
+class SNN_rec_cell(nn.Module):
+    def __init__(self, input_size, hidden_size,is_rec = False,is_LTC=True):
+        super(SNN_rec_cell, self).__init__()
+    
+        
+        self.input_size = input_size
+        self.hidden_size = hidden_size 
+        self.is_rec = is_rec
+        self.is_LTC = is_LTC
+
+        if is_rec:
+            self.layer1_x = nn.Linear(input_size+hidden_size, hidden_size)
+        else:
+            self.layer1_x = nn.Linear(input_size, hidden_size)
+        
+        # time-constant definiation and initilization 
+        if is_LTC:
+            self.layer1_tauAdp = nn.Linear(2*hidden_size, hidden_size)
+            self.layer1_tauM = nn.Linear(2*hidden_size, hidden_size)
+            nn.init.xavier_uniform_(self.layer1_tauAdp.weight)
+            nn.init.xavier_uniform_(self.layer1_tauM.weight)
+        else:
+            self.tau_adp = nn.Parameter(torch.Tensor(hidden_size))
+            self.tau_m =nn.Parameter(torch.Tensor(hidden_size))
+            nn.init.normal_(self.tau_adp, 4.6,.1)
+            nn.init.normal_(self.tau_m, 3.,.1)
+        self.act1 = nn.Sigmoid()
+        self.act2 = nn.Sigmoid()
+
+        nn.init.xavier_uniform_(self.layer1_x.weight)
+        
+
+    def forward(self, x_t, mem_t,spk_t,b_t):    
+        if self.is_rec:
+            dense_x = self.layer1_x(torch.cat((x_t,spk_t),dim=-1))
+        else:
+            dense_x = self.layer1_x(x_t)
+
+        if self.is_LTC:
+            tauM1 = self.act1(self.layer1_tauM(torch.cat((dense_x,mem_t),dim=-1)))
+            tauAdp1 = self.act1(self.layer1_tauAdp(torch.cat((dense_x,b_t),dim=-1)))
+        else:
+            tauM1 = self.act1(self.tau_m)
+            tauAdp1 = self.act2(self.tau_adp)
+        
+        mem_1,spk_1,_,b_1 = mem_update_adp(dense_x, mem=mem_t,spike=spk_t,
+                                        tau_adp=tauAdp1,tau_m=tauM1,b =b_t)
+
+        return mem_1,spk_1,b_1
+
+    def compute_output_size(self):
+        return [self.hidden_size]
+
+class SNN(nn.Module):
+    def __init__(self, input_size, hidden_size,output_size,is_LTC=True):
+        super(SNN, self).__init__()
+        
+        self.input_size = input_size
+        self.hidden_size = hidden_size 
+        self.output_size = output_size
+        
+        self.rnn_name = 'SNN: is_LTC-'+str(is_LTC)
+
+        self.snn_a = SNN_rec_cell(input_size,hidden_size,False,is_LTC)
+ 
+        self.snn3 = SNN_rec_cell(hidden_size,hidden_size,False,is_LTC)
+        
+
+        self.layer3_x = nn.Linear(hidden_size,output_size,bias=True)
+        self.layer3_tauM = nn.Linear(output_size*2,output_size)
+        self.tau_m_o = nn.Parameter(torch.Tensor(output_size))
+
+        nn.init.constant_(self.tau_m_o, 20.)
+        # nn.init.constant_(self.tau_m_o, 0.)
+        nn.init.xavier_uniform_(self.layer3_x.weight)
+        nn.init.zeros_(self.layer3_tauM.weight)
+        self.act3 = nn.Sigmoid()
+        self.relu = nn.ELU()
+
+        self.dp1 = nn.Dropout(0.1)#.1
+        self.dp2 = nn.Dropout(0.1)
+        self.dp3 = nn.Dropout(0.1)
+        self.fr = 0
+        
+    def forward(self, inputs, h):
+        
+        
+        # outputs = []
+        hiddens = []
+ 
+        b,in_dim= inputs.shape
+        t = 1
+        for x_i in range(t):
+            x_down = inputs.reshape(b,self.input_size).float()
+
+            mem_1,spk_1,b_1 = self.snn_a(x_down, mem_t=h[0],spk_t=h[1],b_t = h[2])
+            mem_2,spk_2,b_2 = self.snn3(spk_1, mem_t=h[3],spk_t=h[4],b_t = h[5])
+
+            dense3_x = self.layer3_x(spk_2)
+            # tauM2 = self.act3(self.layer3_tauM(torch.cat((dense3_x, h[-2]),dim=-1)))
+            tauM2 = torch.exp(-1./(self.tau_m_o))
+            mem_out = output_Neuron(dense3_x,mem=h[-2],tau_m = tauM2)
+
+            out =mem_out
+            self.fr = self.fr+ spk_1.detach().cpu().numpy().mean()/2.\
+                + spk_2.detach().cpu().numpy().mean()/2.
+
+        h = (mem_1,spk_1,b_1, 
+            mem_2,spk_2,b_2, 
+            mem_out,
+            out)
+
+        f_output = F.log_softmax(out, dim=1)
+        hiddens.append(h)
+
+        
+        final_state = h
+        return f_output, final_state, hiddens
+
+class SeqModel(nn.Module):
+    def __init__(self, ninp, nhid, nout,is_rec=True,is_LTC = True):
+
+        super(SeqModel, self).__init__()
+        self.nout = nout    # Should be the number of classes
+        self.nhid = nhid
+        self.is_rec = is_rec
+        self.is_LTC= is_LTC
+
+        self.network = SNN(input_size=ninp, hidden_size=nhid, output_size=nout)
+        
+
+    def forward(self, inputs, hidden):
+      
+        t = T
+        # print(inputs.shape) # L,B,d
+        outputs = []
+        for i in range(t):
+            f_output, hidden, hiddens= self.network.forward(inputs, hidden)
+            outputs.append(f_output)
+        return outputs, hidden
+
+    def init_hidden(self, bsz):
+        weight = next(self.parameters()).data
+        return (weight.new(bsz,self.nhid).uniform_(),
+                weight.new(bsz,self.nhid).zero_(),
+                weight.new(bsz,self.nhid).fill_(b_j0),
+                # layer 3
+                weight.new(bsz,self.nhid).uniform_(),
+                weight.new(bsz,self.nhid).zero_(),
+                weight.new(bsz,self.nhid).fill_(b_j0),
+                # layer out
+                weight.new(bsz,self.nout).zero_(),
+                # sum spike
+                weight.new(bsz,self.nout).zero_(),
+                )
+
