@@ -32,6 +32,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
+wandb.init(project="spikingPC", entity="lucyzmf")
+
 
 # %%
 ###############################################################
@@ -98,9 +100,14 @@ def test(model, test_loader):
         torch.cuda.empty_cache()
 
     test_loss /= len(test_loader.dataset)
+    test_acc = 100. * correct / len(test_loader.dataset)
+    wandb.log({
+        'test_loss': test_loss, 
+        'test_acc': test_acc
+    })
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
            test_loss, correct, len(test_loader.dataset),
-           100. * correct / len(test_loader.dataset)))
+           test_acc))
     return test_loss, 100. * correct / len(test_loader.dataset)
 
 ###############################################################################################
@@ -155,15 +162,19 @@ def train(train_loader, n_classes, model, named_params):
                 # clf_loss = snr*F.cross_entropy(output, target,reduction='none')
                 # clf_loss = torch.mean(clf_loss)
 
-                # energy loss                     
+                # regularizer loss                     
                 regularizer = get_regularizer_named_params( named_params, _lambda=1.0 )  
 
+                # energy loss: mean spiking
+                energy = h[1].mean()
+
                 # overall loss    
-                loss = clf_loss  + regularizer 
+                loss = clf_loss  + regularizer + energy
 
                 wandb.log({
                     'clf_loss': clf_loss, 
                     'regularisation_loss': regularizer, 
+                    'energy_loss': energy, 
                     'total_loss': loss, 
                 })
 
@@ -187,7 +198,9 @@ def train(train_loader, n_classes, model, named_params):
                    100. * batch_idx / len(train_loader), lr, train_loss / log_interval, 
                    total_oracle_loss / log_interval, 
                    total_clf_loss / log_interval, total_regularizaton_loss / log_interval, model.network.fr/T/log_interval))
-            # print(model.network.fr)
+            
+            wandb.log({'network spiking freq':model.network.fr})
+
             train_loss = 0
             total_clf_loss = 0
             total_regularizaton_loss = 0
@@ -205,10 +218,6 @@ model = one_layer_SeqModel(IN_dim, 784, n_classes, is_rec=True, is_LTC=False)
 model.to(device)
 print(model)
 
-
-
-
-# %%
 # define new loss and optimiser 
 total_params = count_parameters(model)
 print('total param count %i' % total_params)
@@ -227,14 +236,14 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 test_loss, acc1 = test( model, test_loader )
 
 # %%
-wandb.init(project="spikingPC", entity="lucyzmf")
-
 
 epochs = 30
 named_params = get_stats_named_params( model )
 prefix ='save name'
 all_test_losses = []
 best_acc1 = 20
+
+wandb.watch(model, log_freq = 100)
 
 wandb.config = {
     'learning_rate': lr, 
