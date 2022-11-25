@@ -28,36 +28,6 @@ from tqdm import tqdm
 Liquid time constant snn
 """
 
-def create_exp_dir(path, scripts_to_save=None):
-    if not os.path.exists(path):
-        os.mkdir(path)
-
-    print('Experiment dir : {}'.format(path))
-    if scripts_to_save is not None:
-        os.mkdir(os.path.join(path, 'scripts'))
-        for script in scripts_to_save:
-            dst_file = os.path.join(path, 'scripts', os.path.basename(script))
-            shutil.copyfile(script, dst_file)
-            
-
-def model_save(fn, model, criterion, optimizer):
-    with open(fn, 'wb') as f:
-        torch.save([model, criterion, optimizer], f)
-
-def model_load(fn):
-    with open(fn, 'rb') as f:
-        model, criterion, optimizer = torch.load(f)
-    return model, criterion, optimizer
-
-def save_checkpoint(state, is_best, prefix, filename='_rec2_bias_checkpoint.pth.tar'):
-    print('saving at ', prefix+filename)
-    torch.save(state, prefix+filename)
-    if is_best:
-        shutil.copyfile(prefix+filename, prefix+ '_rec2_bias_model_best.pth.tar')
-
-
-def count_parameters(model):
-    return sum(p.numel() for p in model.network.parameters() if p.requires_grad)
 
 # %%
 ###############################################################################################
@@ -187,9 +157,9 @@ class SNN_rec_cell(nn.Module):
     def compute_output_size(self):
         return [self.hidden_size]
 
-class SNN(nn.Module):
-    def __init__(self, input_size, hidden_size,output_size,is_LTC=True):
-        super(SNN, self).__init__()
+class one_layer_SNN(nn.Module):
+    def __init__(self, input_size, hidden_size,output_size,is_LTC=False):
+        super(one_layer_SNN, self).__init__()
         
         self.input_size = input_size
         self.hidden_size = hidden_size 
@@ -197,20 +167,19 @@ class SNN(nn.Module):
         
         self.rnn_name = 'SNN: is_LTC-'+str(is_LTC)
 
-        self.snn_a = SNN_rec_cell(input_size,hidden_size,False,is_LTC)
- 
-        self.snn3 = SNN_rec_cell(hidden_size,hidden_size,False,is_LTC)
+        # one recurrent layer 
+        self.snn_layer = SNN_rec_cell(hidden_size,hidden_size,False,is_LTC)
         
 
-        self.layer3_x = nn.Linear(hidden_size,output_size,bias=True)
-        self.layer3_tauM = nn.Linear(output_size*2,output_size)
+        self.output_layer = nn.Linear(hidden_size,output_size,bias=True)
+        self.output_layer_tauM = nn.Linear(output_size*2,output_size)
         self.tau_m_o = nn.Parameter(torch.Tensor(output_size))
 
         nn.init.constant_(self.tau_m_o, 20.)
         # nn.init.constant_(self.tau_m_o, 0.)
-        nn.init.xavier_uniform_(self.layer3_x.weight)
-        nn.init.zeros_(self.layer3_tauM.weight)
-        self.act3 = nn.Sigmoid()
+        nn.init.xavier_uniform_(self.output_layer.weight)
+        nn.init.zeros_(self.output_layer_tauM.weight)
+        self.act_o = nn.Sigmoid()
         self.relu = nn.ELU()
 
         self.dp1 = nn.Dropout(0.1)#.1
@@ -224,25 +193,22 @@ class SNN(nn.Module):
         # outputs = []
         hiddens = []
  
-        b,in_dim= inputs.shape
+        b,in_dim= inputs.shape # b is batch 
         t = 1
         for x_i in range(t):
             x_down = inputs.reshape(b,self.input_size).float()
 
-            mem_1,spk_1,b_1 = self.snn_a(x_down, mem_t=h[0],spk_t=h[1],b_t = h[2])
-            mem_2,spk_2,b_2 = self.snn3(spk_1, mem_t=h[3],spk_t=h[4],b_t = h[5])
+            mem_1,spk_1,b_1 = self.snn_layer(x_down, mem_t=h[0],spk_t=h[1],b_t = h[2])
 
-            dense3_x = self.layer3_x(spk_2)
+            dense3_x = self.output_layer(spk_1)
             # tauM2 = self.act3(self.layer3_tauM(torch.cat((dense3_x, h[-2]),dim=-1)))
             tauM2 = torch.exp(-1./(self.tau_m_o))
             mem_out = output_Neuron(dense3_x,mem=h[-2],tau_m = tauM2)
 
             out =mem_out
-            self.fr = self.fr+ spk_1.detach().cpu().numpy().mean()/2.\
-                + spk_2.detach().cpu().numpy().mean()/2.
+            self.fr = self.fr+ spk_1.detach().cpu().numpy().mean()/2.
 
-        h = (mem_1,spk_1,b_1, 
-            mem_2,spk_2,b_2, 
+        h = (mem_1,spk_1,b_1,
             mem_out,
             out)
 
@@ -253,19 +219,19 @@ class SNN(nn.Module):
         final_state = h
         return f_output, final_state, hiddens
 
-class SeqModel(nn.Module):
+class one_layer_SeqModel(nn.Module):
     def __init__(self, ninp, nhid, nout,is_rec=True,is_LTC = True):
 
-        super(SeqModel, self).__init__()
+        super(one_layer_SeqModel, self).__init__()
         self.nout = nout    # Should be the number of classes
         self.nhid = nhid
         self.is_rec = is_rec
         self.is_LTC= is_LTC
 
-        self.network = SNN(input_size=ninp, hidden_size=nhid, output_size=nout)
+        self.network = one_layer_SNN(input_size=ninp, hidden_size=nhid, output_size=nout)
         
 
-    def forward(self, inputs, hidden):
+    def forward(self, inputs, hidden, T):
       
         t = T
         # print(inputs.shape) # L,B,d
@@ -278,10 +244,6 @@ class SeqModel(nn.Module):
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
         return (weight.new(bsz,self.nhid).uniform_(),
-                weight.new(bsz,self.nhid).zero_(),
-                weight.new(bsz,self.nhid).fill_(b_j0),
-                # layer 3
-                weight.new(bsz,self.nhid).uniform_(),
                 weight.new(bsz,self.nhid).zero_(),
                 weight.new(bsz,self.nhid).fill_(b_j0),
                 # layer out
