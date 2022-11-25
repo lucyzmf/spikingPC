@@ -194,6 +194,7 @@ class one_layer_SNN(nn.Module):
         hiddens = []
  
         b,in_dim= inputs.shape # b is batch 
+        # this is just one forward pass
         t = 1
         for x_i in range(t):
             x_down = inputs.reshape(b,self.input_size).float()
@@ -231,7 +232,7 @@ class one_layer_SeqModel(nn.Module):
         self.network = one_layer_SNN(input_size=ninp, hidden_size=nhid, output_size=nout)
         
 
-    def forward(self, inputs, hidden, T):
+    def forward(self, inputs, hidden, T): # this function is only used during inference not training
       
         t = T
         # print(inputs.shape) # L,B,d
@@ -252,3 +253,5 @@ class one_layer_SeqModel(nn.Module):
                 weight.new(bsz,self.nout).zero_(),
                 )
 
+
+# %%

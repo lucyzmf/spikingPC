@@ -36,7 +36,7 @@ torch.manual_seed(999)
 
 transform = transforms.Compose(
     [transforms.ToTensor(),
-     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+     transforms.Normalize((0.5), (0.5))])
 
 batch_size = 128
 
@@ -46,41 +46,10 @@ traindata = torchvision.datasets.MNIST(root='./data', train=True,
 testdata = torchvision.datasets.MNIST(root='./data', train=False,
                                        download=True, transform=transform)
 
-# select classes you want to include in your subset
-classes = torch.tensor([0, 1, 2, 3, 6])
-
-# get indices that correspond to one of the selected classes
-train_indices = (torch.tensor(traindata.targets)[..., None] == classes).any(-1).nonzero(as_tuple=True)[0]
-test_indices = (torch.tensor(testdata.targets)[..., None] == classes).any(-1).nonzero(as_tuple=True)[0]
-
-
-# %%
-# get new data 
-seq_length = 10
-trainDataSeq = image_to_sequence(traindata.data, seq_length, normalise=True)
-testDataSeq = image_to_sequence(testdata.data, seq_length, normalise=True)
-
-print(testDataSeq.shape)
-
-# %%
-# subset data given classes 
-trainDataSeq = trainDataSeq[train_indices]
-testDataSeq = testDataSeq[test_indices]
-
-trainTarget = traindata.targets[train_indices]
-testTarget = testdata.targets[test_indices]
-
-print(testDataSeq.shape)
-print(testTarget.shape)
-# %%
-# creat tensor datasets for data loader 
-train_dataset = torch.utils.data.TensorDataset(trainDataSeq, trainTarget)
-test_dataset = torch.utils.data.TensorDataset(testDataSeq, testTarget)
-
 # data loading 
-train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
+train_loader = torch.utils.data.DataLoader(traindata, batch_size=batch_size,
                                           shuffle=True, num_workers=2)
-test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
+test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
                                           shuffle=True, num_workers=2)                                          
 
 # check data loading correctness
@@ -91,7 +60,8 @@ for batch_idx, (data, target) in enumerate(train_loader):
 # %%
 # set input and t param
 IN_dim = 28*28
-T = seq_length 
+T = 20  # sequence length, reading from the same image T times 
+# if apply first layer drop out, creates sth similar to poisson encoding 
 
 # %%
 ###############################################################################################
@@ -106,12 +76,13 @@ def test(model, test_loader):
     # for data, target in test_loader:
     for i ,(data, target) in enumerate(test_loader):
         data, target = data.to(device), target.to(device)
-        data = data.mean(1).view(-1, IN_dim)
+        data = data.view(-1, IN_dim)
+
         with torch.no_grad():
             model.eval()
             hidden = model.init_hidden(data.size(0))
 
-            outputs, hidden= model(data, hidden, seq_length) 
+            outputs, hidden= model(data, hidden, T) 
            
             output = outputs[-1]
             # output = torch.stack(outputs[-10:]).mean(dim=0)
@@ -131,6 +102,14 @@ def test(model, test_loader):
 ###############################################################################################
 ##########################          Train function             ###############################
 ###############################################################################################
+# training parameters
+K  = T # K is num updates per sequence 
+omega = int(T/K)  # update frequency 
+clip = 1.
+log_interval = 100
+lr = 1e-3
+epoch = 30
+n_classes = 10
 
 # train function for one epoch
 def train(train_loader, n_classes, model, named_params):
@@ -143,14 +122,14 @@ def train(train_loader, n_classes, model, named_params):
     total_oracle_loss = 0
     model.train()
 
-
+    # for each batch 
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
-        # data = data.mean(1).view(-1, 32*32)
+        data = data.view(-1, IN_dim)
        
         B = target.size()[0]
 
-        for p in range(K):
+        for p in range(T):
 
             if p==0:
                 h = model.init_hidden(data.size(0))
@@ -208,23 +187,20 @@ def train(train_loader, n_classes, model, named_params):
 ###############################################################
 # DEFINE NETWORK
 ###############################################################
-model = one_layer_SeqModel(IN_dim, 784, 10, is_rec=True, is_LTC=False)
+
+
+# define network
+model = one_layer_SeqModel(IN_dim, 784, n_classes, is_rec=True, is_LTC=False)
 model.to(device)
 print(model)
 
 
-# training parameters
-K  = T # sequence length
-omega = int(T/K)
-clip = 1.
-log_interval = 100
-lr = 1e-3
-epoch = 30
-n_classes = len(classes)
+
 
 # %%
 # define new loss and optimiser 
 total_params = count_parameters(model)
+print('total param count %i' % total_params)
 
 # define optimiser
 optimizer = optim.Adamax(model.parameters(), lr=lr, weight_decay=0.0001)
