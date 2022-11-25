@@ -10,8 +10,9 @@ from torch.nn import init
 from torch.autograd import Variable
 import torchvision.transforms as transforms
 import torchvision
-import math
 import numpy as np
+import wandb
+
 
 import matplotlib.pyplot as plt
 import IPython.display as ipd
@@ -28,6 +29,9 @@ print(device)
 
 # set seed
 torch.manual_seed(999)
+
+# wandb login
+wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
 
 # %%
 ###############################################################
@@ -151,10 +155,17 @@ def train(train_loader, n_classes, model, named_params):
                 # clf_loss = snr*F.cross_entropy(output, target,reduction='none')
                 # clf_loss = torch.mean(clf_loss)
 
-                # energy loss 
-                    
-                regularizer = get_regularizer_named_params( named_params, _lambda=1.0 )      
+                # energy loss                     
+                regularizer = get_regularizer_named_params( named_params, _lambda=1.0 )  
+
+                # overall loss    
                 loss = clf_loss  + regularizer 
+
+                wandb.log({
+                    'clf_loss': clf_loss, 
+                    'regularisation_loss': regularizer, 
+                    'total_loss': loss, 
+                })
 
                 loss.backward()
 
@@ -216,11 +227,21 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 test_loss, acc1 = test( model, test_loader )
 
 # %%
+wandb.init(project="spikingPC", entity="lucyzmf")
+
+
 epochs = 30
 named_params = get_stats_named_params( model )
 prefix ='save name'
 all_test_losses = []
 best_acc1 = 20
+
+wandb.config = {
+    'learning_rate': lr, 
+    'sequence_len': T, 
+    'epochs': 30, 
+    'update_freq': omega, 
+}
 
 estimate_class_distribution = torch.zeros(n_classes, T, n_classes, dtype=torch.float)
 for epoch in range(epochs):
