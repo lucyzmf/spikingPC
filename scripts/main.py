@@ -130,7 +130,7 @@ def train(train_loader, n_classes, model, named_params):
     train_loss = 0
     total_clf_loss = 0
     total_regularizaton_loss = 0
-    total_oracle_loss = 0
+    total_energy_loss = 0
     model.train()
 
     # for each batch 
@@ -171,13 +171,6 @@ def train(train_loader, n_classes, model, named_params):
                 # overall loss    
                 loss = clf_loss  + regularizer + energy
 
-                wandb.log({
-                    'clf_loss': clf_loss, 
-                    'regularisation_loss': regularizer, 
-                    'energy_loss': energy, 
-                    'total_loss': loss, 
-                })
-
                 loss.backward()
 
                 if clip > 0:
@@ -190,16 +183,22 @@ def train(train_loader, n_classes, model, named_params):
                 train_loss += loss.item()
                 total_clf_loss += clf_loss.item()
                 total_regularizaton_loss += regularizer #.item()
+                total_energy_loss += energy.item()
         
         if batch_idx > 0 and batch_idx % log_interval == 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\tLoss: {:.6f}\tOracle: \
-                {:.6f}\tClf: {:.6f}\tReg: {:.6f}\tFr: {:.6f}'.format(
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\tLoss: {:.6f}\
+                \tClf: {:.6f}\tReg: {:.6f}\tFr: {:.6f}'.format(
                    epoch, batch_idx * batch_size, len(train_loader.dataset),
                    100. * batch_idx / len(train_loader), lr, train_loss / log_interval, 
-                   total_oracle_loss / log_interval, 
                    total_clf_loss / log_interval, total_regularizaton_loss / log_interval, model.network.fr/T/log_interval))
             
-            wandb.log({'network spiking freq':model.network.fr})
+            wandb.log({
+                    'clf_loss': total_clf_loss / log_interval, 
+                    'regularisation_loss': total_regularizaton_loss / log_interval, 
+                    'energy_loss': total_energy_loss / log_interval, 
+                    'total_loss': train_loss / log_interval, 
+                    'network spiking freq':model.network.fr/T/log_interval # firing per time step
+                })
 
             train_loss = 0
             total_clf_loss = 0
