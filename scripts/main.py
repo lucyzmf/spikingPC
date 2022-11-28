@@ -12,6 +12,7 @@ import torchvision.transforms as transforms
 import torchvision
 import numpy as np
 import wandb
+from datetime import date
 
 
 import matplotlib.pyplot as plt
@@ -32,10 +33,17 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-# wandb.init(project="spikingPC", entity="lucyzmf")
-wandb.init(mode="disabled")
+wandb.init(project="spikingPC", entity="lucyzmf")
+# wandb.init(mode="disabled")
 
-
+# experiment name 
+exp_name = 'energy_loss'
+# checkpoint file name
+check_fn = '_onelayer_rec_best.pth.tar'
+# experiment date and name 
+today = date.today()
+# checkpoint file prefix 
+prefix = '../results/' + exp_name + today.strftime("%b-%d-%Y") + '/'
 
 # %%
 ###############################################################
@@ -206,7 +214,7 @@ def train(train_loader, n_classes, model, named_params):
             train_loss = 0
             total_clf_loss = 0
             total_regularizaton_loss = 0
-            total_oracle_loss = 0
+            total_energy_loss = 0
         model.network.fr = 0
 
 
@@ -240,9 +248,8 @@ test_loss, acc1 = test(model, test_loader)
 
 # %%
 
-epochs = 30
+epochs = 2
 named_params = get_stats_named_params(model)
-prefix = 'save name'
 all_test_losses = []
 best_acc1 = 20
 
@@ -269,14 +276,14 @@ for epoch in range(epochs):
     is_best = acc1 > best_acc1
     best_acc1 = max(acc1, best_acc1)
 
-    # save_checkpoint({
-    #         'epoch': epoch + 1,
-    #         'state_dict': model.state_dict(),
-    #         #'oracle_state_dict': oracle.state_dict(),
-    #         'best_acc1': best_acc1,
-    #         'optimizer' : optimizer.state_dict(),
-    #         #'oracle_optimizer' : oracle_optim.state_dict(),
-    #     }, is_best, prefix=prefix)
+    save_checkpoint({
+            'epoch': epoch + 1,
+            'state_dict': model.state_dict(),
+            #'oracle_state_dict': oracle.state_dict(),
+            'best_acc1': best_acc1,
+            'optimizer' : optimizer.state_dict(),
+            #'oracle_optimizer' : oracle_optim.state_dict(),
+        }, is_best, prefix=prefix, filename=check_fn)
 
     all_test_losses.append(test_loss)
 
