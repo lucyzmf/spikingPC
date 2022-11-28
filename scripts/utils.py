@@ -58,10 +58,18 @@ def model_save(fn, model, criterion, optimizer):
     with open(fn, 'wb') as f:
         torch.save([model, criterion, optimizer], f)
 
-def model_load(fn):
+def model_result_dict_load(fn):
+    """load tar file with saved model
+
+    Args:
+        fn (str): tar file name
+
+    Returns:
+        dict: dictornary containing saved results
+    """    
     with open(fn, 'rb') as f:
-        model, criterion, optimizer = torch.load(f)
-    return model, criterion, optimizer
+        dict = torch.load(f)
+    return dict
 
 def save_checkpoint(state, is_best, prefix, filename='_rec2_bias_checkpoint.pth.tar'):
     print('saving at ', prefix+filename)

@@ -68,7 +68,7 @@ class ActFun_adp(torch.autograd.Function):
 
 act_fun_adp = ActFun_adp.apply
 
-def mem_update_adp(inputs, mem, spike, tau_adp,tau_m, b, dt=1, isAdapt=1):
+def mem_update_adp(inputs, mem, spike, tau_adp,tau_m, b, isAdapt=1, dt=1):
     alpha = tau_m
     
     ro = tau_adp
@@ -105,7 +105,7 @@ def output_Neuron(inputs, mem, tau_m, dt=1):
 ###############################################################################################
 ###############################################################################################
 class SNN_rec_cell(nn.Module):
-    def __init__(self, input_size, hidden_size,is_rec = False,is_LTC=True):
+    def __init__(self, input_size, hidden_size,is_rec = False,is_LTC=True, isAdaptNeu=True):
         super(SNN_rec_cell, self).__init__()
     
         
@@ -113,6 +113,7 @@ class SNN_rec_cell(nn.Module):
         self.hidden_size = hidden_size 
         self.is_rec = is_rec
         self.is_LTC = is_LTC
+        self.isAdaptNeu = isAdaptNeu
 
         if is_rec:
             self.layer1_x = nn.Linear(input_size+hidden_size, hidden_size)
@@ -150,7 +151,7 @@ class SNN_rec_cell(nn.Module):
             tauAdp1 = self.act2(self.tau_adp)
         
         mem_1,spk_1,_,b_1 = mem_update_adp(dense_x, mem=mem_t,spike=spk_t,
-                                        tau_adp=tauAdp1,tau_m=tauM1,b =b_t)
+                                        tau_adp=tauAdp1,tau_m=tauM1,b =b_t, isAdapt=self.isAdaptNeu)
 
         return mem_1,spk_1,b_1
 
@@ -158,17 +159,18 @@ class SNN_rec_cell(nn.Module):
         return [self.hidden_size]
 
 class one_layer_SNN(nn.Module):
-    def __init__(self, input_size, hidden_size,output_size,is_LTC=False):
+    def __init__(self, input_size, hidden_size,output_size,is_LTC=False, isAdaptNeu=True):
         super(one_layer_SNN, self).__init__()
         
         self.input_size = input_size
         self.hidden_size = hidden_size 
         self.output_size = output_size
+        self.isAdaptNew = isAdaptNeu
         
         self.rnn_name = 'SNN: is_LTC-'+str(is_LTC)
 
         # one recurrent layer 
-        self.snn_layer = SNN_rec_cell(hidden_size,hidden_size,False,is_LTC)
+        self.snn_layer = SNN_rec_cell(hidden_size,hidden_size,False,is_LTC, isAdaptNeu)
         
 
         self.output_layer = nn.Linear(hidden_size,output_size,bias=True)
@@ -221,15 +223,16 @@ class one_layer_SNN(nn.Module):
         return f_output, final_state, hiddens
 
 class one_layer_SeqModel(nn.Module):
-    def __init__(self, ninp, nhid, nout,is_rec=True,is_LTC = True):
+    def __init__(self, ninp, nhid, nout,is_rec=True,is_LTC = True, isAdaptNeu=True):
 
         super(one_layer_SeqModel, self).__init__()
         self.nout = nout    # Should be the number of classes
         self.nhid = nhid
         self.is_rec = is_rec
         self.is_LTC= is_LTC
+        self.isAdaptNeu = isAdaptNeu
 
-        self.network = one_layer_SNN(input_size=ninp, hidden_size=nhid, output_size=nout)
+        self.network = one_layer_SNN(input_size=ninp, hidden_size=nhid, output_size=nout, is_LTC=is_LTC, isAdaptNeu=isAdaptNeu)
         
 
     def forward(self, inputs, hidden, T): # this function is only used during inference not training

@@ -38,15 +38,22 @@ wandb.init(project="spikingPC", entity="lucyzmf")
 # wandb.init(mode="disabled")
 
 # experiment name 
-exp_name = 'energy_loss'
+exp_name = 'energy_loss_1_adp_memloss'
 energy_penalty = True 
+spike_loss = False
+adap_neuron = True
 # checkpoint file name
 check_fn = '_onelayer_rec_best.pth.tar'
 # experiment date and name 
 today = date.today()
 # checkpoint file prefix 
 prefix = '../results/' + exp_name + today.strftime("%b-%d-%Y") + '/'
-os.mkdir(prefix)
+
+# create exp path 
+if os.path.exists(prefix):
+    raise Exception('experiment dir already exist')
+else:
+    os.mkdir(prefix)
 
 # %%
 ###############################################################
@@ -135,7 +142,7 @@ omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 100
 lr = 1e-3
-epoch = 30
+epoch = 10
 n_classes = 10
 
 
@@ -180,8 +187,12 @@ def train(train_loader, n_classes, model, named_params):
                 # regularizer loss                     
                 regularizer = get_regularizer_named_params( named_params, _lambda=1.0 )  
 
-                # energy loss: mean spiking
-                energy = h[1].mean() * 0.1
+                if spike_loss: 
+                    # energy loss: mean spiking
+                    energy = h[1].mean() * 0.1
+                else: 
+                    # mem potential loss
+                    energy = h[0].mean() * 0.001
 
                 # overall loss    
                 if energy_penalty:
@@ -231,7 +242,7 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = one_layer_SeqModel(IN_dim, 784, n_classes, is_rec=True, is_LTC=False)
+model = one_layer_SeqModel(IN_dim, 784, n_classes, is_rec=True, is_LTC=False, isAdaptNeu=adap_neuron)
 model.to(device)
 print(model)
 
@@ -254,7 +265,7 @@ test_loss, acc1 = test(model, test_loader)
 
 # %%
 
-epochs = 20
+epochs = 10
 named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20
