@@ -242,10 +242,12 @@ class one_layer_SeqModel(nn.Module):
         t = T
         # print(inputs.shape) # L,B,d
         outputs = []
+        hiddens_all = []
         for i in range(t):
             f_output, hidden, hiddens= self.network.forward(inputs, hidden)
             outputs.append(f_output)
-        return outputs, hidden
+            hiddens_all.append(hiddens)
+        return outputs, hiddens_all
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
