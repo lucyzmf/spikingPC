@@ -248,7 +248,7 @@ test_loss, acc1 = test(model, test_loader)
 
 # %%
 
-epochs = 2
+epochs = 20
 named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20
@@ -258,7 +258,7 @@ wandb.watch(model, log_freq = 100)
 wandb.config = {
     'learning_rate': lr, 
     'sequence_len': T, 
-    'epochs': 30, 
+    'epochs': epochs, 
     'update_freq': omega, 
 }
 
