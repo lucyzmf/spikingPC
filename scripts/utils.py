@@ -5,6 +5,7 @@ import torchvision.transforms as transforms
 import numpy 
 import os
 import shutil
+import matplotlib.pyplot as plt
 
 # function to transform dataset 
 def image_to_sequence(data, sequence_length, normalise=True):
@@ -80,4 +81,22 @@ def save_checkpoint(state, is_best, prefix, filename='_rec2_bias_checkpoint.pth.
 
 def count_parameters(model):
     return sum(p.numel() for p in model.network.parameters() if p.requires_grad)
+
+# %%
+def plot_distribution(param_names, param_dict, keyword):
+    """plot distribution of given parameters
+
+    Args:
+        param_names (list): list containing param names 
+        param_dict (dict): list containing param names and values 
+        keyword (str): str of what param to plot, eg. weight, tau
+    """    
+
+    # find where weight params are stored 
+    for name in param_names: 
+        if keyword in name: 
+            plt.hist(param_dict[name])
+            plt.title(name)
+            plt.show()
+
 # %%
