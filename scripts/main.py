@@ -39,6 +39,7 @@ wandb.init(project="spikingPC", entity="lucyzmf")
 
 # experiment name 
 exp_name = 'energy_loss'
+energy_penalty = True 
 # checkpoint file name
 check_fn = '_onelayer_rec_best.pth.tar'
 # experiment date and name 
@@ -183,7 +184,10 @@ def train(train_loader, n_classes, model, named_params):
                 energy = h[1].mean() * 0.1
 
                 # overall loss    
-                loss = clf_loss  + regularizer # + energy
+                if energy_penalty:
+                    loss = clf_loss  + regularizer + energy
+                else:
+                    loss = clf_loss  + regularizer
 
                 loss.backward()
 
