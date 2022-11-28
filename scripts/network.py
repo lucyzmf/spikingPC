@@ -159,18 +159,20 @@ class SNN_rec_cell(nn.Module):
         return [self.hidden_size]
 
 class one_layer_SNN(nn.Module):
-    def __init__(self, input_size, hidden_size,output_size,is_LTC=False, isAdaptNeu=True):
+    def __init__(self, input_size, hidden_size,output_size,is_rec=True, is_LTC=False, isAdaptNeu=True):
         super(one_layer_SNN, self).__init__()
         
         self.input_size = input_size
         self.hidden_size = hidden_size 
         self.output_size = output_size
         self.isAdaptNew = isAdaptNeu
+        self.is_rec = is_rec
+        self.is_LTC = is_LTC
         
         self.rnn_name = 'SNN: is_LTC-'+str(is_LTC)
 
         # one recurrent layer 
-        self.snn_layer = SNN_rec_cell(hidden_size,hidden_size,False,is_LTC, isAdaptNeu)
+        self.snn_layer = SNN_rec_cell(hidden_size,hidden_size,is_rec,is_LTC, isAdaptNeu)
         
 
         self.output_layer = nn.Linear(hidden_size,output_size,bias=True)
@@ -232,7 +234,7 @@ class one_layer_SeqModel(nn.Module):
         self.is_LTC= is_LTC
         self.isAdaptNeu = isAdaptNeu
 
-        self.network = one_layer_SNN(input_size=ninp, hidden_size=nhid, output_size=nout, is_LTC=is_LTC, isAdaptNeu=isAdaptNeu)
+        self.network = one_layer_SNN(input_size=ninp, hidden_size=nhid, output_size=nout, is_rec=is_rec, is_LTC=is_LTC, isAdaptNeu=isAdaptNeu)
         
 
     def forward(self, inputs, hidden, T): # this function is only used during inference not training

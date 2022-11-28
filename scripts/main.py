@@ -38,10 +38,10 @@ wandb.init(project="spikingPC", entity="lucyzmf")
 # wandb.init(mode="disabled")
 
 # experiment name 
-exp_name = 'energy_loss_1_adp_memloss'
+exp_name = 'energy_loss_1_nonadp_memloss'
 energy_penalty = True 
 spike_loss = False
-adap_neuron = True
+adap_neuron = False
 # checkpoint file name
 check_fn = '_onelayer_rec_best.pth.tar'
 # experiment date and name 
