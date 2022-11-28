@@ -13,6 +13,7 @@ import torchvision
 import numpy as np
 import wandb
 from datetime import date
+import os
 
 
 import matplotlib.pyplot as plt
@@ -44,6 +45,7 @@ check_fn = '_onelayer_rec_best.pth.tar'
 today = date.today()
 # checkpoint file prefix 
 prefix = '../results/' + exp_name + today.strftime("%b-%d-%Y") + '/'
+os.mkdir(prefix)
 
 # %%
 ###############################################################
@@ -181,7 +183,7 @@ def train(train_loader, n_classes, model, named_params):
                 energy = h[1].mean() * 0.1
 
                 # overall loss    
-                loss = clf_loss  + regularizer + energy
+                loss = clf_loss  + regularizer # + energy
 
                 loss.backward()
 
