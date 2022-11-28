@@ -32,7 +32,9 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC", entity="lucyzmf")
+# wandb.init(project="spikingPC", entity="lucyzmf")
+wandb.init(mode="disabled")
+
 
 
 # %%
@@ -168,7 +170,7 @@ def train(train_loader, n_classes, model, named_params):
                 regularizer = get_regularizer_named_params( named_params, _lambda=1.0 )  
 
                 # energy loss: mean spiking
-                energy = h[1].mean()
+                energy = h[1].mean() * 0.1
 
                 # overall loss    
                 loss = clf_loss  + regularizer + energy
