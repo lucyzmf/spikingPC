@@ -52,13 +52,13 @@ check_fn = '_onelayer_rec_best.pth.tar'
 # experiment date and name 
 today = date.today()
 # checkpoint file prefix 
-prefix = '../results/' + exp_name + today.strftime("%b-%d-%Y") + '/'
+prefix = '../results/' +today.strftime("%b-%d-%Y") + '/' + exp_name + '/'
 
 # create exp path 
 if os.path.exists(prefix):
     raise Exception('experiment dir already exist')
 else:
-    os.mkdir(prefix)
+    os.makedirs(prefix)
 
 # %%
 ###############################################################
@@ -196,8 +196,8 @@ def train(train_loader, n_classes, model, named_params):
                     # energy loss: mean spiking * weighting param
                     energy = h[1].mean() * 0.1
                 else: 
-                    # mem potential loss take l1 norm * weighting param
-                    energy = torch.norm(h[0], p=1) * 0.001
+                    # mem potential loss take l1 norm / num of neurons
+                    energy = torch.norm(h[0], p=1) / 784
 
                 # overall loss    
                 if energy_penalty:
