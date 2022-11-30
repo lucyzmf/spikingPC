@@ -193,11 +193,11 @@ def train(train_loader, n_classes, model, named_params):
                 regularizer = get_regularizer_named_params( named_params, _lambda=1.0 )  
 
                 if spike_loss: 
-                    # energy loss: mean spiking
+                    # energy loss: mean spiking * weighting param
                     energy = h[1].mean() * 0.1
                 else: 
-                    # mem potential loss
-                    energy = h[0].mean() * 0.001
+                    # mem potential loss take l1 norm * weighting param
+                    energy = torch.norm(h[0], p=1) * 0.001
 
                 # overall loss    
                 if energy_penalty:
