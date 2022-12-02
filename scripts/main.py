@@ -43,7 +43,7 @@ config.spike_loss = True  # whether use energy penalty on spike or on mem potent
 config.adap_neuron = False # whether use adaptive neuron or not 
 
 # experiment name 
-exp_name = 'energy_loss_1_nonadp_spikeloss'
+exp_name = 'energy_loss_2_nonadp_spikeloss'
 energy_penalty = True 
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
