@@ -17,6 +17,7 @@ import os
 
 
 import matplotlib.pyplot as plt
+import seaborn as sns
 import IPython.display as ipd
 
 from tqdm import tqdm
@@ -97,7 +98,7 @@ def test(model, test_loader):
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
            test_loss, correct, len(test_loader.dataset),
            test_acc))
-    return hiddens, test_loss, 100. * correct / len(test_loader.dataset)
+    return hiddens, test_loss, 100. * correct / len(test_loader.dataset), data.detach().cpu(), target.cpu()
 # %%
 ###############################################################
 # DEFINE NETWORK
@@ -128,13 +129,14 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
 # %%
 # untar saved dict 
-saved_dict = model_result_dict_load('/home/lucy/spikingPC/results/energy_loss_1_nonadp_memlossNov-28-2022/_onelayer_rec_best.pth.tar')
+saved_dict = model_result_dict_load('/home/lucy/spikingPC/results/Nov-30-2022/energy_loss_2_adp_spikeloss/_onelayer_rec_best.pth.tar')
 # %%
 model.load_state_dict(saved_dict['state_dict'])
 # %%
-#####################################################################
-# visualisation 
-#####################################################################
+###############################################################################################
+##########################          analysis             ###############################
+###############################################################################################
+# get params and put into dict
 param_names = []
 param_dict = {}
 for name, param in model.named_parameters():
@@ -149,25 +151,130 @@ print(param_names)
 plot_distribution(param_names, param_dict, 'weight')
 # %%
 # get all the hidden states for the last batch in test loader 
-hiddens, test_loss, _ = test(model, test_loader)
+hiddens, test_loss, _, data, targets = test(model, test_loader)
+
+
 # %%
 # get spiking pattern along the sequence 
-spikes_all = []
-for i in range(len(hiddens)):
-    spikes_all.append(hiddens[i][0][1].detach().cpu().numpy())
-
-spikes_all = np.stack(spikes_all)
+spikes_all = get_spikes(hiddens)
 # %%
 # here each entry to spike_all is 16*784 (batchsize*num neurons) at each time step 
-spikes_one_img = spikes_all[:, 0, :].transpose()
-spike_pos = []
-for i in range(len(spikes_one_img)):
-    pos = np.nonzero(spikes_one_img[0])
-    spike_pos.append(pos)
+# spikes_one_img = np.mean(spikes_all, axis=1).transpose()
+plot_spike_heatmap(spikes_all[0, :, :])
 
-lineoffsets1 = np.arange(-784/2, 784/2)
-linelengths1 = np.ones(784)
+# %%
+################################
+# compute batch mean energy consumption for each time step  
+################################
+rec_layer_weight = param_dict['network.snn_layer.layer1_x.weight']
 
-plt.eventplot(spike_pos, lineoffsets=lineoffsets1, linelengths=linelengths1)
+mean_spike_seq, mean_internal_drive_seq, energy_seq = compute_energy_consumption(spikes_all, rec_layer_weight)
+
+# plot
+t = np.arange(T)
+plt.plot(t, energy_seq)
+plt.title('energy by t')
+plt.show()
+# %%
+################################
+# mean spiking along sequence 
+################################ 
+plt.plot(t, mean_spike_seq)
+plt.title('mean spiking by t')
+plt.show()
+
+# %%
+################################
+# mean internal drive along sequence 
+################################ 
+plt.plot(t, mean_internal_drive_seq)
+plt.title('mean internal drive by t')
+plt.show()
+
+# %%
+################################
+# 2d visualisation of internal drive 
+################################ 
+n = 4  # sample number from batch 
+rec_drive = get_internal_drive(spikes_all[n, :, :], rec_layer_weight, type='rec')
+
+def plot_drive(internal_drive, name, sample, step_size): 
+    fig, axs = plt.subplots(1, int(len(internal_drive)/step_size)+1, sharey=True)
+    axs[0].imshow(data[sample, :].numpy().reshape((28, 28)))
+    step = np.arange(len(internal_drive), step=step_size) # plot every 4 time steps 
+    for i in range(len(step)): 
+        pos=axs[i+1].imshow(internal_drive[step[i], :].reshape((28, 28)))
+        axs[i+1].set_title('t = %i' % step[i])
+    fig.suptitle(name + ' drive')
+    fig.colorbar(pos, ax=axs[-1], shrink=0.6)
+    fig.tight_layout()
+    fig.subplots_adjust(top=1.5)
+    plt.show()
+
+plot_drive(rec_drive, 'recurrent', n, 4)
+# %%
+################################
+# 2d visualisation of input drive 
+################################ 
+input_drive = get_internal_drive(spikes_all[n, :, :], rec_layer_weight, type='input')
+plot_drive(input_drive, 'input', n, 4)
+
+
+# %%
+################################
+# elongated sequence testing 
+################################ 
+# run inferece on two images continuously for T steps each 
+data_sample = [3, 8]
+with torch.no_grad():
+    model.eval()
+    init_hidden = model.init_hidden(1) # batch size 1
+
+    # get outputs and hiddens 
+    outputs1, hiddens1 = model(data[data_sample[0], :].unsqueeze(0).to(device), init_hidden, T)
+    # pass hidden to next sequence continuously 
+    outputs2, hiddens2 = model(data[data_sample[1], :].unsqueeze(0).to(device), hiddens1[-1][0], T)
+
+    # ge predictions 
+    outputs1 = torch.stack(outputs1).squeeze()
+    outputs2 = torch.stack(outputs2).squeeze()
+
+    pred1 = outputs1.data.max(1, keepdim=True)[1]
+    pred2 = outputs2.data.max(1, keepdim=True)[1]
+
+# %%
+# plot spikes
+spikes_all_elong = get_spikes(hiddens1+hiddens2)
+plot_spike_heatmap(spikes_all_elong[0, :, :])
+
+# %%
+# compute energy
+mean_spike_elong, mean_internal_drive_elong, energy_elong = compute_energy_consumption(spikes_all_elong, rec_layer_weight)
+
+# plot
+t = np.arange(T*2)
+plt.plot(t, energy_elong, label='energy')
+plt.plot(t, mean_spike_elong, label='mean spiking')
+plt.plot(t, mean_internal_drive_elong, label='mean internal drive by t')
+plt.legend()
+plt.title('elongated sequence exp, pred1 %i, pred2 %i'% (pred1[-1], pred2[-1]))
+plt.show()
+
+
+# %%
+# plot rec
+rec_drive_elong = get_internal_drive(spikes_all_elong[0, :, :], rec_layer_weight, type='rec')
+
+# %%
+plot_drive(rec_drive_elong, 'recurrent', data_sample[0], 10)
+# %%
+fig, axs = plt.subplots(1, 2)
+pos = axs[0].imshow(spikes_all_elong[0, :, :10].mean(axis=1).reshape((28, 28)))
+axs[0].set_title('mean t=0-10 for target %i' % targets[data_sample[0]])
+fig.colorbar(pos, ax=axs[0], shrink=0.5)
+
+pos = axs[1].imshow(spikes_all_elong[0, :, 20:30].mean(axis=1).reshape((28, 28)))
+axs[1].set_title('mean t=20-30 for target %i' % targets[data_sample[1]])
+fig.colorbar(pos, ax=axs[1], shrink=0.5)
 plt.show()
 # %%

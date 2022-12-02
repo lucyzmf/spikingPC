@@ -6,6 +6,8 @@ import numpy
 import os
 import shutil
 import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
 
 # function to transform dataset 
 def image_to_sequence(data, sequence_length, normalise=True):
@@ -99,4 +101,83 @@ def plot_distribution(param_names, param_dict, keyword):
             plt.title(name)
             plt.show()
 
+# %%
+def plot_spike_heatmap(spikes): 
+    """given array of spikes plot heat map along time axis for each neuron 
+
+    Args:
+        spikes (np.array): 2d np array containing spike matrices for t time steps, shape num neurons * t 
+    """
+
+    fig, ax = plt.subplots(figsize=(5, 20))
+    sns.heatmap(spikes, ax=ax)
+    plt.show()
+
+
+# %%
+def compute_energy_consumption(all_spikes, weights, alpha=1/3): 
+    """compute the energy consumption of sequence given a batch of spike records and recurrent weights
+    of network
+
+    Args:
+        all_spikes (np.array): np array containing spike records batch*neuron num*T
+        weights (np.array): recurrent weights 
+        alpha (float, optional): weighting between spike and synaptic 
+            transmition in energy computation. Defaults to 1/3.
+
+    Returns:
+        e: energy consumption, np array shaped batch*T, each value is mean energy per sample per time step
+    """
+    
+    # take mean along dim 1 to avg over all neurons 
+    mean_spike = all_spikes.mean(axis=1) # shape batch*t
+    mean_syn_trans = [] # shape batch*t
+    for i in range(all_spikes.shape[-1]):
+        synp_trans = all_spikes[:, :, i] @ weights.T[784:, :] # spikes * recurrent weights 
+        mean_syn_trans.append(synp_trans.mean(axis=1))
+    mean_syn_trans = np.stack(mean_syn_trans).T
+    
+    e = alpha*mean_spike + (1-alpha)*mean_syn_trans
+    return mean_spike.T, mean_syn_trans.T, e.T # final shape t*batch
+
+
+# %%
+def get_internal_drive(spikes, weights, type):
+    """get internal drive per neuron for 2d visualisation 
+
+    Args:
+        spikes (np.array): spiking record, neuron*T
+        weights (np.array): weight matrix 
+        type (str): compute input or recurrent drive 
+        T (int, optional): seqeunce length. Defaults to 20.
+
+    Returns:
+        np.array: array containing internal drive at each t
+    """
+    drive = []
+    for i in range(spikes.shape[-1]):
+        if type=='rec':
+            synp_trans = spikes[:, i] @ weights.T[784:, :]
+        elif type=='input':
+            synp_trans = spikes[:, i] @ weights.T[:784, :]
+        drive.append(synp_trans)
+    
+    return np.stack(drive) 
+
+
+# %%
+def get_spikes(hiddens): 
+    """get all spikes from hidden states for the entire sequence 
+
+    Args:
+        hiddens (list): list containing hidden states at each time step 
+    """
+    spikes_all = []
+    for i in range(len(hiddens)):
+        spikes_all.append(hiddens[i][0][1].detach().cpu().numpy())
+
+    spikes_all = np.stack(spikes_all).transpose((1, 2, 0))
+    print(spikes_all.shape)
+
+    return spikes_all
 # %%
