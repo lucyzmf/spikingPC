@@ -96,7 +96,15 @@ def plot_distribution(param_names, param_dict, keyword):
 
     # find where weight params are stored 
     for name in param_names: 
-        if keyword in name: 
+        if keyword in name and 'layer1_x' in name: # find layer with rec and input weights 
+            all_weights = param_dict[name]
+            fig, axs = plt.subplots(1, 2, sharey=True)
+            axs[0].hist(all_weights[:, :784])
+            axs[0].set_title(name + 'input')
+            axs[1].hist(all_weights[:, 784:])
+            axs[1].set_title(name + 'recurrent')
+            plt.show()
+        elif keyword in name: 
             plt.hist(param_dict[name])
             plt.title(name)
             plt.show()
