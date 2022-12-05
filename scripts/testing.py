@@ -303,3 +303,86 @@ fig.colorbar(pos, ax=axs[3], shrink=0.5)
 plt.show()
 
 # %%
+################################
+# class disentanglement 
+################################ 
+# get all internal drives from one class, avg across samples and plot 
+def get_all_hiddens(model, test_loader):
+    model.eval()
+
+    hiddens_all = []
+    target_all = []
+    pred_all = []
+
+    # for data, target in test_loader:
+    for i, (data, target) in enumerate(test_loader):
+        target_all.append(target.numpy())
+        
+        data, target = data.to(device), target.to(device)
+        data = data.view(-1, IN_dim)
+
+        with torch.no_grad():
+            model.eval()
+            init_hidden = model.init_hidden(data.size(0))
+
+            outputs, hiddens = model(data, init_hidden, T)
+            hiddens_all.append(hiddens)
+
+            output = outputs[-1]
+            # output = torch.stack(outputs[-10:]).mean(dim=0)
+
+            pred = output.data.max(1, keepdim=True)[1]
+            pred_all.append(pred.cpu().numpy())
+
+        torch.cuda.empty_cache()
+
+    target_all = np.concatenate(target_all)
+    pred_all = np.concatenate(pred_all)
+    print(target_all.shape)
+    print(pred_all.shape)
+
+    return hiddens_all, target_all, pred_all 
+# %%
+hiddens_all, target_all, pred_all = get_all_hiddens(model, test_loader)
+
+
+# %%
+# get spikes from all test samples
+spikes_all = []
+for b in range(len(hiddens_all)): # iter over each batch 
+    batch_spike = []
+    for t in range(T): # iter over time 
+        seq_spike = []
+        for s in range(batch_size): # per sample 
+            seq_spike.append(hiddens_all[b][t][0][1][s].detach().cpu().numpy()) # mean spiking for each sample 
+        seq_spike = np.stack(seq_spike)
+        batch_spike.append(seq_spike)
+    batch_spike = np.stack(batch_spike)
+    spikes_all.append(batch_spike)
+
+spikes_all = np.stack(spikes_all)
+spikes_all = spikes_all.transpose(0, 2, 1, 3).reshape(10000, 20, 784)
+
+
+# %%
+# class mean spiking 
+fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
+for i in range(10):
+    class_mean = spikes_all[target_all==i, :, :].mean(axis=0).mean(axis=0)
+    pos = axs[i].imshow(class_mean.reshape(28, 28))
+    fig.colorbar(pos, ax=axs[i], shrink=0.3)
+    axs[i].axis('off')
+plt.title('spiking mean per class')
+plt.show()
+# %%
+# class mean rec drive 
+rec_drive = spikes_all @ rec_layer_weight
+fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
+for i in range(10):
+    class_mean = rec_drive[target_all==i, :, :].mean(axis=0).mean(axis=0)
+    pos = axs[i].imshow(class_mean.reshape(28, 28))
+    fig.colorbar(pos, ax=axs[i], shrink=0.3)
+    axs[i].axis('off')
+plt.title('rec drive mean per class')
+plt.show()
+# %%

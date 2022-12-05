@@ -142,14 +142,12 @@ def compute_energy_consumption(all_spikes, weights, alpha=1/3):
 
 
 # %%
-def get_internal_drive(spikes, weights, type):
+def get_internal_drive(spikes, weights):
     """get internal drive per neuron for 2d visualisation 
 
     Args:
         spikes (np.array): spiking record, neuron*T
         weights (np.array): weight matrix 
-        type (str): compute input or recurrent drive 
-        T (int, optional): seqeunce length. Defaults to 20.
 
     Returns:
         np.array: array containing internal drive at each t
