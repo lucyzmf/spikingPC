@@ -96,15 +96,7 @@ def plot_distribution(param_names, param_dict, keyword):
 
     # find where weight params are stored 
     for name in param_names: 
-        if keyword in name and 'layer1_x' in name: # find layer with rec and input weights 
-            all_weights = param_dict[name]
-            fig, axs = plt.subplots(1, 2, sharey=True)
-            axs[0].hist(all_weights[:, :784])
-            axs[0].set_title(name + 'input')
-            axs[1].hist(all_weights[:, 784:])
-            axs[1].set_title(name + 'recurrent')
-            plt.show()
-        elif keyword in name: 
+        if keyword in name:  
             plt.hist(param_dict[name])
             plt.title(name)
             plt.show()
@@ -141,7 +133,7 @@ def compute_energy_consumption(all_spikes, weights, alpha=1/3):
     mean_spike = all_spikes.mean(axis=1) # shape batch*t
     mean_syn_trans = [] # shape batch*t
     for i in range(all_spikes.shape[-1]):
-        synp_trans = all_spikes[:, :, i] @ weights.T[784:, :] # spikes * recurrent weights 
+        synp_trans = all_spikes[:, :, i] @ weights # spikes * recurrent weights 
         mean_syn_trans.append(synp_trans.mean(axis=1))
     mean_syn_trans = np.stack(mean_syn_trans).T
     
@@ -164,10 +156,7 @@ def get_internal_drive(spikes, weights, type):
     """
     drive = []
     for i in range(spikes.shape[-1]):
-        if type=='rec':
-            synp_trans = spikes[:, i] @ weights.T[784:, :]
-        elif type=='input':
-            synp_trans = spikes[:, i] @ weights.T[:784, :]
+        synp_trans = spikes[:, i] @ weights
         drive.append(synp_trans)
     
     return np.stack(drive) 
