@@ -116,7 +116,8 @@ class SNN_rec_cell(nn.Module):
         self.isAdaptNeu = isAdaptNeu
 
         if is_rec:
-            self.layer1_x = nn.Linear(input_size+hidden_size, hidden_size)
+            # self.layer1_x = nn.Linear(input_size+hidden_size, hidden_size)
+            self.layer1_x = nn.Linear(hidden_size, hidden_size)
         else:
             self.layer1_x = nn.Linear(input_size, hidden_size)
         
@@ -139,7 +140,11 @@ class SNN_rec_cell(nn.Module):
 
     def forward(self, x_t, mem_t,spk_t,b_t):    
         if self.is_rec:
-            dense_x = self.layer1_x(torch.cat((x_t,spk_t),dim=-1))
+            # dense_x = self.layer1_x(torch.cat((x_t,spk_t),dim=-1))
+            # compute input drive, 1 to 1 input 
+            recurrent_spk = self.layer1_x(spk_t)
+            dense_x = x_t*0.1 + recurrent_spk
+
         else:
             dense_x = self.layer1_x(x_t)
 
