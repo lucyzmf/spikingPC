@@ -39,16 +39,16 @@ wandb.init(project="spikingPC", entity="lucyzmf")
 
 # add wandb.config
 config = wandb.config
-config.spike_loss = True  # whether use energy penalty on spike or on mem potential 
-config.adap_neuron = False # whether use adaptive neuron or not 
+config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
+config.adap_neuron = True # whether use adaptive neuron or not 
 
 # experiment name 
-exp_name = 'energy_loss_2_nonadp_spikeloss'
+exp_name = 'energy_loss_3_adp_memloss'
 energy_penalty = True 
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
 # checkpoint file name
-check_fn = '_onelayer_rec_best.pth.tar'
+check_fn = 'onelayer_rec_best.pth.tar'
 # experiment date and name 
 today = date.today()
 # checkpoint file prefix 
