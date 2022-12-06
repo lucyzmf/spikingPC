@@ -41,9 +41,10 @@ wandb.init(project="spikingPC", entity="lucyzmf")
 config = wandb.config
 config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
 config.adap_neuron = True # whether use adaptive neuron or not 
+config.l1_lambda = 0.001  # weighting for l1 reg
 
 # experiment name 
-exp_name = 'energy_loss_3_adp_memloss'
+exp_name = 'energy_loss_3_adp_mem_loss_l1'
 energy_penalty = True 
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -160,6 +161,7 @@ def train(train_loader, n_classes, model, named_params):
     total_clf_loss = 0
     total_regularizaton_loss = 0
     total_energy_loss = 0
+    total_l1_loss = 0
     model.train()
 
     # for each batch 
@@ -198,10 +200,13 @@ def train(train_loader, n_classes, model, named_params):
                 else: 
                     # mem potential loss take l1 norm / num of neurons /batch size
                     energy = torch.norm(h[0], p=1) / B / 784
+                
+                # l1 loss on rec weights 
+                l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
 
                 # overall loss    
                 if energy_penalty:
-                    loss = clf_loss  + regularizer + energy
+                    loss = clf_loss  + regularizer + energy + config.l1_lambda*l1_norm
                 else:
                     loss = clf_loss  + regularizer
 
@@ -217,6 +222,7 @@ def train(train_loader, n_classes, model, named_params):
                 total_clf_loss += clf_loss.item()
                 total_regularizaton_loss += regularizer #.item()
                 total_energy_loss += energy.item()
+                total_l1_loss += l1_norm.item()
         
         if batch_idx > 0 and batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\tLoss: {:.6f}\
@@ -229,6 +235,7 @@ def train(train_loader, n_classes, model, named_params):
                     'clf_loss': total_clf_loss / log_interval, 
                     'regularisation_loss': total_regularizaton_loss / log_interval, 
                     'energy_loss': total_energy_loss / log_interval, 
+                    'l1_loss': config.l1_lambda * total_l1_loss / log_interval, 
                     'total_loss': train_loss / log_interval, 
                     'network spiking freq':model.network.fr/T/log_interval # firing per time step
                 })
@@ -237,6 +244,7 @@ def train(train_loader, n_classes, model, named_params):
             total_clf_loss = 0
             total_regularizaton_loss = 0
             total_energy_loss = 0
+            total_l1_loss = 0
         model.network.fr = 0
 
 
