@@ -15,7 +15,6 @@ import wandb
 from datetime import date
 import os
 
-
 import matplotlib.pyplot as plt
 import seaborn as sns
 import IPython.display as ipd
@@ -32,7 +31,6 @@ print(device)
 
 # set seed
 torch.manual_seed(999)
-
 
 # %%
 ###############################################################
@@ -61,6 +59,7 @@ test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
 # set input and t param
 IN_dim = 28 * 28
 T = 20  # sequence length, reading from the same image T times 
+
 
 # %%
 ###############################################################################################
@@ -94,11 +93,13 @@ def test(model, test_loader):
 
     test_loss /= len(test_loader.dataset)
     test_acc = 100. * correct / len(test_loader.dataset)
-    
+
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-           test_loss, correct, len(test_loader.dataset),
-           test_acc))
+        test_loss, correct, len(test_loader.dataset),
+        test_acc))
     return hiddens, test_loss, 100. * correct / len(test_loader.dataset), data.detach().cpu(), target.cpu()
+
+
 # %%
 ###############################################################
 # DEFINE NETWORK
@@ -126,7 +127,6 @@ optimizer = optim.Adamax(model.parameters(), lr=lr, weight_decay=0.0001)
 # reduce the learning after 20 epochs by a factor of 10
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
-
 # %%
 # untar saved dict 
 exp_dir = '/home/lucy/spikingPC/results/Dec-06-2022/energy_loss_3_adp_spk_loss_lowclf0/'
@@ -153,7 +153,6 @@ plot_distribution(param_names, param_dict, 'weight')
 # %%
 # get all the hidden states for the last batch in test loader 
 hiddens, test_loss, _, data, targets = test(model, test_loader)
-
 
 # %%
 # get spiking pattern along the sequence 
@@ -199,21 +198,22 @@ plt.show()
 n = 4  # sample number from batch 
 rec_drive = get_internal_drive(spikes_all[n, :, :], rec_layer_weight)
 
-def plot_drive(internal_drive, name, sample, step_size): 
-    fig, axs = plt.subplots(1, int(len(internal_drive)/step_size)+1, sharey=True)
+
+def plot_drive(internal_drive, name, sample, step_size):
+    fig, axs = plt.subplots(1, int(len(internal_drive) / step_size) + 1, sharey=True)
     axs[0].imshow(data[sample, :].numpy().reshape((28, 28)))
-    step = np.arange(len(internal_drive), step=step_size) # plot every 4 time steps 
-    for i in range(len(step)): 
-        pos=axs[i+1].imshow(internal_drive[step[i], :].reshape((28, 28)))
-        axs[i+1].set_title('t = %i' % step[i])
+    step = np.arange(len(internal_drive), step=step_size)  # plot every 4 time steps
+    for i in range(len(step)):
+        pos = axs[i + 1].imshow(internal_drive[step[i], :].reshape((28, 28)))
+        axs[i + 1].set_title('t = %i' % step[i])
     fig.suptitle(name + ' drive')
     fig.colorbar(pos, ax=axs[-1], shrink=0.6)
     fig.tight_layout()
     fig.subplots_adjust(top=1.5)
     plt.show()
 
-plot_drive(rec_drive, 'recurrent', n, 4)
 
+plot_drive(rec_drive, 'recurrent', n, 4)
 
 # %%
 ################################
@@ -222,7 +222,7 @@ plot_drive(rec_drive, 'recurrent', n, 4)
 # run inferece on two images continuously for T steps each 
 data_sample = [3, 4]
 # take mean of two different number samples to poke error 
-abnor_sample = (data[data_sample[1], :] + data[2, :])/2
+abnor_sample = (data[data_sample[1], :] + data[2, :]) / 2
 # abnor_sample = data[data_sample[1], :]
 # visualise 
 fig, axs = plt.subplots(1, 2)
@@ -232,10 +232,9 @@ axs[1].imshow(abnor_sample.reshape((28, 28)))
 axs[1].set_title('sample2 (abnormal)')
 plt.show()
 
-
 with torch.no_grad():
     model.eval()
-    init_hidden = model.init_hidden(1) # batch size 1
+    init_hidden = model.init_hidden(1)  # batch size 1
 
     # get outputs and hiddens 
     outputs1, hiddens1 = model(data[data_sample[0], :].unsqueeze(0).to(device), init_hidden, T)
@@ -251,22 +250,22 @@ with torch.no_grad():
 
 # %%
 # plot spikes
-spikes_all_elong = get_spikes(hiddens1+hiddens2)
+spikes_all_elong = get_spikes(hiddens1 + hiddens2)
 plot_spike_heatmap(spikes_all_elong[0, :, :])
 
 # %%
 # compute energy
-mean_spike_elong, mean_internal_drive_elong, energy_elong = compute_energy_consumption(spikes_all_elong, rec_layer_weight)
+mean_spike_elong, mean_internal_drive_elong, energy_elong = compute_energy_consumption(spikes_all_elong,
+                                                                                       rec_layer_weight)
 
 # plot
-t = np.arange(T*2)
+t = np.arange(T * 2)
 plt.plot(t, energy_elong, label='energy')
 plt.plot(t, mean_spike_elong, label='mean spiking')
 plt.plot(t, mean_internal_drive_elong, label='mean internal drive by t')
 plt.legend()
-plt.title('elongated sequence exp, pred1 %i, pred2 %i'% (pred1[-1], pred2[-1]))
+plt.title('elongated sequence exp, pred1 %i, pred2 %i' % (pred1[-1], pred2[-1]))
 plt.show()
-
 
 # %%
 # plot rec
@@ -287,19 +286,18 @@ plt.show()
 # %%
 # plot spiking and rec drive at specific time steps 
 fig, axs = plt.subplots(2, 20, figsize=(25, 4))
-for i in range(20): 
+for i in range(20):
     # spikes 
-    axs[0][i].imshow(spikes_all_elong[0, :, 2*i].reshape((28, 28)))
+    axs[0][i].imshow(spikes_all_elong[0, :, 2 * i].reshape((28, 28)))
     axs[0][i].axis('off')
 
-
     # rec drive
-    pos = axs[1][i].imshow((spikes_all_elong[0, :, 2*i] @ rec_layer_weight).reshape((28, 28)))
+    pos = axs[1][i].imshow((spikes_all_elong[0, :, 2 * i] @ rec_layer_weight).reshape((28, 28)))
     fig.colorbar(pos, ax=axs[1][i], shrink=0.5)
     axs[1][i].axis('off')
 
-
 plt.show()
+
 
 # %%
 ################################
@@ -316,7 +314,7 @@ def get_all_hiddens(model, test_loader):
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
         target_all.append(target.numpy())
-        
+
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
 
@@ -340,20 +338,21 @@ def get_all_hiddens(model, test_loader):
     print(target_all.shape)
     print(pred_all.shape)
 
-    return hiddens_all, target_all, pred_all 
+    return hiddens_all, target_all, pred_all
+
+
 # %%
 hiddens_all, target_all, pred_all = get_all_hiddens(model, test_loader)
-
 
 # %%
 # get spikes from all test samples
 spikes_all = []
-for b in range(len(hiddens_all)): # iter over each batch 
+for b in range(len(hiddens_all)):  # iter over each batch
     batch_spike = []
-    for t in range(T): # iter over time 
+    for t in range(T):  # iter over time
         seq_spike = []
-        for s in range(batch_size): # per sample 
-            seq_spike.append(hiddens_all[b][t][0][1][s].detach().cpu().numpy()) # mean spiking for each sample 
+        for s in range(batch_size):  # per sample
+            seq_spike.append(hiddens_all[b][t][0][1][s].detach().cpu().numpy())  # mean spiking for each sample
         seq_spike = np.stack(seq_spike)
         batch_spike.append(seq_spike)
     batch_spike = np.stack(batch_spike)
@@ -362,12 +361,11 @@ for b in range(len(hiddens_all)): # iter over each batch
 spikes_all = np.stack(spikes_all)
 spikes_all = spikes_all.transpose(0, 2, 1, 3).reshape(10000, 20, 784)
 
-
 # %%
 # class mean spiking 
 fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
 for i in range(10):
-    class_mean = spikes_all[target_all==i, :, :].mean(axis=0).mean(axis=0)
+    class_mean = spikes_all[target_all == i, :, :].mean(axis=0).mean(axis=0)
     pos = axs[i].imshow(class_mean.reshape(28, 28))
     fig.colorbar(pos, ax=axs[i], shrink=0.3)
     axs[i].axis('off')
@@ -378,7 +376,7 @@ plt.show()
 rec_drive = spikes_all @ rec_layer_weight
 fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
 for i in range(10):
-    class_mean = rec_drive[target_all==i, :, :].mean(axis=0).mean(axis=0)
+    class_mean = rec_drive[target_all == i, :, :].mean(axis=0).mean(axis=0)
     pos = axs[i].imshow(class_mean.reshape(28, 28))
     fig.colorbar(pos, ax=axs[i], shrink=0.3)
     axs[i].axis('off')

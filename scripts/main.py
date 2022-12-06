@@ -15,7 +15,6 @@ import wandb
 from datetime import date
 import os
 
-
 import matplotlib.pyplot as plt
 import IPython.display as ipd
 
@@ -40,12 +39,12 @@ wandb.init(project="spikingPC", entity="lucyzmf")
 # add wandb.config
 config = wandb.config
 config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
-config.adap_neuron = True # whether use adaptive neuron or not 
+config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0.001  # weighting for l1 reg
 
 # experiment name 
 exp_name = 'energy_loss_3_adp_mem_loss_l1'
-energy_penalty = True 
+energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
 # checkpoint file name
@@ -53,7 +52,7 @@ check_fn = 'onelayer_rec_best.pth.tar'
 # experiment date and name 
 today = date.today()
 # checkpoint file prefix 
-prefix = '../results/' +today.strftime("%b-%d-%Y") + '/' + exp_name + '/'
+prefix = '../results/' + today.strftime("%b-%d-%Y") + '/' + exp_name + '/'
 
 # create exp path 
 if os.path.exists(prefix):
@@ -130,12 +129,12 @@ def test(model, test_loader):
     test_loss /= len(test_loader.dataset)
     test_acc = 100. * correct / len(test_loader.dataset)
     wandb.log({
-        'test_loss': test_loss, 
+        'test_loss': test_loss,
         'test_acc': test_acc
     })
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-           test_loss, correct, len(test_loader.dataset),
-           test_acc))
+        test_loss, correct, len(test_loader.dataset),
+        test_acc))
     return test_loss, 100. * correct / len(test_loader.dataset)
 
 
@@ -192,23 +191,23 @@ def train(train_loader, n_classes, model, named_params):
                 # clf_loss = torch.mean(clf_loss)
 
                 # regularizer loss                     
-                regularizer = get_regularizer_named_params( named_params, _lambda=1.0 )  
+                regularizer = get_regularizer_named_params(named_params, _lambda=1.0)
 
-                if spike_loss: 
+                if spike_loss:
                     # energy loss: batch mean spiking * weighting param
-                    energy = h[1].mean() #* 0.1 
-                else: 
+                    energy = h[1].mean()  # * 0.1
+                else:
                     # mem potential loss take l1 norm / num of neurons /batch size
                     energy = torch.norm(h[0], p=1) / B / 784
-                
+
                 # l1 loss on rec weights 
                 l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
 
                 # overall loss    
                 if energy_penalty:
-                    loss = clf_loss  + regularizer + energy + config.l1_lambda*l1_norm
+                    loss = clf_loss + regularizer + energy + config.l1_lambda * l1_norm
                 else:
-                    loss = clf_loss  + regularizer
+                    loss = clf_loss + regularizer
 
                 loss.backward()
 
@@ -220,25 +219,26 @@ def train(train_loader, n_classes, model, named_params):
 
                 train_loss += loss.item()
                 total_clf_loss += clf_loss.item()
-                total_regularizaton_loss += regularizer #.item()
+                total_regularizaton_loss += regularizer  # .item()
                 total_energy_loss += energy.item()
                 total_l1_loss += l1_norm.item()
-        
+
         if batch_idx > 0 and batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\tLoss: {:.6f}\
                 \tClf: {:.6f}\tReg: {:.6f}\tFr: {:.6f}'.format(
-                   epoch, batch_idx * batch_size, len(train_loader.dataset),
-                   100. * batch_idx / len(train_loader), lr, train_loss / log_interval, 
-                   total_clf_loss / log_interval, total_regularizaton_loss / log_interval, model.network.fr/T/log_interval))
-            
+                epoch, batch_idx * batch_size, len(train_loader.dataset),
+                       100. * batch_idx / len(train_loader), lr, train_loss / log_interval,
+                       total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
+                       model.network.fr / T / log_interval))
+
             wandb.log({
-                    'clf_loss': total_clf_loss / log_interval, 
-                    'regularisation_loss': total_regularizaton_loss / log_interval, 
-                    'energy_loss': total_energy_loss / log_interval, 
-                    'l1_loss': config.l1_lambda * total_l1_loss / log_interval, 
-                    'total_loss': train_loss / log_interval, 
-                    'network spiking freq':model.network.fr/T/log_interval # firing per time step
-                })
+                'clf_loss': total_clf_loss / log_interval,
+                'regularisation_loss': total_regularizaton_loss / log_interval,
+                'energy_loss': total_energy_loss / log_interval,
+                'l1_loss': config.l1_lambda * total_l1_loss / log_interval,
+                'total_loss': train_loss / log_interval,
+                'network spiking freq': model.network.fr / T / log_interval  # firing per time step
+            })
 
             train_loss = 0
             total_clf_loss = 0
@@ -283,13 +283,13 @@ named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20
 
-wandb.watch(model, log_freq = 100)
+wandb.watch(model, log_freq=100)
 
 wandb.config = {
-    'learning_rate': lr, 
-    'sequence_len': T, 
-    'epochs': epochs, 
-    'update_freq': omega, 
+    'learning_rate': lr,
+    'sequence_len': T,
+    'epochs': epochs,
+    'update_freq': omega,
 }
 
 estimate_class_distribution = torch.zeros(n_classes, T, n_classes, dtype=torch.float)
@@ -307,13 +307,13 @@ for epoch in range(epochs):
     best_acc1 = max(acc1, best_acc1)
 
     save_checkpoint({
-            'epoch': epoch + 1,
-            'state_dict': model.state_dict(),
-            #'oracle_state_dict': oracle.state_dict(),
-            'best_acc1': best_acc1,
-            'optimizer' : optimizer.state_dict(),
-            #'oracle_optimizer' : oracle_optim.state_dict(),
-        }, is_best, prefix=prefix, filename=check_fn)
+        'epoch': epoch + 1,
+        'state_dict': model.state_dict(),
+        # 'oracle_state_dict': oracle.state_dict(),
+        'best_acc1': best_acc1,
+        'optimizer': optimizer.state_dict(),
+        # 'oracle_optimizer' : oracle_optim.state_dict(),
+    }, is_best, prefix=prefix, filename=check_fn)
 
     all_test_losses.append(test_loss)
 
