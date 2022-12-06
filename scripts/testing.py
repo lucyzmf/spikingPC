@@ -129,7 +129,8 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
 # %%
 # untar saved dict 
-saved_dict = model_result_dict_load('/home/lucy/spikingPC/results/Dec-05-2022/energy_loss_3_adp_memloss/onelayer_rec_best.pth.tar')
+exp_dir = '/home/lucy/spikingPC/results/Dec-06-2022/energy_loss_3_adp_spk_loss_lowclf0/'
+saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 # %%
 model.load_state_dict(saved_dict['state_dict'])
 # %%
@@ -196,7 +197,7 @@ plt.show()
 # 2d visualisation of internal drive 
 ################################ 
 n = 4  # sample number from batch 
-rec_drive = get_internal_drive(spikes_all[n, :, :], rec_layer_weight, type='rec')
+rec_drive = get_internal_drive(spikes_all[n, :, :], rec_layer_weight)
 
 def plot_drive(internal_drive, name, sample, step_size): 
     fig, axs = plt.subplots(1, int(len(internal_drive)/step_size)+1, sharey=True)
@@ -222,6 +223,7 @@ plot_drive(rec_drive, 'recurrent', n, 4)
 data_sample = [3, 4]
 # take mean of two different number samples to poke error 
 abnor_sample = (data[data_sample[1], :] + data[2, :])/2
+# abnor_sample = data[data_sample[1], :]
 # visualise 
 fig, axs = plt.subplots(1, 2)
 axs[0].imshow(data[data_sample[0], :].reshape((28, 28)))
@@ -268,7 +270,7 @@ plt.show()
 
 # %%
 # plot rec
-rec_drive_elong = get_internal_drive(spikes_all_elong[0, :, :], rec_layer_weight, type='rec')
+rec_drive_elong = get_internal_drive(spikes_all_elong[0, :, :], rec_layer_weight)
 
 # %%
 plot_drive(rec_drive_elong, 'recurrent', data_sample[0], 5)
@@ -283,23 +285,20 @@ axs[1].set_title('mean t=20-30 for target %i' % targets[data_sample[1]])
 fig.colorbar(pos, ax=axs[1], shrink=0.5)
 plt.show()
 # %%
-# plot rec drive at specific time steps t=20, 21
-fig, axs = plt.subplots(1, 4, figsize=(10, 3))
-pos = axs[0].imshow(spikes_all_elong[0, :, 19].reshape((28, 28)))
-axs[0].set_title('t=19 for target %i' % targets[data_sample[0]])
-fig.colorbar(pos, ax=axs[0], shrink=0.5)
+# plot spiking and rec drive at specific time steps 
+fig, axs = plt.subplots(2, 20, figsize=(25, 4))
+for i in range(20): 
+    # spikes 
+    axs[0][i].imshow(spikes_all_elong[0, :, 2*i].reshape((28, 28)))
+    axs[0][i].axis('off')
 
-pos = axs[1].imshow(spikes_all_elong[0, :, 20].reshape((28, 28)))
-axs[1].set_title('t=20 for target abn')
-fig.colorbar(pos, ax=axs[1], shrink=0.5)
 
-pos = axs[2].imshow(spikes_all_elong[0, :, 21].reshape((28, 28)))
-axs[2].set_title('t=21 for target abn')
-fig.colorbar(pos, ax=axs[2], shrink=0.5)
+    # rec drive
+    pos = axs[1][i].imshow((spikes_all_elong[0, :, 2*i] @ rec_layer_weight).reshape((28, 28)))
+    fig.colorbar(pos, ax=axs[1][i], shrink=0.5)
+    axs[1][i].axis('off')
 
-pos = axs[3].imshow(spikes_all_elong[0, :, 22].reshape((28, 28)))
-axs[3].set_title('t=22 for target abn')
-fig.colorbar(pos, ax=axs[3], shrink=0.5)
+
 plt.show()
 
 # %%
