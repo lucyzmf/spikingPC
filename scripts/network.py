@@ -246,13 +246,20 @@ class one_layer_SeqModel(nn.Module):
       
         t = T
         # print(inputs.shape) # L,B,d
-        outputs = []
+        probs_outputs = []  # for pred computation 
+        log_softmax_outputs = [] # for loss computation 
         hiddens_all = []
         for i in range(t):
             f_output, hidden, hiddens= self.network.forward(inputs, hidden)
-            outputs.append(f_output)
+
+            # read out fron first 10 neuron spikes 
+            prob_out = F.softmax(hidden[1][:, :10], dim=1) # take the first 10 neurons for read out 
+            output = F.log_softmax(hidden[1][:, :10], dim=1)
+
+            probs_outputs.append(prob_out)
+            log_softmax_outputs.append(output)
             hiddens_all.append(hiddens)
-        return outputs, hiddens_all
+        return probs_outputs, log_softmax_outputs, hiddens_all
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
