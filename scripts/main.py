@@ -40,10 +40,12 @@ wandb.init(project="spikingPC", entity="lucyzmf")
 config = wandb.config
 config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
 config.adap_neuron = True  # whether use adaptive neuron or not
-config.l1_lambda = 0.001  # weighting for l1 reg
+config.l1_lambda = 0  # weighting for l1 reg
+config.clf_alpha = 0 # proportion of clf loss 
+config.energy_alpha = 1-config.clf_alpha 
 
 # experiment name 
-exp_name = 'energy_loss_3_adp_mem_loss_l1'
+exp_name = 'exp_4_adp_mem_loss_clf0'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -115,13 +117,10 @@ def test(model, test_loader):
             model.eval()
             hidden = model.init_hidden(data.size(0))
 
-            outputs, hidden = model(data, hidden, T)
+            prob_outputs, log_softmax_outputs, hidden = model(data, hidden, T)
 
-            output = outputs[-1]
-            # output = torch.stack(outputs[-10:]).mean(dim=0)
-
-            test_loss += F.nll_loss(output, target, reduction='sum').data.item()
-            pred = output.data.max(1, keepdim=True)[1]
+            test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
+            pred = prob_outputs[-1].data.max(1, keepdim=True)[1]
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -179,8 +178,9 @@ def train(train_loader, n_classes, model, named_params):
 
             o, h, hs = model.network.forward(data, h)
 
-            prob_out = F.softmax(h[-1], dim=1)
-            output = F.log_softmax(h[-1], dim=1)
+            # change readout method to implement read out in same layer 
+            prob_out = F.softmax(h[1][:, :10], dim=1) # take the first 10 neurons for read out 
+            output = F.log_softmax(h[1][:, :10], dim=1)
 
             if p % omega == 0 and p > 0:
                 optimizer.zero_grad()
@@ -205,7 +205,8 @@ def train(train_loader, n_classes, model, named_params):
 
                 # overall loss    
                 if energy_penalty:
-                    loss = clf_loss + regularizer + energy + config.l1_lambda * l1_norm
+                    loss = config.clf_alpha*clf_loss + regularizer + config.energy_alpha*energy \
+                           + config.l1_lambda * l1_norm
                 else:
                     loss = clf_loss + regularizer
 
