@@ -24,6 +24,7 @@ from network_populationcode import *
 from utils import *
 from FTTP import *
 
+
 # %%
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
@@ -41,11 +42,11 @@ config = wandb.config
 config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
-config.clf_alpha = 0 # proportion of clf loss 
+config.clf_alpha = 0.7 # proportion of clf loss 
 config.energy_alpha = 1-config.clf_alpha 
 
 # experiment name 
-exp_name = 'exp_4_adp_mem_loss_clf0'
+exp_name = 'exp_6_adp_mem_loss_clf07_popencode'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -92,7 +93,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 # %%
 # set input and t param
-IN_dim = 28 * 28
+IN_dim = (28+10) * 28
 T = 20  # sequence length, reading from the same image T times 
 
 
