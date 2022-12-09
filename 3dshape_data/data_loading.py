@@ -13,15 +13,16 @@ import numpy as np
 dataset = h5py.File('3dshapes.h5', 'r')
 print(dataset.keys())
 images = dataset['images'][()]  # array shape [480000,64,64,3], uint8 in range(256)
-labels = dataset['labels'][()]  # array shape [480000,6], float64
+images = images.transpose((0, 3, 1, 2))
+# labels = dataset['labels'][()]  # array shape [480000,6], float64
 
 # save as npy 
-# np.save('images', images)
-np.save('labels', labels)
+np.save('images', images)
+# np.save('labels', labels)
 
 
-image_shape = images.shape[1:]  # [64,64,3]
-label_shape = labels.shape[1:]  # [6]
-n_samples = labels.shape[0]  # 10*10*10*8*4*15=480000
+# image_shape = images.shape[1:]  # [64,64,3]
+# label_shape = labels.shape[1:]  # [6]
+# n_samples = labels.shape[0]  # 10*10*10*8*4*15=480000
 
 
