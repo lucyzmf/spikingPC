@@ -43,7 +43,9 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 0.7 # proportion of clf loss 
-config.energy_alpha = 1-config.clf_alpha 
+config.energy_alpha = 1-config.clf_alpha
+config.num_readout = 2
+pad_size = 1
 
 # experiment name 
 exp_name = 'exp_7_adp_memloss_clf07_popencode'
@@ -112,7 +114,7 @@ def test(model, test_loader):
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
         # pad input
-        p2d = (0, 0, 2, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+        p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
         data = F.pad(data, p2d, 'constant', 0)
 
         data, target = data.to(device), target.to(device)
@@ -171,7 +173,7 @@ def train(train_loader, n_classes, model, named_params):
     # for each batch 
     for batch_idx, (data, target) in enumerate(train_loader):
         # pad input
-        p2d = (0, 0, 2, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+        p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
         data = F.pad(data, p2d, 'constant', 0)
 
         # to device and reshape
@@ -190,7 +192,7 @@ def train(train_loader, n_classes, model, named_params):
             o, h, hs = model.network.forward(data, h)
 
             #  read out for population code
-            output_spikes = h[1][:, :4*10].view(-1, 10, 4)  # take the first 40 neurons for read out
+            output_spikes = h[1][:, :config.num_readout*10].view(-1, 10, config.num_readout)  # take the first 40 neurons for read out
             output_spikes_mean = output_spikes.mean(dim=2)  # mean firing of neurons for each class
             output = F.log_softmax(output_spikes_mean, dim=1)
 
