@@ -93,7 +93,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 # %%
 # set input and t param
-IN_dim = (28+10) * 28
+IN_dim = (28+5) * 28
 T = 20  # sequence length, reading from the same image T times 
 
 
@@ -112,7 +112,7 @@ def test(model, test_loader):
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
         # pad input
-        p2d = (0, 0, 10, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+        p2d = (0, 0, 5, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
         data = F.pad(data, p2d, 'constant', 0)
 
         data, target = data.to(device), target.to(device)
