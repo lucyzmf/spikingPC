@@ -95,7 +95,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 # %%
 # set input and t param
-IN_dim = (28+2) * 28
+IN_dim = (28+pad_size) * 28
 T = 20  # sequence length, reading from the same image T times 
 
 
