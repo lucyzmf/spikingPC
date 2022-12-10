@@ -171,7 +171,7 @@ def train(train_loader, n_classes, model, named_params):
     # for each batch 
     for batch_idx, (data, target) in enumerate(train_loader):
         # pad input
-        p2d = (0, 0, 10, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+        p2d = (0, 0, 5, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
         data = F.pad(data, p2d, 'constant', 0)
 
         # to device and reshape
@@ -190,7 +190,7 @@ def train(train_loader, n_classes, model, named_params):
             o, h, hs = model.network.forward(data, h)
 
             #  read out for population code
-            output_spikes = h[1][:, :10 * 28].view(-1, 10, 28)  # take the first 10*28 neurons for read out
+            output_spikes = h[1][:, :5 * 28].view(-1, 10, 14)  # take the first 5*28 neurons for read out
             output_spikes_mean = output_spikes.mean(dim=2)  # mean firing of neurons for each class
             output = F.log_softmax(output_spikes_mean, dim=1)
 
@@ -268,7 +268,7 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = one_layer_SeqModel_pop(IN_dim, 784+28*10, n_classes, is_rec=True, is_LTC=False, isAdaptNeu=adap_neuron)
+model = one_layer_SeqModel_pop(IN_dim, 784+28*5, n_classes, is_rec=True, is_LTC=False, isAdaptNeu=adap_neuron)
 model.to(device)
 print(model)
 
