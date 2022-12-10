@@ -40,7 +40,7 @@ class one_layer_SeqModel_pop(nn.Module):
             f_output, hidden, hiddens = self.network.forward(inputs, hidden)
 
             # read out from 10 populations
-            output_spikes = hidden[1][:, :5 * 28].view(-1, 10, 14)  # take the first 10*28 neurons for read out
+            output_spikes = hidden[1][:, :10*4].view(-1, 10, 4)  # take the first 10*28 neurons for read out
             output_spikes_mean = output_spikes.mean(dim=2)  # mean firing of neurons for each class
             prob_out = F.softmax(output_spikes_mean, dim=1)
             output = F.log_softmax(output_spikes_mean, dim=1)
