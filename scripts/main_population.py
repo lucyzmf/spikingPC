@@ -48,7 +48,7 @@ config.num_readout = 2
 pad_size = 1
 
 # experiment name 
-exp_name = 'exp_7_adp_memloss_clf07_popencode'
+exp_name = 'exp_7_adp_memloss_clf07_2popencode'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -270,7 +270,7 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = one_layer_SeqModel_pop(IN_dim, 784+28*2, n_classes, is_rec=True, is_LTC=False, isAdaptNeu=adap_neuron)
+model = one_layer_SeqModel_pop(IN_dim, 784+28*pad_size, n_classes, is_rec=True, is_LTC=False, isAdaptNeu=adap_neuron)
 model.to(device)
 print(model)
 
