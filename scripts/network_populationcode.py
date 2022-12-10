@@ -17,6 +17,8 @@ from network import *
 
 from tqdm import tqdm
 
+num_readout = 2
+
 class one_layer_SeqModel_pop(nn.Module):
     def __init__(self, ninp, nhid, nout, is_rec=True, is_LTC=True, isAdaptNeu=True):
         super(one_layer_SeqModel_pop, self).__init__()
@@ -40,7 +42,7 @@ class one_layer_SeqModel_pop(nn.Module):
             f_output, hidden, hiddens = self.network.forward(inputs, hidden)
 
             # read out from 10 populations
-            output_spikes = hidden[1][:, :10*4].view(-1, 10, 4)  # take the first 10*28 neurons for read out
+            output_spikes = hidden[1][:, :10*num_readout].view(-1, 10, num_readout)  # take the first 10*28 neurons for read out
             output_spikes_mean = output_spikes.mean(dim=2)  # mean firing of neurons for each class
             prob_out = F.softmax(output_spikes_mean, dim=1)
             output = F.log_softmax(output_spikes_mean, dim=1)
