@@ -43,7 +43,7 @@ class one_layer_SeqModel_pop(nn.Module):
 
             # read out from 10 populations
             output_spikes = hidden[1][:, :10*num_readout].view(-1, 10, num_readout)  # take the first 10*28 neurons for read out
-            output_spikes_mean = output_spikes.mean(dim=2)  # mean firing of neurons for each class
+            output_spikes_mean = output_spikes.sum(dim=2)/2  # mean firing of neurons for each class
             prob_out = F.softmax(output_spikes_mean, dim=1)
             output = F.log_softmax(output_spikes_mean, dim=1)
 

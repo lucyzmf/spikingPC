@@ -44,7 +44,7 @@ config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 0.7 # proportion of clf loss 
 config.energy_alpha = 1-config.clf_alpha
-config.num_readout = 2
+config.num_readout = 5
 pad_size = 1
 
 # experiment name 
@@ -193,7 +193,7 @@ def train(train_loader, n_classes, model, named_params):
 
             #  read out for population code
             output_spikes = h[1][:, :config.num_readout*10].view(-1, 10, config.num_readout)  # take the first 40 neurons for read out
-            output_spikes_mean = output_spikes.mean(dim=2)  # mean firing of neurons for each class
+            output_spikes_mean = output_spikes.sum(dim=2)/2  # mean firing of neurons for each class
             output = F.log_softmax(output_spikes_mean, dim=1)
 
             if p % omega == 0 and p > 0:
