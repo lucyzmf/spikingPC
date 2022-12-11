@@ -48,7 +48,7 @@ config.num_readout = 5
 pad_size = 1
 
 # experiment name 
-exp_name = 'exp_7_adp_memloss_clf07_2popencode'
+exp_name = 'exp_8_adp_memloss_clf07_5popencode'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
