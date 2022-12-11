@@ -24,7 +24,6 @@ from network_populationcode import *
 from utils import *
 from FTTP import *
 
-
 # %%
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
@@ -42,8 +41,8 @@ config = wandb.config
 config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
-config.clf_alpha = 0.7 # proportion of clf loss 
-config.energy_alpha = 1-config.clf_alpha
+config.clf_alpha = 1  # proportion of clf loss
+config.energy_alpha = 1 # - config.clf_alpha
 config.num_readout = 5
 pad_size = 1
 
@@ -95,7 +94,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 # %%
 # set input and t param
-IN_dim = (28+pad_size) * 28
+IN_dim = (28 + pad_size) * 28
 T = 20  # sequence length, reading from the same image T times 
 
 
@@ -124,7 +123,6 @@ def test(model, test_loader):
             model.eval()
             hidden = model.init_hidden(data.size(0))
 
-            # TODO change read out
             prob_outputs, log_softmax_outputs, hidden = model(data, hidden, T)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
@@ -192,8 +190,9 @@ def train(train_loader, n_classes, model, named_params):
             o, h, hs = model.network.forward(data, h)
 
             #  read out for population code
-            output_spikes = h[1][:, :config.num_readout*10].view(-1, 10, config.num_readout)  # take the first 40 neurons for read out
-            output_spikes_mean = output_spikes.sum(dim=2)/2  # mean firing of neurons for each class
+            output_spikes = h[1][:, :config.num_readout * 10].view(-1, 10,
+                                                                   config.num_readout)  # take the first 40 neurons for read out
+            output_spikes_mean = output_spikes.sum(dim=2)  # sum firing of neurons for each class
             output = F.log_softmax(output_spikes_mean, dim=1)
 
             if p % omega == 0 and p > 0:
@@ -219,7 +218,7 @@ def train(train_loader, n_classes, model, named_params):
 
                 # overall loss    
                 if energy_penalty:
-                    loss = config.clf_alpha*clf_loss + regularizer + config.energy_alpha*energy \
+                    loss = config.clf_alpha * clf_loss + regularizer + config.energy_alpha * energy \
                            + config.l1_lambda * l1_norm
                 else:
                     loss = clf_loss + regularizer
@@ -270,7 +269,8 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = one_layer_SeqModel_pop(IN_dim, 784+28*pad_size, n_classes, is_rec=True, is_LTC=False, isAdaptNeu=adap_neuron)
+model = one_layer_SeqModel_pop(IN_dim, 784 + 28 * pad_size, n_classes, is_rec=True, is_LTC=False,
+                               isAdaptNeu=adap_neuron)
 model.to(device)
 print(model)
 
