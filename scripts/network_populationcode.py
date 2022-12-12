@@ -17,7 +17,9 @@ from network import *
 
 from tqdm import tqdm
 
-num_readout = 2
+num_readout = 10
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
 class one_layer_SeqModel_pop(nn.Module):
     def __init__(self, ninp, nhid, nout, is_rec=True, is_LTC=True, isAdaptNeu=True):
@@ -35,22 +37,30 @@ class one_layer_SeqModel_pop(nn.Module):
 
         t = T
         # print(inputs.shape) # L,B,d
+        B, _ = inputs.size()
         probs_outputs = []  # for pred computation
         log_softmax_outputs = []  # for loss computation
         hiddens_all = []
+        spike_sum = torch.zeros(B, 10).to(device)
+
         for i in range(t):
             f_output, hidden, hiddens = self.network.forward(inputs, hidden)
 
             # read out from 10 populations
             output_spikes = hidden[1][:, :10*num_readout].view(-1, 10, num_readout)  # take the first 10*28 neurons for read out
-            output_spikes_mean = output_spikes.sum(dim=2)  # mean firing of neurons for each class
-            prob_out = F.softmax(output_spikes_mean, dim=1)
-            output = F.log_softmax(output_spikes_mean, dim=1)
+            output_spikes_sum = output_spikes.sum(dim=2)  # mean firing of neurons for each class
+            spike_sum += output_spikes_sum
+            
+            prob_out = F.softmax(output_spikes_sum, dim=1)
+            output = F.log_softmax(output_spikes_sum, dim=1)
 
             probs_outputs.append(prob_out)
             log_softmax_outputs.append(output)
             hiddens_all.append(hiddens)
-        return probs_outputs, log_softmax_outputs, hiddens_all
+        
+        prob_out_sum = F.softmax(spike_sum, dim=1)
+
+        return prob_out_sum, log_softmax_outputs, hiddens_all
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
