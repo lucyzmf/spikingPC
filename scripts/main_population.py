@@ -43,11 +43,11 @@ config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1 # - config.clf_alpha
-config.num_readout = 5
-pad_size = 1
+config.num_readout = 10
+pad_size = 2
 
 # experiment name 
-exp_name = 'exp_8_adp_memloss_clf07_5popencode'
+exp_name = 'exp_8_adp_memloss_clf1ener1_10popencode'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -192,8 +192,8 @@ def train(train_loader, n_classes, model, named_params):
             #  read out for population code
             output_spikes = h[1][:, :config.num_readout * 10].view(-1, 10,
                                                                    config.num_readout)  # take the first 40 neurons for read out
-            output_spikes_mean = output_spikes.sum(dim=2)  # sum firing of neurons for each class
-            output = F.log_softmax(output_spikes_mean, dim=1)
+            output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
+            output = F.log_softmax(output_spikes_sum, dim=1)
 
             if p % omega == 0 and p > 0:
                 optimizer.zero_grad()
