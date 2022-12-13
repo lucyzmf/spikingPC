@@ -33,8 +33,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC", entity="lucyzmf")
-# wandb.init(mode="disabled")
+# wandb.init(project="spikingPC", entity="lucyzmf")
+wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -42,12 +42,13 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1 # - config.clf_alpha
+config.energy_alpha = 1 #- config.clf_alpha
 config.num_readout = 10
+config.onetoone = True
 pad_size = 2
 
 # experiment name 
-exp_name = 'exp_8_adp_memloss_clf1ener1_10popencode'
+exp_name = 'exp_8_adp_memloss_clf1ener1_10popencode_scaled'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -114,7 +115,7 @@ def test(model, test_loader):
     for i, (data, target) in enumerate(test_loader):
         # pad input
         p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        data = F.pad(data, p2d, 'constant', 0)
+        data = F.pad(data, p2d, 'constant', -1)
 
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
@@ -126,7 +127,11 @@ def test(model, test_loader):
             prob_outputs, log_softmax_outputs, hidden = model(data, hidden, T)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
-            pred = prob_outputs[-1].data.max(1, keepdim=True)[1]
+            # pred = prob_outputs[-1].data.max(1, keepdim=True)[1]
+
+            # if use line below, prob output here computed from sum of spikes over entire seq 
+            pred = prob_outputs.data.max(1, keepdim=True)[1]
+
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -172,7 +177,7 @@ def train(train_loader, n_classes, model, named_params):
     for batch_idx, (data, target) in enumerate(train_loader):
         # pad input
         p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        data = F.pad(data, p2d, 'constant', 0)
+        data = F.pad(data, p2d, 'constant', -1)
 
         # to device and reshape
         data, target = data.to(device), target.to(device)
@@ -193,7 +198,7 @@ def train(train_loader, n_classes, model, named_params):
             output_spikes = h[1][:, :config.num_readout * 10].view(-1, 10,
                                                                    config.num_readout)  # take the first 40 neurons for read out
             output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
-            output = F.log_softmax(output_spikes_sum, dim=1)
+            output = F.log_softmax(output_spikes_sum*2, dim=1)
 
             if p % omega == 0 and p > 0:
                 optimizer.zero_grad()
@@ -270,7 +275,7 @@ def train(train_loader, n_classes, model, named_params):
 
 # define network
 model = one_layer_SeqModel_pop(IN_dim, 784 + 28 * pad_size, n_classes, is_rec=True, is_LTC=False,
-                               isAdaptNeu=adap_neuron)
+                               isAdaptNeu=adap_neuron, oneToOne=config.onetoone)
 model.to(device)
 print(model)
 

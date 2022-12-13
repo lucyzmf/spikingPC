@@ -105,7 +105,7 @@ def output_Neuron(inputs, mem, tau_m, dt=1):
 ###############################################################################################
 ###############################################################################################
 class SNN_rec_cell(nn.Module):
-    def __init__(self, input_size, hidden_size,is_rec = False,is_LTC=True, isAdaptNeu=True):
+    def __init__(self, input_size, hidden_size,is_rec = False,is_LTC=True, isAdaptNeu=True, oneToOne=False):
         super(SNN_rec_cell, self).__init__()
     
         
@@ -114,6 +114,7 @@ class SNN_rec_cell(nn.Module):
         self.is_rec = is_rec
         self.is_LTC = is_LTC
         self.isAdaptNeu = isAdaptNeu
+        self.oneToOne = oneToOne  # whether one to one input or fully connected input 
 
         if is_rec:
             # self.layer1_x = nn.Linear(input_size+hidden_size, hidden_size)
@@ -140,10 +141,12 @@ class SNN_rec_cell(nn.Module):
 
     def forward(self, x_t, mem_t,spk_t,b_t):    
         if self.is_rec:
-            # dense_x = self.layer1_x(torch.cat((x_t,spk_t),dim=-1))
-            # compute input drive, 1 to 1 input 
-            recurrent_spk = self.layer1_x(spk_t)
-            dense_x = x_t*0.1 + recurrent_spk
+            if not self.oneToOne:
+                dense_x = self.layer1_x(torch.cat((x_t,spk_t),dim=-1))
+            else:
+                # compute input drive, 1 to 1 input 
+                recurrent_spk = self.layer1_x(spk_t)
+                dense_x = x_t*0.1 + recurrent_spk
 
         else:
             dense_x = self.layer1_x(x_t)
