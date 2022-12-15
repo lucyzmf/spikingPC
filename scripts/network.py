@@ -117,8 +117,10 @@ class SNN_rec_cell(nn.Module):
         self.oneToOne = oneToOne  # whether one to one input or fully connected input 
 
         if is_rec:
-            # self.layer1_x = nn.Linear(input_size+hidden_size, hidden_size)
-            self.layer1_x = nn.Linear(hidden_size, hidden_size)
+            if not oneToOne:
+                self.layer1_x = nn.Linear(input_size+hidden_size, hidden_size)
+            else:
+                self.layer1_x = nn.Linear(hidden_size, hidden_size)
         else:
             self.layer1_x = nn.Linear(input_size, hidden_size)
         
@@ -142,7 +144,7 @@ class SNN_rec_cell(nn.Module):
     def forward(self, x_t, mem_t,spk_t,b_t):    
         if self.is_rec:
             if not self.oneToOne:
-                dense_x = self.layer1_x(torch.cat((x_t,spk_t),dim=-1))
+                dense_x = self.layer1_x(torch.cat((x_t*0.1,spk_t),dim=-1))
             else:
                 # compute input drive, 1 to 1 input 
                 recurrent_spk = self.layer1_x(spk_t)
@@ -167,7 +169,7 @@ class SNN_rec_cell(nn.Module):
         return [self.hidden_size]
 
 class one_layer_SNN(nn.Module):
-    def __init__(self, input_size, hidden_size,output_size,is_rec=True, is_LTC=False, isAdaptNeu=True):
+    def __init__(self, input_size, hidden_size,output_size,is_rec=True, is_LTC=False, isAdaptNeu=True, oneToOne=False):
         super(one_layer_SNN, self).__init__()
         
         self.input_size = input_size
@@ -180,7 +182,7 @@ class one_layer_SNN(nn.Module):
         self.rnn_name = 'SNN: is_LTC-'+str(is_LTC)
 
         # one recurrent layer 
-        self.snn_layer = SNN_rec_cell(hidden_size,hidden_size,is_rec,is_LTC, isAdaptNeu)
+        self.snn_layer = SNN_rec_cell(hidden_size,hidden_size,is_rec,is_LTC, isAdaptNeu, oneToOne)
         
 
         self.output_layer = nn.Linear(hidden_size,output_size,bias=True)
