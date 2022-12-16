@@ -264,6 +264,7 @@ class one_layer_SeqModel(nn.Module):
             probs_outputs.append(prob_out)
             log_softmax_outputs.append(output)
             hiddens_all.append(hiddens)
+
         return probs_outputs, log_softmax_outputs, hiddens_all
 
     def init_hidden(self, bsz):

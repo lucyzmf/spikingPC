@@ -38,14 +38,14 @@ wandb.init(project="spikingPC", entity="lucyzmf")
 
 # add wandb.config
 config = wandb.config
-config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
+config.spike_loss = True  # whether use energy penalty on spike or on mem potential 
 config.adap_neuron = True  # whether use adaptive neuron or not
-config.l1_lambda = 0  # weighting for l1 reg
-config.clf_alpha = 0 # proportion of clf loss 
-config.energy_alpha = 1-config.clf_alpha 
+config.l1_lambda = 1  # weighting for l1 reg
+config.clf_alpha = 1 # proportion of clf loss 
+config.energy_alpha = 1 #1-config.clf_alpha 
 
 # experiment name 
-exp_name = 'exp_4_adp_mem_loss_clf0'
+exp_name = 'exp_5_adp_spk_loss1_clf1_l11'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron

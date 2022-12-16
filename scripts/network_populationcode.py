@@ -59,7 +59,7 @@ class one_layer_SeqModel_pop(nn.Module):
             log_softmax_outputs.append(output)
             hiddens_all.append(hiddens)
         
-        prob_out_sum = F.softmax(spike_sum*2, dim=1)
+        prob_out_sum = F.softmax(spike_sum, dim=1)
 
         return prob_out_sum, log_softmax_outputs, hiddens_all
 

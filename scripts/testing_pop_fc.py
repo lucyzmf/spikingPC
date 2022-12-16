@@ -41,7 +41,7 @@ transform = transforms.Compose(
     [transforms.ToTensor(),
      transforms.Normalize((0.5), (0.5))])
 
-batch_size = 10
+batch_size = 100
 
 traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
@@ -118,7 +118,7 @@ epoch = 10
 n_classes = 10
 
 # define network
-model = one_layer_SeqModel_pop(IN_dim, 784+pad_size*28, n_classes, is_rec=True, is_LTC=False, oneToOne=True)
+model = one_layer_SeqModel_pop(IN_dim, 784+pad_size*28, n_classes, is_rec=True, is_LTC=False, oneToOne=False)
 model.to(device)
 print(model)
 
@@ -133,7 +133,7 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
 # %%
 # untar saved dict 
-exp_dir = '/home/lucy/spikingPC/results/Dec-16-2022/exp_10_adp_memloss_clf1_10popencode_03scale_l11e-3/'
+exp_dir = '/home/lucy/spikingPC/results/Dec-15-2022/exp_9_adp_memloss_clf1ener1_10popencode_fc_v2/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 # %%
 model.load_state_dict(saved_dict['state_dict'])
@@ -200,7 +200,7 @@ plt.show()
 # 2d visualisation of internal drive 
 ################################ 
 n = 4  # sample number from batch 
-rec_drive = get_internal_drive(spikes_all[n, :, :], rec_layer_weight)
+rec_drive = get_internal_drive_fc(spikes_all[n, :, :], rec_layer_weight)
 
 
 def plot_drive(internal_drive, name, sample, step_size):
@@ -228,6 +228,8 @@ data_sample = [3, 4]
 # take mean of two different number samples to poke error 
 # abnor_sample = (data[data_sample[1], :] + data[2, :]) / 2
 abnor_sample = data[data_sample[1], :]
+rec_layer_weight = param_dict['network.snn_layer.layer1_x.weight']
+
 # visualise 
 fig, axs = plt.subplots(1, 2)
 axs[0].imshow(data[data_sample[0], :].reshape((28+pad_size, 28)))
@@ -276,7 +278,7 @@ plt.show()
 rec_drive_elong = get_internal_drive(spikes_all_elong[0, :, :], rec_layer_weight)
 
 # %%
-plot_drive(rec_drive_elong, 'recurrent', data_sample[0], 5)
+plot_drive(rec_drive_elong[:, 840:], 'recurrent', data_sample[0], 5)
 # %%
 fig, axs = plt.subplots(1, 2)
 pos = axs[0].imshow(spikes_all_elong[0, :, :10].mean(axis=1).reshape((28+pad_size, 28)))
@@ -296,12 +298,12 @@ for i in range(20):
     axs[0][i].axis('off')
 
     # rec drive from prediction neurons 
-    pos = axs[1][i].imshow((spikes_all_elong[0, :10*10, i] @ rec_layer_weight[:, :10*10].T).reshape((28+pad_size, 28))[4:, :], 'bwr')
+    pos = axs[1][i].imshow((spikes_all_elong[0, :10*10, i] @ rec_layer_weight[:, 840:840+10*10].T).reshape((28+pad_size, 28))[4:, :], 'bwr')
     fig.colorbar(pos, ax=axs[1][i], shrink=0.5)
     axs[1][i].axis('off')
 
     # rec drive from other neurons 
-    pos = axs[2][i].imshow((spikes_all_elong[0, 10*10:, i] @ rec_layer_weight[:, 10*10:].T).reshape((28+pad_size, 28)), 'bwr')
+    pos = axs[2][i].imshow((spikes_all_elong[0, 10*10:, i] @ rec_layer_weight[:, 840+10*10:].T).reshape((28+pad_size, 28)), 'bwr')
     fig.colorbar(pos, ax=axs[2][i], shrink=0.5)
     axs[2][i].axis('off')
 
@@ -311,7 +313,7 @@ plt.savefig(exp_dir+'sample seq')
 # %%
 # plot inputs to each predictive neuron at each timestep 
 t = np.arange(20)
-received_input_pred = spikes_all_elong[0, :, :].T @ rec_layer_weight [:, :10*10]
+received_input_pred = spikes_all_elong[0, :, :].T @ rec_layer_weight [:, :10]
 
 for i in range(10): 
     plt.plot(t, received_input_pred[:, i], label=str(i))
@@ -399,7 +401,7 @@ plt.show()
 # class mean rec drive 
 rec_layer_weight = param_dict['network.snn_layer.layer1_x.weight']
 
-rec_drive = spikes_all @ rec_layer_weight
+rec_drive = spikes_all @ rec_layer_weight[:, 840:] 
 fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
 for i in range(10):
     class_mean = rec_drive[target_all == i, :, :].mean(axis=0).mean(axis=0)
@@ -411,7 +413,7 @@ plt.show()
 
 # %%
 # class mean rec projection from 10 popluation neuron 
-rec_drive = spikes_all[:, :, :10*10] @ rec_layer_weight[:, :10*10].T
+rec_drive = (spikes_all[:, :, :] @ rec_layer_weight.T[840:, :])@ rec_layer_weight.T[:840, :].T
 fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
 for i in range(10):
     class_mean = rec_drive[target_all == i, :, :].mean(axis=0).mean(axis=0)
@@ -424,7 +426,9 @@ plt.show()
 
 # %%
 # weights from pred neuron for class 0 to other pred neurons 
-sns.heatmap(rec_layer_weight[:10*10, :10*10], cmap="vlag")
+sns.heatmap(rec_layer_weight.T[840:840+10*10, :10*10])
 plt.show()
-
+# %%
+sns.heatmap(rec_layer_weight.T[840+100:, 100:])
+plt.show()
 # %%
