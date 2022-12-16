@@ -33,22 +33,24 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-# wandb.init(project="spikingPC", entity="lucyzmf")
-wandb.init(mode="disabled")
+wandb.init(project="spikingPC", entity="lucyzmf")
+# wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
 config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
 config.adap_neuron = True  # whether use adaptive neuron or not
-config.l1_lambda = 0  # weighting for l1 reg
+config.l1_lambda = 1e-3  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1 #- config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
+config.input_scale = 0.3
+input_scale = config.input_scale
 pad_size = 2
 
 # experiment name 
-exp_name = 'exp_8_adp_memloss_clf1ener1_10popencode_scaled'
+exp_name = 'exp_10_adp_memloss_clf1_10popencode_03scale_l11e-3'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -198,7 +200,7 @@ def train(train_loader, n_classes, model, named_params):
             output_spikes = h[1][:, :config.num_readout * 10].view(-1, 10,
                                                                    config.num_readout)  # take the first 40 neurons for read out
             output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
-            output = F.log_softmax(output_spikes_sum*2, dim=1)
+            output = F.log_softmax(output_spikes_sum, dim=1)
 
             if p % omega == 0 and p > 0:
                 optimizer.zero_grad()
@@ -326,14 +328,15 @@ for epoch in range(epochs):
     is_best = acc1 > best_acc1
     best_acc1 = max(acc1, best_acc1)
 
-    save_checkpoint({
-        'epoch': epoch + 1,
-        'state_dict': model.state_dict(),
-        # 'oracle_state_dict': oracle.state_dict(),
-        'best_acc1': best_acc1,
-        'optimizer': optimizer.state_dict(),
-        # 'oracle_optimizer' : oracle_optim.state_dict(),
-    }, is_best, prefix=prefix, filename=check_fn)
+    if is_best:
+        save_checkpoint({
+            'epoch': epoch + 1,
+            'state_dict': model.state_dict(),
+            # 'oracle_state_dict': oracle.state_dict(),
+            'best_acc1': best_acc1,
+            'optimizer': optimizer.state_dict(),
+            # 'oracle_optimizer' : oracle_optim.state_dict(),
+        }, is_best, prefix=prefix, filename=check_fn)
 
     all_test_losses.append(test_loss)
 
