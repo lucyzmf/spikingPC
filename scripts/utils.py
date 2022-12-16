@@ -184,11 +184,12 @@ def get_internal_drive_fc(spikes, weights):
 
 
 # %%
-def get_spikes(hiddens): 
+def get_spikes(hiddens, out_tensor=True): 
     """get all spikes from hidden states for the entire sequence 
 
     Args:
         hiddens (list): list containing hidden states at each time step 
+        out_tensor: return as tensor or np
     """
     spikes_all = []
     for i in range(len(hiddens)):
@@ -197,21 +198,20 @@ def get_spikes(hiddens):
     spikes_all = np.stack(spikes_all).transpose((1, 2, 0))
     print(spikes_all.shape)
 
+    if out_tensor:
+        spikes_all = torch.tensor(spikes_all)
+
     return spikes_all
 # %%
 def shift_input(i, T, data): 
     if i<T/4:
-        data = torch.roll(data, i, 2)
-        print(i)
+        data = torch.roll(data, i, -1)
     elif i>=T/4 and i<T/2:
-        data = torch.roll(data, int(T/2-i), 2)
-        print(int(T/2-i))
+        data = torch.roll(data, int(T/2-i), -1)
     elif i>=T/2 and i<3*T/4:
-        data = torch.roll(data, -int(i-T/2), 2)
-        print(int(i-T/2))
+        data = torch.roll(data, -int(i-T/2), -1)
     else:
-        data = torch.roll(data, i-T, 2)
-        print(T-i)
+        data = torch.roll(data, i-T, -1)
     
     return data
 # %%

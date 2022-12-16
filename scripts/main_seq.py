@@ -50,7 +50,7 @@ input_scale = config.input_scale
 pad_size = 2
 
 # experiment name 
-exp_name = 'exp_11_adp_memloss_clf1_10popencode_03scale_l11e-3'
+exp_name = 'exp_11_adp_memloss_clf1ener1_10popencode'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -188,7 +188,7 @@ omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 100
 lr = 1e-3
-epoch = 10
+epoch = 7
 n_classes = 10
 
 
