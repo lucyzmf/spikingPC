@@ -199,3 +199,19 @@ def get_spikes(hiddens):
 
     return spikes_all
 # %%
+def shift_input(i, T, data): 
+    if i<T/4:
+        data = torch.roll(data, i, 2)
+        print(i)
+    elif i>=T/4 and i<T/2:
+        data = torch.roll(data, int(T/2-i), 2)
+        print(int(T/2-i))
+    elif i>=T/2 and i<3*T/4:
+        data = torch.roll(data, -int(i-T/2), 2)
+        print(int(i-T/2))
+    else:
+        data = torch.roll(data, i-T, 2)
+        print(T-i)
+    
+    return data
+# %%
