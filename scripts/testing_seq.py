@@ -58,8 +58,8 @@ test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
 # %%
 # set input and t param
 pad_size = 2
-IN_dim = (28+pad_size)*(28+pad_size*2)
-img_dim = (28+pad_size, 28+pad_size*2)
+IN_dim = (28 + pad_size) * (28 + pad_size * 2)
+img_dim = (28 + pad_size, 28 + pad_size * 2)
 T = 20  # sequence length, reading from the same image T times 
 
 
@@ -73,9 +73,9 @@ def test(model, test_loader):
     test_loss = 0
     correct = 0
 
-    hiddens_all = []
-    inputs_all = []
-    targets_all = []
+    all_spikes = []
+    all_inputs = []
+    all_targets = []
 
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
@@ -83,7 +83,7 @@ def test(model, test_loader):
         p2d = (pad_size, pad_size, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
         data = F.pad(data, p2d, 'constant', -1)
         # log 
-        targets_all.append(target)
+        all_targets.append(target)
 
         data, target = data.to(device), target.to(device)
         B = data.size()[0]
@@ -94,17 +94,17 @@ def test(model, test_loader):
 
             probs_outputs = []  # for pred computation
             log_softmax_outputs = []  # for loss computation
-            hiddens_ = []
+            spikes_ = []
             spike_sum = torch.zeros(B, 10).to(device)
 
-
+            # iterate over sequence
             for t in range(T):
-                #transform data 
+                # transform data
                 data = shift_input(t, T, data)
                 # log
-                inputs_all.append(data)
+                all_inputs.append(data)
 
-                data = data.view(-1, IN_dim)        
+                data = data.view(-1, IN_dim)
 
                 if t == 0:
                     hidden = model.init_hidden(data.size(0))
@@ -112,20 +112,21 @@ def test(model, test_loader):
                 elif t % omega == 0:
                     f_output, hidden, hiddens = model.network.forward(data, hidden)
 
+                # log all spikes to spikes_
+                spikes_.append(hidden[1])
+
                 # read out from 10 populations
-                output_spikes = hidden[1][:, :10*num_readout].view(-1, 10, num_readout)  # take the first 10*28 neurons for read out
+                output_spikes = hidden[1][:, :10 * num_readout].view(-1, 10,
+                                                                     num_readout)  # take the first 10*28 neurons for read out
                 output_spikes_sum = output_spikes.sum(dim=2)  # mean firing of neurons for each class
                 spike_sum += output_spikes_sum
-                
+
                 prob_out = F.softmax(output_spikes_sum, dim=1)
                 output = F.log_softmax(output_spikes_sum, dim=1)
 
                 probs_outputs.append(prob_out)
                 log_softmax_outputs.append(output)
-                hiddens_.append(hiddens)
-            
-            
-                        
+
             prob_out_sum = F.softmax(spike_sum, dim=1)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
@@ -134,9 +135,9 @@ def test(model, test_loader):
             # if use line below, prob output here computed from sum of spikes over entire seq 
             pred = prob_out_sum.data.max(1, keepdim=True)[1]
 
-            # TODO clean up appending and getting all hidden states 
-            hiddens_all.append(hiddens_)
-
+            # stack spikes before appending to all spikes, should contain 20*batch*layer size spikes
+            spikes_ = torch.stack(spikes_)
+            all_spikes.append(spikes_)
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -148,7 +149,10 @@ def test(model, test_loader):
         test_loss, correct, len(test_loader.dataset),
         test_acc))
 
-    return hiddens_all, inputs_all, targets_all
+    all_spikes = torch.stack(all_spikes)
+    print('all spikes: ' + all_spikes.size())
+
+    return all_spikes, all_inputs, all_targets
 
 
 # %%
@@ -203,7 +207,7 @@ print(param_names)
 plot_distribution(param_names, param_dict, 'weight')
 # %%
 # get all the hidden states for the last batch in test loader 
-hiddens, data, targets = test(model, test_loader)
+all_spikes, data, targets = test(model, test_loader)
 
 # %%
 # get spiking pattern along the sequence 
@@ -263,7 +267,6 @@ for i in range(T):
 plt.tight_layout()
 plt.show()
 
-
 # %%
 ################################
 # elongated sequence testing 
@@ -275,9 +278,9 @@ data_sample = [3, 4]
 abnor_sample = data[data_sample[1], :]
 # visualise 
 fig, axs = plt.subplots(1, 2)
-axs[0].imshow(data[data_sample[0], :].reshape((28+pad_size, 28)))
+axs[0].imshow(data[data_sample[0], :].reshape((28 + pad_size, 28)))
 axs[0].set_title('sample1')
-axs[1].imshow(abnor_sample.reshape((28+pad_size, 28)))
+axs[1].imshow(abnor_sample.reshape((28 + pad_size, 28)))
 axs[1].set_title('sample2 (abnormal)')
 plt.show()
 
@@ -324,11 +327,11 @@ rec_drive_elong = get_internal_drive(spikes_all_elong[0, :, :], rec_layer_weight
 plot_drive(rec_drive_elong, 'recurrent', data_sample[0], 5)
 # %%
 fig, axs = plt.subplots(1, 2)
-pos = axs[0].imshow(spikes_all_elong[0, :, :10].mean(axis=1).reshape((28+pad_size, 28)))
+pos = axs[0].imshow(spikes_all_elong[0, :, :10].mean(axis=1).reshape((28 + pad_size, 28)))
 axs[0].set_title('mean t=0-10 for target %i' % targets[data_sample[0]])
 fig.colorbar(pos, ax=axs[0], shrink=0.5)
 
-pos = axs[1].imshow(spikes_all_elong[0, :, 10:20].mean(axis=1).reshape((28+pad_size, 28)))
+pos = axs[1].imshow(spikes_all_elong[0, :, 10:20].mean(axis=1).reshape((28 + pad_size, 28)))
 axs[1].set_title('mean t=20-30 for target %i' % targets[data_sample[1]])
 fig.colorbar(pos, ax=axs[1], shrink=0.5)
 plt.show()
@@ -337,28 +340,30 @@ plt.show()
 fig, axs = plt.subplots(3, 20, figsize=(40, 7))
 for i in range(20):
     # spikes 
-    axs[0][i].imshow(spikes_all_elong[0, :, i].reshape((28+pad_size, 28)))
+    axs[0][i].imshow(spikes_all_elong[0, :, i].reshape((28 + pad_size, 28)))
     axs[0][i].axis('off')
 
     # rec drive from prediction neurons 
-    pos = axs[1][i].imshow((spikes_all_elong[0, :10*10, i] @ rec_layer_weight[:, :10*10].T).reshape((28+pad_size, 28))[4:, :], 'bwr')
+    pos = axs[1][i].imshow(
+        (spikes_all_elong[0, :10 * 10, i] @ rec_layer_weight[:, :10 * 10].T).reshape((28 + pad_size, 28))[4:, :], 'bwr')
     fig.colorbar(pos, ax=axs[1][i], shrink=0.5)
     axs[1][i].axis('off')
 
     # rec drive from other neurons 
-    pos = axs[2][i].imshow((spikes_all_elong[0, 10*10:, i] @ rec_layer_weight[:, 10*10:].T).reshape((28+pad_size, 28)), 'bwr')
+    pos = axs[2][i].imshow(
+        (spikes_all_elong[0, 10 * 10:, i] @ rec_layer_weight[:, 10 * 10:].T).reshape((28 + pad_size, 28)), 'bwr')
     fig.colorbar(pos, ax=axs[2][i], shrink=0.5)
     axs[2][i].axis('off')
 
 # plt.show()
-plt.savefig(exp_dir+'sample seq')
+plt.savefig(exp_dir + 'sample seq')
 
 # %%
 # plot inputs to each predictive neuron at each timestep 
 t = np.arange(20)
-received_input_pred = spikes_all_elong[0, :, :].T @ rec_layer_weight [:, :10*10]
+received_input_pred = spikes_all_elong[0, :, :].T @ rec_layer_weight[:, :10 * 10]
 
-for i in range(10): 
+for i in range(10):
     plt.plot(t, received_input_pred[:, i], label=str(i))
 plt.legend()
 plt.show()
@@ -382,14 +387,14 @@ for b in range(len(hiddens_all)):  # iter over each batch
     spikes_all.append(batch_spike)
 
 spikes_all = np.stack(spikes_all)
-spikes_all = spikes_all.transpose(0, 2, 1, 3).reshape(10000, 20, 784+pad_size*28)
+spikes_all = spikes_all.transpose(0, 2, 1, 3).reshape(10000, 20, 784 + pad_size * 28)
 
 # %%
 # class mean spiking 
 fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
 for i in range(10):
     class_mean = spikes_all[target_all == i, :, :].mean(axis=0).mean(axis=0)
-    pos = axs[i].imshow(class_mean.reshape(28+pad_size, 28)[0:, :])
+    pos = axs[i].imshow(class_mean.reshape(28 + pad_size, 28)[0:, :])
     fig.colorbar(pos, ax=axs[i], shrink=0.3)
     axs[i].axis('off')
 plt.title('spiking mean per class')
@@ -402,7 +407,7 @@ rec_drive = spikes_all @ rec_layer_weight
 fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
 for i in range(10):
     class_mean = rec_drive[target_all == i, :, :].mean(axis=0).mean(axis=0)
-    pos = axs[i].imshow(class_mean.reshape(28+pad_size, 28))
+    pos = axs[i].imshow(class_mean.reshape(28 + pad_size, 28))
     fig.colorbar(pos, ax=axs[i], shrink=0.3)
     axs[i].axis('off')
 plt.title('rec drive mean per class')
@@ -410,20 +415,19 @@ plt.show()
 
 # %%
 # class mean rec projection from 10 popluation neuron 
-rec_drive = spikes_all[:, :, :10*10] @ rec_layer_weight[:, :10*10].T
+rec_drive = spikes_all[:, :, :10 * 10] @ rec_layer_weight[:, :10 * 10].T
 fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
 for i in range(10):
     class_mean = rec_drive[target_all == i, :, :].mean(axis=0).mean(axis=0)
-    pos = axs[i].imshow(class_mean.reshape(28+pad_size, 28)[4:, :])
+    pos = axs[i].imshow(class_mean.reshape(28 + pad_size, 28)[4:, :])
     fig.colorbar(pos, ax=axs[i], shrink=0.3)
     axs[i].axis('off')
 plt.title('rec projection from 10 neuron populations')
 plt.show()
 
-
 # %%
 # weights from pred neuron for class 0 to other pred neurons 
-sns.heatmap(rec_layer_weight[:10*10, :10*10], cmap="vlag")
+sns.heatmap(rec_layer_weight[:10 * 10, :10 * 10], cmap="vlag")
 plt.show()
 
 # %%
