@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 import IPython.display as ipd
 
 from tqdm import tqdm
+
 # %%
 # %%
 ###############################################################
@@ -28,7 +29,6 @@ from tqdm import tqdm
 Liquid time constant snn
 """
 
-
 # %%
 ###############################################################################################
 ###############################    Define SNN layer   #########################################
@@ -36,9 +36,10 @@ Liquid time constant snn
 
 b_j0 = .1  # neural threshold baseline
 R_m = 3  # membrane resistance
-dt = 1  
+dt = 1
 gamma = .5  # gradient scale
 lens = 0.5
+
 
 def gaussian(x, mu=0., sigma=.5):
     return torch.exp(-((x - mu) ** 2) / (2 * sigma ** 2)) / torch.sqrt(2 * torch.tensor(math.pi)) / sigma
@@ -68,9 +69,10 @@ class ActFun_adp(torch.autograd.Function):
 
 act_fun_adp = ActFun_adp.apply
 
-def mem_update_adp(inputs, mem, spike, tau_adp,tau_m, b, isAdapt=1, dt=1):
+
+def mem_update_adp(inputs, mem, spike, tau_adp, tau_m, b, isAdapt=1, dt=1):
     alpha = tau_m
-    
+
     ro = tau_adp
 
     if isAdapt:
@@ -80,15 +82,13 @@ def mem_update_adp(inputs, mem, spike, tau_adp,tau_m, b, isAdapt=1, dt=1):
 
     b = ro * b + (1 - ro) * spike
     B = b_j0 + beta * b
-    
-
 
     d_mem = -mem + inputs
-    mem = mem + d_mem*alpha
+    mem = mem + d_mem * alpha
     inputs_ = mem - B
 
     spike = act_fun_adp(inputs_)  # act_fun : approximation firing function
-    mem = (1-spike)*mem
+    mem = (1 - spike) * mem
 
     return mem, spike, B, b
 
@@ -97,20 +97,21 @@ def output_Neuron(inputs, mem, tau_m, dt=1):
     """
     The read out neuron is leaky integrator without spike
     """
-    d_mem = -mem  +  inputs
-    mem = mem+d_mem*tau_m
+    d_mem = -mem + inputs
+    mem = mem + d_mem * tau_m
     return mem
+
+
 # %%
 ###############################################################################################
 ###############################################################################################
 ###############################################################################################
 class SNN_rec_cell(nn.Module):
-    def __init__(self, input_size, hidden_size,is_rec = False,is_LTC=True, isAdaptNeu=True, oneToOne=False):
+    def __init__(self, input_size, hidden_size, is_rec=False, is_LTC=True, isAdaptNeu=True, oneToOne=False):
         super(SNN_rec_cell, self).__init__()
-    
-        
+
         self.input_size = input_size
-        self.hidden_size = hidden_size 
+        self.hidden_size = hidden_size
         self.is_rec = is_rec
         self.is_LTC = is_LTC
         self.isAdaptNeu = isAdaptNeu
@@ -118,75 +119,75 @@ class SNN_rec_cell(nn.Module):
 
         if is_rec:
             if not oneToOne:
-                self.layer1_x = nn.Linear(input_size+hidden_size, hidden_size)
+                self.layer1_x = nn.Linear(input_size + hidden_size, hidden_size)
             else:
                 self.layer1_x = nn.Linear(hidden_size, hidden_size)
         else:
             self.layer1_x = nn.Linear(input_size, hidden_size)
-        
+
         # time-constant definiation and initilization 
         if is_LTC:
-            self.layer1_tauAdp = nn.Linear(2*hidden_size, hidden_size)
-            self.layer1_tauM = nn.Linear(2*hidden_size, hidden_size)
+            self.layer1_tauAdp = nn.Linear(2 * hidden_size, hidden_size)
+            self.layer1_tauM = nn.Linear(2 * hidden_size, hidden_size)
             nn.init.xavier_uniform_(self.layer1_tauAdp.weight)
             nn.init.xavier_uniform_(self.layer1_tauM.weight)
         else:
             self.tau_adp = nn.Parameter(torch.Tensor(hidden_size))
-            self.tau_m =nn.Parameter(torch.Tensor(hidden_size))
-            nn.init.normal_(self.tau_adp, 4.6,.1)
-            nn.init.normal_(self.tau_m, 3.,.1)
+            self.tau_m = nn.Parameter(torch.Tensor(hidden_size))
+            nn.init.normal_(self.tau_adp, 4.6, .1)
+            nn.init.normal_(self.tau_m, 3., .1)
         self.act1 = nn.Sigmoid()
         self.act2 = nn.Sigmoid()
 
         nn.init.xavier_uniform_(self.layer1_x.weight)
-        
 
-    def forward(self, x_t, mem_t,spk_t,b_t):    
+    def forward(self, x_t, mem_t, spk_t, b_t):
         if self.is_rec:
             if not self.oneToOne:
-                dense_x = self.layer1_x(torch.cat((x_t,spk_t),dim=-1))
+                dense_x = self.layer1_x(torch.cat((x_t, spk_t), dim=-1))
             else:
                 # compute input drive, 1 to 1 input 
                 recurrent_spk = self.layer1_x(spk_t)
-                dense_x = x_t*0.3 + recurrent_spk
+                dense_x = x_t * 0.3 + recurrent_spk
 
         else:
             dense_x = self.layer1_x(x_t)
 
         if self.is_LTC:
-            tauM1 = self.act1(self.layer1_tauM(torch.cat((dense_x,mem_t),dim=-1)))
-            tauAdp1 = self.act1(self.layer1_tauAdp(torch.cat((dense_x,b_t),dim=-1)))
+            tauM1 = self.act1(self.layer1_tauM(torch.cat((dense_x, mem_t), dim=-1)))
+            tauAdp1 = self.act1(self.layer1_tauAdp(torch.cat((dense_x, b_t), dim=-1)))
         else:
             tauM1 = self.act1(self.tau_m)
             tauAdp1 = self.act2(self.tau_adp)
-        
-        mem_1,spk_1,_,b_1 = mem_update_adp(dense_x, mem=mem_t,spike=spk_t,
-                                        tau_adp=tauAdp1,tau_m=tauM1,b =b_t, isAdapt=self.isAdaptNeu)
 
-        return mem_1,spk_1,b_1
+        mem_1, spk_1, _, b_1 = mem_update_adp(dense_x, mem=mem_t, spike=spk_t,
+                                              tau_adp=tauAdp1, tau_m=tauM1, b=b_t, isAdapt=self.isAdaptNeu)
+
+        return mem_1, spk_1, b_1
 
     def compute_output_size(self):
         return [self.hidden_size]
 
+
 class one_layer_SNN(nn.Module):
-    def __init__(self, input_size, hidden_size,output_size,is_rec=True, is_LTC=False, isAdaptNeu=True, oneToOne=False):
+    def __init__(self, input_size, hidden_size, output_size, is_rec=True, is_LTC=False, isAdaptNeu=True,
+                 oneToOne=False):
         super(one_layer_SNN, self).__init__()
-        
+
         self.input_size = input_size
-        self.hidden_size = hidden_size 
+        self.hidden_size = hidden_size
         self.output_size = output_size
         self.isAdaptNew = isAdaptNeu
         self.is_rec = is_rec
         self.is_LTC = is_LTC
-        
-        self.rnn_name = 'SNN: is_LTC-'+str(is_LTC)
+
+        self.rnn_name = 'SNN: is_LTC-' + str(is_LTC)
 
         # one recurrent layer 
-        self.snn_layer = SNN_rec_cell(hidden_size,hidden_size,is_rec,is_LTC, isAdaptNeu, oneToOne)
-        
+        self.snn_layer = SNN_rec_cell(hidden_size, hidden_size, is_rec, is_LTC, isAdaptNeu, oneToOne)
 
-        self.output_layer = nn.Linear(hidden_size,output_size,bias=True)
-        self.output_layer_tauM = nn.Linear(output_size*2,output_size)
+        self.output_layer = nn.Linear(hidden_size, output_size, bias=True)
+        self.output_layer_tauM = nn.Linear(output_size * 2, output_size)
         self.tau_m_o = nn.Parameter(torch.Tensor(output_size))
 
         nn.init.constant_(self.tau_m_o, 20.)
@@ -196,69 +197,66 @@ class one_layer_SNN(nn.Module):
         self.act_o = nn.Sigmoid()
         self.relu = nn.ELU()
 
-        self.dp1 = nn.Dropout(0.1)#.1
+        self.dp1 = nn.Dropout(0.1)  # .1
         self.dp2 = nn.Dropout(0.1)
         self.dp3 = nn.Dropout(0.1)
         self.fr = 0
-        
+
     def forward(self, inputs, h):
-        
-        
         # outputs = []
         hiddens = []
- 
-        b,in_dim= inputs.shape # b is batch 
+
+        b, in_dim = inputs.shape  # b is batch
         # this is just one forward pass
         t = 1
         for x_i in range(t):
-            x_down = inputs.reshape(b,self.input_size).float()
+            x_down = inputs.reshape(b, self.input_size).float()
 
-            mem_1,spk_1,b_1 = self.snn_layer(x_down, mem_t=h[0],spk_t=h[1],b_t = h[2])
+            mem_1, spk_1, b_1 = self.snn_layer(x_down, mem_t=h[0], spk_t=h[1], b_t=h[2])
 
             dense3_x = self.output_layer(spk_1)
             # tauM2 = self.act3(self.layer3_tauM(torch.cat((dense3_x, h[-2]),dim=-1)))
-            tauM2 = torch.exp(-1./(self.tau_m_o))
-            mem_out = output_Neuron(dense3_x,mem=h[-2],tau_m = tauM2)
+            tauM2 = torch.exp(-1. / (self.tau_m_o))
+            mem_out = output_Neuron(dense3_x, mem=h[-2], tau_m=tauM2)
 
-            out =mem_out
-            self.fr = self.fr+ spk_1.detach().cpu().numpy().mean()/2.
+            out = mem_out
+            self.fr = self.fr + spk_1.detach().cpu().numpy().mean() / 2.
 
-        h = (mem_1,spk_1,b_1,
-            mem_out,
-            out)
+        h = (mem_1, spk_1, b_1,
+             mem_out,
+             out)
 
         f_output = F.log_softmax(out, dim=1)
         hiddens.append(h)
 
-        
         final_state = h
         return f_output, final_state, hiddens
 
-class one_layer_SeqModel(nn.Module):
-    def __init__(self, ninp, nhid, nout,is_rec=True,is_LTC = True, isAdaptNeu=True):
 
+class one_layer_SeqModel(nn.Module):
+    def __init__(self, ninp, nhid, nout, is_rec=True, is_LTC=True, isAdaptNeu=True):
         super(one_layer_SeqModel, self).__init__()
-        self.nout = nout    # Should be the number of classes
+        self.nout = nout  # Should be the number of classes
         self.nhid = nhid
         self.is_rec = is_rec
-        self.is_LTC= is_LTC
+        self.is_LTC = is_LTC
         self.isAdaptNeu = isAdaptNeu
 
-        self.network = one_layer_SNN(input_size=ninp, hidden_size=nhid, output_size=nout, is_rec=is_rec, is_LTC=is_LTC, isAdaptNeu=isAdaptNeu)
-        
+        self.network = one_layer_SNN(input_size=ninp, hidden_size=nhid, output_size=nout, is_rec=is_rec, is_LTC=is_LTC,
+                                     isAdaptNeu=isAdaptNeu)
 
-    def forward(self, inputs, hidden, T): # this function is only used during inference not training
-      
+    def forward(self, inputs, hidden, T):  # this function is only used during inference not training
+
         t = T
         # print(inputs.shape) # L,B,d
         probs_outputs = []  # for pred computation 
-        log_softmax_outputs = [] # for loss computation 
+        log_softmax_outputs = []  # for loss computation
         hiddens_all = []
         for i in range(t):
-            f_output, hidden, hiddens= self.network.forward(inputs, hidden)
+            f_output, hidden, hiddens = self.network.forward(inputs, hidden)
 
             # read out fron first 10 neuron spikes 
-            prob_out = F.softmax(hidden[1][:, :10], dim=1) # take the first 10 neurons for read out 
+            prob_out = F.softmax(hidden[1][:, :10], dim=1)  # take the first 10 neurons for read out
             output = F.log_softmax(hidden[1][:, :10], dim=1)
 
             probs_outputs.append(prob_out)
@@ -269,14 +267,13 @@ class one_layer_SeqModel(nn.Module):
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
-        return (weight.new(bsz,self.nhid).uniform_(),
-                weight.new(bsz,self.nhid).zero_(),
-                weight.new(bsz,self.nhid).fill_(b_j0),
+        return (weight.new(bsz, self.nhid).uniform_(),
+                weight.new(bsz, self.nhid).zero_(),
+                weight.new(bsz, self.nhid).fill_(b_j0),
                 # layer out
-                weight.new(bsz,self.nout).zero_(),
+                weight.new(bsz, self.nout).zero_(),
                 # sum spike
-                weight.new(bsz,self.nout).zero_(),
+                weight.new(bsz, self.nout).zero_(),
                 )
-
 
 # %%
