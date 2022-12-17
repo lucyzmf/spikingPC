@@ -95,22 +95,23 @@ def test(model, test_loader):
             probs_outputs = []  # for pred computation
             log_softmax_outputs = []  # for loss computation
             spikes_ = []
+            inputs_ = []
             spike_sum = torch.zeros(B, 10).to(device)
 
             # iterate over sequence
             for t in range(T):
                 # transform data
-                data = shift_input(t, T, data)
+                data_shifted = shift_input(t, T, data)
                 # log
-                all_inputs.append(data)
+                inputs_.append(data_shifted)
 
-                data = data.view(-1, IN_dim)
+                data_shifted = data_shifted.view(-1, IN_dim)
 
                 if t == 0:
                     hidden = model.init_hidden(data.size(0))
-                    f_output, hidden, hiddens = model.network.forward(data, hidden)
+                    f_output, hidden, hiddens = model.network.forward(data_shifted, hidden)
                 elif t % omega == 0:
-                    f_output, hidden, hiddens = model.network.forward(data, hidden)
+                    f_output, hidden, hiddens = model.network.forward(data_shifted, hidden)
 
                 # log all spikes to spikes_
                 spikes_.append(hidden[1])
@@ -137,7 +138,10 @@ def test(model, test_loader):
 
             # stack spikes before appending to all spikes, should contain 20*batch*layer size spikes
             spikes_ = torch.stack(spikes_)
+            inputs_ = torch.stack(inputs_)
             all_spikes.append(spikes_)
+            all_inputs.append(inputs_)
+
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -150,7 +154,10 @@ def test(model, test_loader):
         test_acc))
 
     all_spikes = torch.stack(all_spikes)
+    all_inputs = torch.stack(all_inputs)
     print('all spikes: ' + str(all_spikes.size()))
+    print('all inputs: ' + str(all_inputs.size()))
+    print('all targets: ' + str(all_targets.size()))
 
     return all_spikes, all_inputs, all_targets
 
@@ -208,14 +215,11 @@ plot_distribution(param_names, param_dict, 'weight')
 # %%
 # get all the hidden states for the last batch in test loader 
 all_spikes, data, targets = test(model, test_loader)
-
-# %%
-# get spiking pattern along the sequence 
-spikes_all = get_spikes(hiddens, out_tensor=True)
+all_spikes = all_spikes.cpu().numpy().transpose(0, 2, 1, 3).reshape(10000, 20, IN_dim)
 # %%
 # here each entry to spike_all is 16*784 (batchsize*num neurons) at each time step 
 # spikes_one_img = np.mean(spikes_all, axis=1).transpose()
-plot_spike_heatmap(spikes_all[0, :, :])
+plot_spike_heatmap(all_spikes[0, :, :].T)
 
 # %%
 ################################
@@ -223,7 +227,7 @@ plot_spike_heatmap(spikes_all[0, :, :])
 ################################
 rec_layer_weight = param_dict['network.snn_layer.layer1_x.weight']
 
-mean_spike_seq, mean_internal_drive_seq, energy_seq = compute_energy_consumption(spikes_all, rec_layer_weight)
+mean_spike_seq, mean_internal_drive_seq, energy_seq = compute_energy_consumption(all_spikes[:10, :, :].transpose(0, 2, 1), rec_layer_weight)
 
 # plot
 t = np.arange(T)
@@ -252,7 +256,7 @@ plt.show()
 ################################ 
 n = 4  # sample number from batch 
 img = torch.unsqueeze(data[n, :].reshape(img_dim), dim=0)
-rec_drive = spikes_all[n, :, :].T @ rec_layer_weight
+rec_drive = all_spikes[n, :, :].T @ rec_layer_weight
 
 fig, axs = plt.subplots(2, T, figsize=(30, 3))
 for i in range(T):
