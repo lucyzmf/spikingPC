@@ -150,7 +150,7 @@ def test(model, test_loader):
         test_acc))
 
     all_spikes = torch.stack(all_spikes)
-    print('all spikes: ' + all_spikes.size())
+    print('all spikes: ' + str(all_spikes.size()))
 
     return all_spikes, all_inputs, all_targets
 
