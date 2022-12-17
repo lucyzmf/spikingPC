@@ -42,7 +42,7 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1 #- config.clf_alpha
+config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
 config.input_scale = 0.2
@@ -97,7 +97,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 # %%
 # set input and t param
-IN_dim = (28+pad_size)*(28+pad_size*2)
+IN_dim = (28 + pad_size) * (28 + pad_size * 2)
 T = 20  # sequence length, reading from the same image T times 
 
 
@@ -131,11 +131,10 @@ def test(model, test_loader):
             hiddens_all = []
             spike_sum = torch.zeros(B, 10).to(device)
 
-
             for t in range(T):
-                #transform data 
+                # transform data
                 data = shift_input(t, T, data)
-                data = data.view(-1, IN_dim)        
+                data = data.view(-1, IN_dim)
 
                 if t == 0:
                     hidden = model.init_hidden(data.size(0))
@@ -144,17 +143,18 @@ def test(model, test_loader):
                     f_output, hidden, hiddens = model.network.forward(data, hidden)
 
                 # read out from 10 populations
-                output_spikes = hidden[1][:, :10*num_readout].view(-1, 10, num_readout)  # take the first 10*28 neurons for read out
+                output_spikes = hidden[1][:, :10 * num_readout].view(-1, 10,
+                                                                     num_readout)  # take the first 10*28 neurons for read out
                 output_spikes_sum = output_spikes.sum(dim=2)  # mean firing of neurons for each class
                 spike_sum += output_spikes_sum
-                
+
                 prob_out = F.softmax(output_spikes_sum, dim=1)
                 output = F.log_softmax(output_spikes_sum, dim=1)
 
                 probs_outputs.append(prob_out)
                 log_softmax_outputs.append(output)
                 hiddens_all.append(hiddens)
-            
+
             prob_out_sum = F.softmax(spike_sum, dim=1)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
@@ -162,7 +162,6 @@ def test(model, test_loader):
 
             # if use line below, prob output here computed from sum of spikes over entire seq 
             pred = prob_out_sum.data.max(1, keepdim=True)[1]
-
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -218,7 +217,6 @@ def train(train_loader, n_classes, model, named_params):
         for p in range(T):
             data = shift_input(p, T, data)
             data = data.view(-1, IN_dim)
-
 
             if p == 0:
                 h = model.init_hidden(data.size(0))
@@ -308,7 +306,7 @@ def train(train_loader, n_classes, model, named_params):
 
 # define network
 model = SeqModel_pop(IN_dim, IN_dim, n_classes, is_rec=True, is_LTC=False,
-                               isAdaptNeu=adap_neuron, oneToOne=config.onetoone)
+                     isAdaptNeu=adap_neuron, oneToOne=config.onetoone)
 model.to(device)
 print(model)
 
