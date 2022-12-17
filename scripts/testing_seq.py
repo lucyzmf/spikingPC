@@ -155,6 +155,8 @@ def test(model, test_loader):
 
     all_spikes = torch.stack(all_spikes)
     all_inputs = torch.stack(all_inputs)
+    all_targets = torch.stack(all_targets)
+
     print('all spikes: ' + str(all_spikes.size()))
     print('all inputs: ' + str(all_inputs.size()))
     print('all targets: ' + str(all_targets.size()))
