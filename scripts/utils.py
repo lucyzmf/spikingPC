@@ -215,3 +215,24 @@ def shift_input(i, T, data):
     
     return data
 # %%
+# function to creat distance map 
+def creat_dist_map(img_h, img_w):
+    x, y = img_w, img_h
+    xv, yv = np.meshgrid(np.arange(x), np.arange(y))
+    pos = np.vstack([yv.ravel(), xv.ravel()])
+
+    dist_map = np.zeros((y*x, y*x))
+    for i in range(x*y):
+        relative_dist = []
+        ref_point = pos[:, i]
+        for j in range(x*y):
+            new_point = pos[:, j]
+            dist = np.linalg.norm(ref_point - new_point)
+            relative_dist.append(dist)
+
+        dist_map[i, :] += relative_dist
+    
+    return dist_map
+
+
+# %%
