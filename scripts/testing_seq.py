@@ -217,7 +217,14 @@ plot_distribution(param_names, param_dict, 'weight')
 # %%
 # get all the hidden states for the last batch in test loader 
 all_spikes, data, targets = test(model, test_loader)
+
 all_spikes = all_spikes.cpu().numpy().transpose(0, 2, 1, 3).reshape(10000, 20, IN_dim)
+data = data.cpu().numpy().transpose(0, 2, 1, 3, 4, 5).reshape(10000, 20, IN_dim)
+targets = torch.flatten(targets).cpu().numpy()
+
+print(all_spikes.shape)
+print(data.shape)
+print(targets.shape)
 # %%
 # here each entry to spike_all is 16*784 (batchsize*num neurons) at each time step 
 # spikes_one_img = np.mean(spikes_all, axis=1).transpose()
@@ -273,134 +280,39 @@ for i in range(T):
 plt.tight_layout()
 plt.show()
 
+
 # %%
 ################################
-# elongated sequence testing 
+# sequence recurrent drive and spiking visualisation  
 ################################ 
-# run inferece on two images continuously for T steps each 
-data_sample = [3, 4]
-# take mean of two different number samples to poke error 
-# abnor_sample = (data[data_sample[1], :] + data[2, :]) / 2
-abnor_sample = data[data_sample[1], :]
-# visualise 
-fig, axs = plt.subplots(1, 2)
-axs[0].imshow(data[data_sample[0], :].reshape((28 + pad_size, 28)))
-axs[0].set_title('sample1')
-axs[1].imshow(abnor_sample.reshape((28 + pad_size, 28)))
-axs[1].set_title('sample2 (abnormal)')
-plt.show()
+n = 4 # sample number 
+fig, axs = plt.subplots(3, 20, figsize=(40, 4))
+for i in range(T):
+    axs[0, i].imshow(data[n, i, :].reshape(img_dim))
+    axs[0, i].axis('off')
 
-with torch.no_grad():
-    model.eval()
-    init_hidden = model.init_hidden(1)  # batch size 1
+    axs[1, i].imshow(all_spikes[n, i, :].reshape(img_dim))
+    axs[1, i].axis('off')
 
-    # get outputs and hiddens 
-    prob_outputs1, _, hiddens1 = model(data[data_sample[0], :].unsqueeze(0).to(device), init_hidden, 10)
-    # pass hidden to next sequence continuously 
-    prob_outputs2, _, hiddens2 = model(abnor_sample.unsqueeze(0).to(device), hiddens1[-1][0], 10)
+    # projections from prediction neurons 
+    pos = axs[2, i].imshow((all_spikes[n, i, :10*num_readout]@rec_layer_weight[:, :10*num_readout].T).reshape(img_dim)[4:])
+    fig.colorbar(pos, ax=axs[2][i], shrink=0.3)
+    axs[2, i].axis('off')
 
-    # ge predictions 
-    # outputs1 = torch.stack(prob_outputs1).squeeze()
-    # outputs2 = torch.stack(prob_outputs2).squeeze()
-
-    pred1 = prob_outputs1.data.max(1, keepdim=True)[1]
-    pred2 = prob_outputs2.data.max(1, keepdim=True)[1]
-
-# %%
-# plot spikes
-spikes_all_elong = get_spikes(hiddens1 + hiddens2)
-plot_spike_heatmap(spikes_all_elong[0, :, :])
-
-# %%
-# compute energy
-mean_spike_elong, mean_internal_drive_elong, energy_elong = compute_energy_consumption(spikes_all_elong,
-                                                                                       rec_layer_weight)
-
-# plot
-t = np.arange(T)
-plt.plot(t, energy_elong, label='energy')
-plt.plot(t, mean_spike_elong, label='mean spiking')
-plt.plot(t, mean_internal_drive_elong, label='mean internal drive by t')
-plt.legend()
-plt.title('elongated sequence exp, pred1 %i, pred2 %i' % (pred1[-1], pred2[-1]))
-plt.show()
-
-# %%
-# plot rec
-rec_drive_elong = get_internal_drive(spikes_all_elong[0, :, :], rec_layer_weight)
-
-# %%
-plot_drive(rec_drive_elong, 'recurrent', data_sample[0], 5)
-# %%
-fig, axs = plt.subplots(1, 2)
-pos = axs[0].imshow(spikes_all_elong[0, :, :10].mean(axis=1).reshape((28 + pad_size, 28)))
-axs[0].set_title('mean t=0-10 for target %i' % targets[data_sample[0]])
-fig.colorbar(pos, ax=axs[0], shrink=0.5)
-
-pos = axs[1].imshow(spikes_all_elong[0, :, 10:20].mean(axis=1).reshape((28 + pad_size, 28)))
-axs[1].set_title('mean t=20-30 for target %i' % targets[data_sample[1]])
-fig.colorbar(pos, ax=axs[1], shrink=0.5)
-plt.show()
-# %%
-# plot spiking and rec drive at specific time steps 
-fig, axs = plt.subplots(3, 20, figsize=(40, 7))
-for i in range(20):
-    # spikes 
-    axs[0][i].imshow(spikes_all_elong[0, :, i].reshape((28 + pad_size, 28)))
-    axs[0][i].axis('off')
-
-    # rec drive from prediction neurons 
-    pos = axs[1][i].imshow(
-        (spikes_all_elong[0, :10 * 10, i] @ rec_layer_weight[:, :10 * 10].T).reshape((28 + pad_size, 28))[4:, :], 'bwr')
-    fig.colorbar(pos, ax=axs[1][i], shrink=0.5)
-    axs[1][i].axis('off')
-
-    # rec drive from other neurons 
-    pos = axs[2][i].imshow(
-        (spikes_all_elong[0, 10 * 10:, i] @ rec_layer_weight[:, 10 * 10:].T).reshape((28 + pad_size, 28)), 'bwr')
-    fig.colorbar(pos, ax=axs[2][i], shrink=0.5)
-    axs[2][i].axis('off')
-
+plt.savefig(exp_dir + 'sample seq full')
 # plt.show()
-plt.savefig(exp_dir + 'sample seq')
 
-# %%
-# plot inputs to each predictive neuron at each timestep 
-t = np.arange(20)
-received_input_pred = spikes_all_elong[0, :, :].T @ rec_layer_weight[:, :10 * 10]
-
-for i in range(10):
-    plt.plot(t, received_input_pred[:, i], label=str(i))
-plt.legend()
-plt.show()
 
 # %%
 ################################
 # class disentanglement 
 ################################ 
 
-# get spikes from all test samples
-spikes_all = []
-for b in range(len(hiddens_all)):  # iter over each batch
-    batch_spike = []
-    for t in range(T):  # iter over time
-        seq_spike = []
-        for s in range(batch_size):  # per sample
-            seq_spike.append(hiddens_all[b][t][0][1][s].detach().cpu().numpy())  # mean spiking for each sample
-        seq_spike = np.stack(seq_spike)
-        batch_spike.append(seq_spike)
-    batch_spike = np.stack(batch_spike)
-    spikes_all.append(batch_spike)
-
-spikes_all = np.stack(spikes_all)
-spikes_all = spikes_all.transpose(0, 2, 1, 3).reshape(10000, 20, 784 + pad_size * 28)
-
-# %%
 # class mean spiking 
 fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
 for i in range(10):
-    class_mean = spikes_all[target_all == i, :, :].mean(axis=0).mean(axis=0)
-    pos = axs[i].imshow(class_mean.reshape(28 + pad_size, 28)[0:, :])
+    class_mean = all_spikes[targets == i, :, :].mean(axis=0).mean(axis=0)
+    pos = axs[i].imshow(class_mean.reshape(img_dim)[0:, :])
     fig.colorbar(pos, ax=axs[i], shrink=0.3)
     axs[i].axis('off')
 plt.title('spiking mean per class')
@@ -409,11 +321,11 @@ plt.show()
 # class mean rec drive 
 rec_layer_weight = param_dict['network.snn_layer.layer1_x.weight']
 
-rec_drive = spikes_all @ rec_layer_weight
+rec_drive = all_spikes @ rec_layer_weight
 fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
 for i in range(10):
-    class_mean = rec_drive[target_all == i, :, :].mean(axis=0).mean(axis=0)
-    pos = axs[i].imshow(class_mean.reshape(28 + pad_size, 28))
+    class_mean = rec_drive[targets == i, :, :].mean(axis=0).mean(axis=0)
+    pos = axs[i].imshow(class_mean.reshape(img_dim))
     fig.colorbar(pos, ax=axs[i], shrink=0.3)
     axs[i].axis('off')
 plt.title('rec drive mean per class')
@@ -421,11 +333,11 @@ plt.show()
 
 # %%
 # class mean rec projection from 10 popluation neuron 
-rec_drive = spikes_all[:, :, :10 * 10] @ rec_layer_weight[:, :10 * 10].T
+rec_drive = all_spikes[:, :, :10 * num_readout] @ rec_layer_weight[:, :10 * num_readout].T
 fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
 for i in range(10):
-    class_mean = rec_drive[target_all == i, :, :].mean(axis=0).mean(axis=0)
-    pos = axs[i].imshow(class_mean.reshape(28 + pad_size, 28)[4:, :])
+    class_mean = rec_drive[targets == i, :, :].mean(axis=0).mean(axis=0)
+    pos = axs[i].imshow(class_mean.reshape(img_dim)[4:, :])
     fig.colorbar(pos, ax=axs[i], shrink=0.3)
     axs[i].axis('off')
 plt.title('rec projection from 10 neuron populations')
@@ -436,4 +348,25 @@ plt.show()
 sns.heatmap(rec_layer_weight[:10 * 10, :10 * 10], cmap="vlag")
 plt.show()
 
+# %%
+################################
+# prediction neuron behaviour 
+################################ 
+# check how selective each neuron is in each group 
+sum_spikes_per_pred = all_spikes.sum(axis=0).sum(axis=0)[:10*num_readout]
+selectivity_per_pred = [] # list of 10 entrys consisting of spike sum of each of 100 neurons 
+# compute ratio between firing per class/total spikes as selectivity measure 
+for i in range(n_classes):
+    spikes_ = all_spikes[targets == i, :, :10*num_readout].sum(axis=0).sum(axis=0)
+    selectivity_idx = spikes_ / sum_spikes_per_pred
+    selectivity_per_pred.append(selectivity_idx)
+
+selectivity_per_pred = np.stack(selectivity_per_pred)
+print(selectivity_per_pred.shape)
+
+# %%
+ax = sns.scatterplot(selectivity_per_pred[:, :].T)
+sns.move_legend(ax, "upper left", bbox_to_anchor=(1, 1))
+plt.vlines(x=np.arange(10, 100, step=10), ymin = 0, ymax = 0.3, colors='grey')
+plt.show()
 # %%
