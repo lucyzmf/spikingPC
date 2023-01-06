@@ -275,7 +275,7 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = OneLayerSeqModelPop(IN_dim, 784 + 28 * pad_size, n_classes, is_rec=True, is_LTC=False,
+model = OneLayerSeqModelPop(IN_dim, 784 + 28 * pad_size, n_classes, config.num_readout, is_rec=True, is_LTC=False,
                             is_adapt=adap_neuron, one_to_one=config.onetoone)
 model.to(device)
 print(model)
