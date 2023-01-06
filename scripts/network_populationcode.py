@@ -124,7 +124,7 @@ class OneLayerSeqModelPop(nn.Module):
         # print(inputs.shape) # L,B,d
         B, _ = inputs.size()
         probs_outputs = []  # for pred computation
-        log_softmax_outputs = []  # for loss computation
+        log_softmax_outputs = []  # for loss computation, computed at each time step
         hiddens_all = []  #
 
         for i in range(t):
