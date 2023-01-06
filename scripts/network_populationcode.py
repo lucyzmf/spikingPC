@@ -47,6 +47,8 @@ class OneLayerSnnWithOutput(nn.Module):
 
         # init parameters
         nn.init.constant_(self.tau_m_o, 20.)
+        for i in range(output_size):
+            nn.init.xavier_uniform_(self.output_heads[i].weight)
         # nn.init.constant_(self.tau_m_o, 0.)
         nn.init.zeros_(self.output_layer_tauM.weight)
         self.act_o = nn.Sigmoid()
@@ -76,17 +78,17 @@ class OneLayerSnnWithOutput(nn.Module):
         mem_1, spk_1, b_1 = self.snn_layer(x_down, mem_t=h[0], spk_t=h[1], b_t=h[2])
 
         # input to output layer
-        dense_x = torch.zeros(self.output_size)
+        dense_x = torch.zeros(b, self.output_size).to(device)
         # compute for each readout head the inputs to output neurons
         for i in range(self.output_size):
-            dense_x[i] = self.output_heads[i](spk_1[i * self.readout_size: (i + 1) * self.readout_size])
+            dense_x[:, i] = self.output_heads[i](spk_1[:, i * self.readout_size: (i + 1) * self.readout_size]).squeeze()
 
         # TODO clean up tau_m computation
         # tauM2 = self.act3(self.output_layer_tauM(torch.cat((dense3_x, h[-2]),dim=-1)))
         tau_m_outs = torch.exp(-1. / self.tau_m_o)
 
         # update output neuron mem potential
-        mem_out = output_Neuron(dense_x, mem=h[-2], tau_m=tau_m_outs)
+        mem_out = output_Neuron(dense_x, mem=h[-1], tau_m=tau_m_outs)
 
         self.fr = self.fr + spk_1.detach().cpu().numpy().mean()
 
