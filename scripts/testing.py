@@ -111,7 +111,7 @@ epoch = 10
 n_classes = 10
 
 # define network
-model = one_layer_SeqModel(IN_dim, 784, n_classes, is_rec=True, is_LTC=False)
+model = OneLayerSeqModel(IN_dim, 784, n_classes, is_rec=True, is_LTC=False)
 model.to(device)
 print(model)
 
