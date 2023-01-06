@@ -2,6 +2,8 @@
 this file tests within layer readout with n neurons per class, static image
 """
 
+# TODO big refrac so that the main doesn't change, all read out scheme changes should happen in different network classes to keep main the same
+
 # %%
 import torch
 import torch.nn as nn
@@ -280,7 +282,7 @@ def train(train_loader, n_classes, model, named_params):
 
 # define network
 model = OneLayerSeqModelPop(IN_dim, 784 + 28 * pad_size, n_classes, is_rec=True, is_LTC=False,
-                            isAdaptNeu=adap_neuron, oneToOne=config.onetoone)
+                            is_adapt=adap_neuron, one_to_one=config.onetoone)
 model.to(device)
 print(model)
 
