@@ -43,6 +43,7 @@ class OneLayerSnnWithOutput(nn.Module):
         for i in range(output_size):
             # one neuron cumulate from readout_size neurons
             self.output_heads.append(nn.Linear(readout_size, 1, bias=True))
+            nn.init.xavier_uniform_(self.output_heads[i].weight)
 
         # two tau_m declarations for different computations
         self.output_layer_tauM = nn.Linear(output_size * 2, output_size)
@@ -51,7 +52,6 @@ class OneLayerSnnWithOutput(nn.Module):
         # init parameters
         nn.init.constant_(self.tau_m_o, 20.)
         # nn.init.constant_(self.tau_m_o, 0.)
-        nn.init.xavier_uniform_(self.output_layer.weight)
         nn.init.zeros_(self.output_layer_tauM.weight)
         self.act_o = nn.Sigmoid()
         self.relu = nn.ELU()
