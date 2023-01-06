@@ -42,6 +42,7 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
+config.spatial_loss = 1e-3
 config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
@@ -50,7 +51,7 @@ input_scale = config.input_scale
 pad_size = 2
 
 # experiment name 
-exp_name = 'exp_11_adp_memloss_clf1ener1_10popencode'
+exp_name = 'exp_12_adp_memloss_clf1ener1_10popencode_wiringcost'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -99,6 +100,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 # set input and t param
 IN_dim = (28 + pad_size) * (28 + pad_size * 2)
 T = 20  # sequence length, reading from the same image T times 
+dist_map = torch.tensor(creat_dist_map(28 + pad_size, 28 + pad_size * 2)).to(device)
 
 
 # if apply first layer drop out, creates sth similar to poisson encoding
@@ -200,6 +202,7 @@ def train(train_loader, n_classes, model, named_params):
     total_clf_loss = 0
     total_regularizaton_loss = 0
     total_energy_loss = 0
+    total_spatial_loss = 0
     total_l1_loss = 0
     model.train()
 
@@ -251,11 +254,14 @@ def train(train_loader, n_classes, model, named_params):
 
                 # l1 loss on rec weights 
                 l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
+                # spatial loss
+                spatial_loss = ((torch.norm(model.network.snn_layer.layer1_x.weight, p=2) \
+                    * torch.norm(dist_map, p=2)) / torch.norm(dist_map, p=2)).sum()
 
                 # overall loss    
                 if energy_penalty:
                     loss = config.clf_alpha * clf_loss + regularizer + config.energy_alpha * energy \
-                           + config.l1_lambda * l1_norm
+                           + config.l1_lambda * l1_norm + config.spatial_loss * spatial_loss
                 else:
                     loss = clf_loss + regularizer
 
@@ -272,6 +278,7 @@ def train(train_loader, n_classes, model, named_params):
                 total_regularizaton_loss += regularizer  # .item()
                 total_energy_loss += energy.item()
                 total_l1_loss += l1_norm.item()
+                total_spatial_loss += spatial_loss.item()
 
         if batch_idx > 0 and batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\tLoss: {:.6f}\
@@ -286,6 +293,7 @@ def train(train_loader, n_classes, model, named_params):
                 'regularisation_loss': total_regularizaton_loss / log_interval,
                 'energy_loss': total_energy_loss / log_interval,
                 'l1_loss': config.l1_lambda * total_l1_loss / log_interval,
+                'spatial_loss': config.spatial_loss * total_spatial_loss / log_interval,
                 'total_loss': train_loss / log_interval,
                 'network spiking freq': model.network.fr / T / log_interval  # firing per time step
             })
