@@ -21,9 +21,9 @@ num_readout = 10
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class one_layer_SeqModel_pop(nn.Module):
-    def __init__(self, ninp, nhid, nout, is_rec=True, is_LTC=True, isAdaptNeu=True, oneToOne = False):
-        super(one_layer_SeqModel_pop, self).__init__()
+class oneLayerSeqModelPop(nn.Module):
+    def __init__(self, ninp, nhid, nout, is_rec=True, is_LTC=True, isAdaptNeu=True, oneToOne=False):
+        super(oneLayerSeqModelPop, self).__init__()
         self.nout = nout  # Should be the number of classes
         self.nhid = nhid
         self.is_rec = is_rec
@@ -32,7 +32,7 @@ class one_layer_SeqModel_pop(nn.Module):
         self.onToOne = oneToOne
 
         self.network = one_layer_SNN(input_size=ninp, hidden_size=nhid, output_size=nout, is_rec=is_rec, is_LTC=is_LTC,
-                                     isAdaptNeu=isAdaptNeu, oneToOne = oneToOne)
+                                     isAdaptNeu=isAdaptNeu, oneToOne=oneToOne)
 
     def forward(self, inputs, hidden, T):  # this function is only used during inference not training
 
@@ -47,18 +47,18 @@ class one_layer_SeqModel_pop(nn.Module):
         for i in range(t):
             f_output, hidden, hiddens = self.network.forward(inputs, hidden)
 
-            # read out from 10 populations
-            output_spikes = hidden[1][:, :10*num_readout].view(-1, 10, num_readout)  # take the first 10*28 neurons for read out
+            # read out from 10 populations, take the first 10*28 neurons for read out
+            output_spikes = hidden[1][:, :10 * num_readout].view(-1, 10, num_readout)
             output_spikes_sum = output_spikes.sum(dim=2)  # mean firing of neurons for each class
             spike_sum += output_spikes_sum
-            
+
             prob_out = F.softmax(output_spikes_sum, dim=1)
             output = F.log_softmax(output_spikes_sum, dim=1)
 
             probs_outputs.append(prob_out)
             log_softmax_outputs.append(output)
             hiddens_all.append(hiddens)
-        
+
         prob_out_sum = F.softmax(spike_sum, dim=1)
 
         return prob_out_sum, log_softmax_outputs, hiddens_all
