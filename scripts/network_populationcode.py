@@ -39,11 +39,7 @@ class OneLayerSnnWithOutput(nn.Module):
         self.snn_layer = SNN_rec_cell(hidden_size, hidden_size, is_rec, is_LTC, is_adapt, one_to_one)
 
         # TODO change output read out here, instead of fc linear layer, need 10 separate weights
-        self.output_heads = []  # list containing linear readout head for each class
-        for i in range(output_size):
-            # one neuron cumulate from readout_size neurons
-            self.output_heads.append(nn.Linear(readout_size, 1, bias=True))
-            nn.init.xavier_uniform_(self.output_heads[i].weight)
+        self.output_heads = nn.ModuleList([nn.Linear(readout_size, 1) for i in range(readout_size)])
 
         # two tau_m declarations for different computations
         self.output_layer_tauM = nn.Linear(output_size * 2, output_size)
