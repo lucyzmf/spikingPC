@@ -255,7 +255,7 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = one_layer_SeqModel(IN_dim, 784, n_classes, is_rec=True, is_LTC=False, isAdaptNeu=adap_neuron)
+model = OneLayerSeqModel(IN_dim, 784, n_classes, is_rec=True, is_LTC=False, is_adapt=adap_neuron)
 model.to(device)
 print(model)
 

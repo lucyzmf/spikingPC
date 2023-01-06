@@ -46,7 +46,7 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 1e-3  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1 #- config.clf_alpha
+config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
 config.input_scale = 0.3
@@ -137,7 +137,6 @@ def test(model, test_loader):
 
             # if use line below, prob output here computed from sum of spikes over entire seq 
             pred = prob_outputs.data.max(1, keepdim=True)[1]
-
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()

@@ -169,22 +169,22 @@ class SNN_rec_cell(nn.Module):
         return [self.hidden_size]
 
 
-class one_layer_SNN(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, is_rec=True, is_LTC=False, isAdaptNeu=True,
-                 oneToOne=False):
-        super(one_layer_SNN, self).__init__()
+class OneLayerSnn(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, is_rec=True, is_LTC=False, is_adapt=True,
+                 one_to_one=False):
+        super(OneLayerSnn, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.output_size = output_size
-        self.isAdaptNew = isAdaptNeu
+        self.isAdaptNew = is_adapt
         self.is_rec = is_rec
         self.is_LTC = is_LTC
 
         self.rnn_name = 'SNN: is_LTC-' + str(is_LTC)
 
         # one recurrent layer 
-        self.snn_layer = SNN_rec_cell(hidden_size, hidden_size, is_rec, is_LTC, isAdaptNeu, oneToOne)
+        self.snn_layer = SNN_rec_cell(hidden_size, hidden_size, is_rec, is_LTC, is_adapt, one_to_one)
 
         self.output_layer = nn.Linear(hidden_size, output_size, bias=True)
         self.output_layer_tauM = nn.Linear(output_size * 2, output_size)
@@ -233,17 +233,17 @@ class one_layer_SNN(nn.Module):
         return f_output, final_state, hiddens
 
 
-class one_layer_SeqModel(nn.Module):
-    def __init__(self, ninp, nhid, nout, is_rec=True, is_LTC=True, isAdaptNeu=True):
-        super(one_layer_SeqModel, self).__init__()
+class OneLayerSeqModel(nn.Module):
+    def __init__(self, ninp, nhid, nout, is_rec=True, is_LTC=True, is_adapt=True):
+        super(OneLayerSeqModel, self).__init__()
         self.nout = nout  # Should be the number of classes
         self.nhid = nhid
         self.is_rec = is_rec
         self.is_LTC = is_LTC
-        self.isAdaptNeu = isAdaptNeu
+        self.isAdaptNeu = is_adapt
 
-        self.network = one_layer_SNN(input_size=ninp, hidden_size=nhid, output_size=nout, is_rec=is_rec, is_LTC=is_LTC,
-                                     isAdaptNeu=isAdaptNeu)
+        self.network = OneLayerSnn(input_size=ninp, hidden_size=nhid, output_size=nout, is_rec=is_rec, is_LTC=is_LTC,
+                                   is_adapt=is_adapt)
 
     def forward(self, inputs, hidden, T):  # this function is only used during inference not training
 
