@@ -21,9 +21,9 @@ num_readout = 10
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class oneLayerSeqModelPop(nn.Module):
+class OneLayerSeqModelPop(nn.Module):
     def __init__(self, ninp, nhid, nout, is_rec=True, is_LTC=True, isAdaptNeu=True, oneToOne=False):
-        super(oneLayerSeqModelPop, self).__init__()
+        super(OneLayerSeqModelPop, self).__init__()
         self.nout = nout  # Should be the number of classes
         self.nhid = nhid
         self.is_rec = is_rec
