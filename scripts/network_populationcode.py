@@ -44,7 +44,7 @@ class OneLayerSnnWithOutput(nn.Module):
 
         # two tau_m declarations for different computations
         self.output_layer_tauM = nn.Linear(output_size * 2, output_size)
-        self.tau_m_o = nn.Parameter(torch.Tensor(output_size))
+        self.tau_m_o = nn.Parameter(torch.Tensor(output_size), requires_grad=False)
 
         # init parameters
         nn.init.constant_(self.tau_m_o, 20.)
