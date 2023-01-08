@@ -57,7 +57,7 @@ input_scale = config.input_scale
 pad_size = 2
 
 # experiment name 
-exp_name = 'exp_13_adp_memloss_10popencode_fixedhead_1'
+exp_name = 'exp_13_adp_memloss_10popencode_spikecount'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
