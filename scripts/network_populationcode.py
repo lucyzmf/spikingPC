@@ -88,6 +88,7 @@ class OneLayerSnnWithOutput(nn.Module):
                                                                   self.readout_size)  # take the first 40 neurons for read out
             output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
             log_softmax_out = F.log_softmax(output_spikes_sum, dim=1)
+            mem_out = None
         else:
             # input to output layer
             dense_x = torch.zeros(b, self.output_size).to(device)
