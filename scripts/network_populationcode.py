@@ -22,16 +22,17 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class one_layer_SeqModel_pop(nn.Module):
-    def __init__(self, ninp, nhid, nout, is_rec=True, is_LTC=True, isAdaptNeu=True):
+    def __init__(self, ninp, nhid, nout, is_rec=True, is_LTC=True, isAdaptNeu=True, oneToOne = False):
         super(one_layer_SeqModel_pop, self).__init__()
         self.nout = nout  # Should be the number of classes
         self.nhid = nhid
         self.is_rec = is_rec
         self.is_LTC = is_LTC
         self.isAdaptNeu = isAdaptNeu
+        self.onToOne = oneToOne
 
         self.network = one_layer_SNN(input_size=ninp, hidden_size=nhid, output_size=nout, is_rec=is_rec, is_LTC=is_LTC,
-                                     isAdaptNeu=isAdaptNeu)
+                                     isAdaptNeu=isAdaptNeu, oneToOne = oneToOne)
 
     def forward(self, inputs, hidden, T):  # this function is only used during inference not training
 
