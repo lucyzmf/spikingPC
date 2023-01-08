@@ -159,6 +159,29 @@ def get_internal_drive(spikes, weights):
     
     return np.stack(drive) 
 
+# %%
+def get_internal_drive_fc(spikes, weights):
+    """get internal drive per neuron for 2d visualisation
+    spiking projection back to image domain
+
+    Args:
+        spikes (np.array): spiking record, neuron*T
+        weights (np.array): weight matrix of layer1, contains rec and fc weights
+
+    Returns:
+        np.array: array containing internal drive at each t
+    """
+    drive = []
+    d = len(weights)
+    rec_weights = weights[:, d:]
+    fc_weights = weights[:, :d]
+
+    for i in range(spikes.shape[-1]):
+        synp_trans = spikes[:, i] @ rec_weights @ fc_weights.T
+        drive.append(synp_trans)
+
+    return np.stack(drive)
+
 
 # %%
 def get_spikes(hiddens): 

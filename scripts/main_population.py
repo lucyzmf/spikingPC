@@ -48,6 +48,9 @@ config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1 #- config.clf_alpha
 config.num_readout = 10
+config.onetoone = True
+config.input_scale = 0.3
+input_scale = config.input_scale
 pad_size = 2
 
 # experiment name 
@@ -278,7 +281,7 @@ def train(train_loader, n_classes, model, named_params):
 
 # define network
 model = one_layer_SeqModel_pop(IN_dim, 784 + 28 * pad_size, n_classes, is_rec=True, is_LTC=False,
-                               isAdaptNeu=adap_neuron)
+                               isAdaptNeu=adap_neuron, oneToOne=config.onetoone)
 model.to(device)
 print(model)
 
@@ -329,14 +332,15 @@ for epoch in range(epochs):
     is_best = acc1 > best_acc1
     best_acc1 = max(acc1, best_acc1)
 
-    save_checkpoint({
-        'epoch': epoch + 1,
-        'state_dict': model.state_dict(),
-        # 'oracle_state_dict': oracle.state_dict(),
-        'best_acc1': best_acc1,
-        'optimizer': optimizer.state_dict(),
-        # 'oracle_optimizer' : oracle_optim.state_dict(),
-    }, is_best, prefix=prefix, filename=check_fn)
+    if is_best:
+        save_checkpoint({
+            'epoch': epoch + 1,
+            'state_dict': model.state_dict(),
+            # 'oracle_state_dict': oracle.state_dict(),
+            'best_acc1': best_acc1,
+            'optimizer': optimizer.state_dict(),
+            # 'oracle_optimizer' : oracle_optim.state_dict(),
+        }, is_best, prefix=prefix, filename=check_fn)
 
     all_test_losses.append(test_loss)
 
