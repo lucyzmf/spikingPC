@@ -47,7 +47,7 @@ config.num_readout = 10
 pad_size = 2
 
 # experiment name 
-exp_name = 'exp_8_adp_memloss_clf1ener1_10popencode'
+exp_name = 'sanity_check'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
