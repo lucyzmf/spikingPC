@@ -133,7 +133,7 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
 # %%
 # untar saved dict 
-exp_dir = '/home/lucy/spikingPC/results/Dec-11-2022/exp_8_adp_memloss_clf07_5popencode/'
+exp_dir = '/home/lucy/spikingPC/results/Jan-08-2023/sanity_check2/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 # %%
 model.load_state_dict(saved_dict['state_dict'])
