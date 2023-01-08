@@ -40,7 +40,7 @@ class OneLayerSnnWithOutput(nn.Module):
 
         # TODO change output read out here, instead of fc linear layer, need 10 separate weights
         # self.output_heads = nn.ModuleList([nn.Linear(readout_size, 1) for i in range(readout_size)])
-        self.output_head = torch.full(readout_size, 0.5)
+        self.output_head = torch.full((readout_size), 0.5)
 
         # two tau_m declarations for different computations
         self.output_layer_tauM = nn.Linear(output_size * 2, output_size)
