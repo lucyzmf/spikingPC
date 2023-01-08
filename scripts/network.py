@@ -114,6 +114,7 @@ class SNN_rec_cell(nn.Module):
         self.is_rec = is_rec
         self.is_LTC = is_LTC
         self.isAdaptNeu = isAdaptNeu
+        self.oneToOne = oneToOne  # whether one to one input or fully connected input
 
         if is_rec:
             if not oneToOne:
