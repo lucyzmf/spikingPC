@@ -41,7 +41,7 @@ transform = transforms.Compose(
     [transforms.ToTensor(),
      transforms.Normalize((0.5), (0.5))])
 
-batch_size = 10
+batch_size = 100
 
 traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
@@ -66,9 +66,9 @@ pad_const = -1
 
 # %%
 # get all the test data in the right shape
-targets = testdata.targets.data
+target_all = testdata.targets.data
 images = testdata.data.data
-images = F.pad(images, p2d, 'constant', pad_const)
+images_all = F.pad(images.float(), p2d, 'constant', pad_const)
 
 # %%
 ###############################################################################################
@@ -104,7 +104,7 @@ def get_analysis_data(model, test_loader):
             # if use line below, prob output here computed from sum of spikes over entire seq
             pred = log_softmax_outputs[-1].data.max(1, keepdim=True)[1]
             # log network predictions
-            preds_all_.append(pred)
+            preds_all_.append(pred.detach().cpu().numpy())
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -147,7 +147,7 @@ print('total param count %i' % total_params)
 
 # %%
 # untar saved dict 
-exp_dir = '/home/lucy/spikingPC/results/Dec-16-2022/exp_10_adp_memloss_clf1_10popencode_03scale_l11e-3/'
+exp_dir = '/home/lucy/spikingPC/results/Jan-08-2023/exp_13_adp_memloss_10popencode_fixedhead/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 # %%
 model.load_state_dict(saved_dict['state_dict'])
@@ -169,7 +169,7 @@ print(param_names)
 # plot weight distribution 
 plot_distribution(param_names, param_dict, 'weight')
 # %%
-# get all the hidden states for the last batch in test loader 
+# get all the hidden states
 hiddens_all, preds_all = get_analysis_data(model, test_loader)
 
 # %%
@@ -180,7 +180,7 @@ for b in range(len(hiddens_all)):  # iter over each batch
     for t in range(T):  # iter over time
         seq_spike = []
         for s in range(batch_size):  # per sample
-            seq_spike.append(hiddens_all[b][t][0][1][s].detach().cpu().numpy())  # mean spiking for each sample
+            seq_spike.append(hiddens_all[b][t][1][s].detach().cpu().numpy())  # mean spiking for each sample
         seq_spike = np.stack(seq_spike)
         batch_spike.append(seq_spike)
     batch_spike = np.stack(batch_spike)
