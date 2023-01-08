@@ -42,7 +42,7 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1 # - config.clf_alpha
+config.energy_alpha = 1 #- config.clf_alpha
 config.num_readout = 10
 pad_size = 2
 
@@ -114,7 +114,7 @@ def test(model, test_loader):
     for i, (data, target) in enumerate(test_loader):
         # pad input
         p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        data = F.pad(data, p2d, 'constant', 0)
+        data = F.pad(data, p2d, 'constant', -1)
 
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
@@ -126,7 +126,11 @@ def test(model, test_loader):
             prob_outputs, log_softmax_outputs, hidden = model(data, hidden, T)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
-            pred = prob_outputs[-1].data.max(1, keepdim=True)[1]
+            # pred = prob_outputs[-1].data.max(1, keepdim=True)[1]
+
+            # if use line below, prob output here computed from sum of spikes over entire seq
+            pred = prob_outputs.data.max(1, keepdim=True)[1]
+
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -172,7 +176,7 @@ def train(train_loader, n_classes, model, named_params):
     for batch_idx, (data, target) in enumerate(train_loader):
         # pad input
         p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        data = F.pad(data, p2d, 'constant', 0)
+        data = F.pad(data, p2d, 'constant', -1)
 
         # to device and reshape
         data, target = data.to(device), target.to(device)
