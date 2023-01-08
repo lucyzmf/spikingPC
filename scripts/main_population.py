@@ -49,12 +49,12 @@ config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1 #- config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
-config.input_scale = 0.3
+config.input_scale = 0.2
 input_scale = config.input_scale
 pad_size = 2
 
 # experiment name 
-exp_name = 'sanity_check'
+exp_name = 'sanity_check2'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
