@@ -39,7 +39,8 @@ class OneLayerSnnWithOutput(nn.Module):
         self.snn_layer = SNN_rec_cell(hidden_size, hidden_size, is_rec, is_LTC, is_adapt, one_to_one)
 
         # TODO change output read out here, instead of fc linear layer, need 10 separate weights
-        self.output_heads = nn.ModuleList([nn.Linear(readout_size, 1) for i in range(readout_size)])
+        # self.output_heads = nn.ModuleList([nn.Linear(readout_size, 1) for i in range(readout_size)])
+        self.output_head = torch.full(readout_size, 0.5)
 
         # two tau_m declarations for different computations
         self.output_layer_tauM = nn.Linear(output_size * 2, output_size)
@@ -47,8 +48,8 @@ class OneLayerSnnWithOutput(nn.Module):
 
         # init parameters
         nn.init.constant_(self.tau_m_o, 20.)
-        for i in range(output_size):
-            nn.init.xavier_uniform_(self.output_heads[i].weight)
+        # for i in range(output_size):
+        #     nn.init.xavier_uniform_(self.output_heads[i].weight)
         # nn.init.constant_(self.tau_m_o, 0.)
         nn.init.zeros_(self.output_layer_tauM.weight)
         self.act_o = nn.Sigmoid()
@@ -81,7 +82,8 @@ class OneLayerSnnWithOutput(nn.Module):
         dense_x = torch.zeros(b, self.output_size).to(device)
         # compute for each readout head the inputs to output neurons
         for i in range(self.output_size):
-            dense_x[:, i] = self.output_heads[i](spk_1[:, i * self.readout_size: (i + 1) * self.readout_size]).squeeze()
+            # dense_x[:, i] = self.output_heads[i](spk_1[:, i * self.readout_size: (i + 1) * self.readout_size]).squeeze()
+            dense_x[:, i] = (self.output_head * spk_1[:, i * self.readout_size: (i + 1) * self.readout_size]).squeeze()
 
         # TODO clean up tau_m computation
         # tauM2 = self.act3(self.output_layer_tauM(torch.cat((dense3_x, h[-2]),dim=-1)))
