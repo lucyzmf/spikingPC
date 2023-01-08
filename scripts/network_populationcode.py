@@ -21,7 +21,8 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 class OneLayerSnnWithOutput(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, readout_size, is_rec=True, is_LTC=False, is_adapt=True,
+    def __init__(self, input_size, hidden_size, output_size, readout_size, use_spikes, is_rec=True, is_LTC=False,
+                 is_adapt=True,
                  one_to_one=False):
         super(OneLayerSnnWithOutput, self).__init__()
 
@@ -32,6 +33,7 @@ class OneLayerSnnWithOutput(nn.Module):
         self.isAdaptNew = is_adapt
         self.is_rec = is_rec
         self.is_LTC = is_LTC
+        self.use_spikes = use_spikes
 
         self.rnn_name = 'SNN: is_LTC-' + str(is_LTC)
 
@@ -78,32 +80,40 @@ class OneLayerSnnWithOutput(nn.Module):
 
         mem_1, spk_1, b_1 = self.snn_layer(x_down, mem_t=h[0], spk_t=h[1], b_t=h[2])
 
-        # input to output layer
-        dense_x = torch.zeros(b, self.output_size).to(device)
-        # compute for each readout head the inputs to output neurons
-        for i in range(self.output_size):
-            # dense_x[:, i] = self.output_heads[i](spk_1[:, i * self.readout_size: (i + 1) * self.readout_size]).squeeze()
-            dense_x[:, i] = (spk_1[:, i * self.readout_size: (i + 1) * self.readout_size] @ self.output_head).squeeze()
-
-        # TODO clean up tau_m computation
-        # tauM2 = self.act3(self.output_layer_tauM(torch.cat((dense3_x, h[-2]),dim=-1)))
-        tau_m_outs = torch.exp(-1. / self.tau_m_o)
-
-        # update output neuron mem potential
-        mem_out = output_Neuron(dense_x, mem=h[-1], tau_m=tau_m_outs)
-
         self.fr = self.fr + spk_1.detach().cpu().numpy().mean()
+
+        if self.use_spikes:
+            #  read out for population code
+            output_spikes = h[1][:, :self.readout_size * 10].view(-1, 10,
+                                                                  self.readout_size)  # take the first 40 neurons for read out
+            output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
+            log_softmax_out = F.log_softmax(output_spikes_sum, dim=1)
+        else:
+            # input to output layer
+            dense_x = torch.zeros(b, self.output_size).to(device)
+            # compute for each readout head the inputs to output neurons
+            for i in range(self.output_size):
+                # dense_x[:, i] = self.output_heads[i](spk_1[:, i * self.readout_size: (i + 1) * self.readout_size]).squeeze()
+                dense_x[:, i] = (
+                            spk_1[:, i * self.readout_size: (i + 1) * self.readout_size] @ self.output_head).squeeze()
+
+            # TODO clean up tau_m computation
+            # tauM2 = self.act3(self.output_layer_tauM(torch.cat((dense3_x, h[-2]),dim=-1)))
+            tau_m_outs = torch.exp(-1. / self.tau_m_o)
+
+            # update output neuron mem potential
+            mem_out = output_Neuron(dense_x, mem=h[-1], tau_m=tau_m_outs)
+
+            log_softmax_out = F.log_softmax(mem_out, dim=1)
 
         hidden_state = (mem_1, spk_1, b_1,
                         mem_out)
-
-        log_softmax_out = F.log_softmax(mem_out, dim=1)
 
         return log_softmax_out, hidden_state
 
 
 class OneLayerSeqModelPop(nn.Module):
-    def __init__(self, n_inp, n_hid, n_out, n_readout, is_rec=True, is_LTC=True, is_adapt=True, one_to_one=False):
+    def __init__(self, n_inp, n_hid, n_out, n_readout, use_spikes, is_rec=True, is_LTC=True, is_adapt=True, one_to_one=False):
         super(OneLayerSeqModelPop, self).__init__()
         self.n_inp = n_inp
         self.n_out = n_out  # Should be the number of classes
@@ -115,8 +125,8 @@ class OneLayerSeqModelPop(nn.Module):
         self.onToOne = one_to_one
 
         self.network = OneLayerSnnWithOutput(input_size=n_inp, hidden_size=n_hid, output_size=n_out,
-                                             readout_size=n_readout, is_rec=is_rec, is_LTC=is_LTC,
-                                             is_adapt=is_adapt, one_to_one=one_to_one)
+                                             readout_size=n_readout, use_spikes=use_spikes, is_rec=is_rec,
+                                             is_LTC=is_LTC, is_adapt=is_adapt, one_to_one=one_to_one)
 
     def forward(self, inputs, hidden, T):  # this function is only used during inference not training
 

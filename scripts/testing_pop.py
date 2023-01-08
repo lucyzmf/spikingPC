@@ -134,9 +134,10 @@ lr = 1e-3
 epoch = 10
 n_classes = 10
 num_readout = 10
+use_spikes = True
 
 # define network
-model = OneLayerSeqModelPop(IN_dim, 784 + 28 * pad_size, n_classes, num_readout, is_rec=True, is_LTC=False,
+model = OneLayerSeqModelPop(IN_dim, 784 + 28 * pad_size, n_classes, num_readout, use_spikes, is_rec=True, is_LTC=False,
                             is_adapt=True, one_to_one=True)
 model.to(device)
 print(model)
