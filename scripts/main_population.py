@@ -1,3 +1,7 @@
+"""
+version stamp: this is for future sanity check
+"""
+
 # %%
 import torch
 import torch.nn as nn
