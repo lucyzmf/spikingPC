@@ -40,7 +40,7 @@ class OneLayerSnnWithOutput(nn.Module):
 
         # TODO change output read out here, instead of fc linear layer, need 10 separate weights
         # self.output_heads = nn.ModuleList([nn.Linear(readout_size, 1) for i in range(readout_size)])
-        self.output_head = torch.full((1, readout_size), 0.5)
+        self.output_head = torch.full((readout_size, 1), 0.5, device=device)
 
         # two tau_m declarations for different computations
         self.output_layer_tauM = nn.Linear(output_size * 2, output_size)
@@ -83,7 +83,7 @@ class OneLayerSnnWithOutput(nn.Module):
         # compute for each readout head the inputs to output neurons
         for i in range(self.output_size):
             # dense_x[:, i] = self.output_heads[i](spk_1[:, i * self.readout_size: (i + 1) * self.readout_size]).squeeze()
-            dense_x[:, i] = (self.output_head * spk_1[:, i * self.readout_size: (i + 1) * self.readout_size]).squeeze()
+            dense_x[:, i] = (spk_1[:, i * self.readout_size: (i + 1) * self.readout_size] @ self.output_head).squeeze()
 
         # TODO clean up tau_m computation
         # tauM2 = self.act3(self.output_layer_tauM(torch.cat((dense3_x, h[-2]),dim=-1)))
