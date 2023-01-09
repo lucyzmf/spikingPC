@@ -110,7 +110,7 @@ pad_const = -1
 
 # set input and t param
 IN_dim = 784
-hidden_dim = (28 + pad_size) * 28
+hidden_dim = 784 + 10*config.num_readout 
 T = 20  # sequence length, reading from the same image T times
 
 # %%
@@ -213,7 +213,7 @@ def train(train_loader, n_classes, model, named_params):
                     energy = h[1].mean()  # * 0.1
                 else:
                     # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = torch.norm(h[0], p=1) / B / 784
+                    energy = torch.norm(h[0], p=1) / B / hidden_dim
 
                 # l1 loss on rec weights 
                 l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)

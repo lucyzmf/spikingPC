@@ -1,3 +1,4 @@
+# %%
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -170,3 +171,5 @@ class OneLayerSeqModelPop(nn.Module):
                 # sum spike
                 weight.new(bsz, self.n_out).zero_(),
                 )
+
+# %%
