@@ -54,7 +54,7 @@ input_scale = config.input_scale
 pad_size = 2
 
 # experiment name 
-exp_name = 'sanity_check2'
+exp_name = 'add_train_acc_log'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -177,6 +177,7 @@ def train(train_loader, n_classes, model, named_params):
     total_regularizaton_loss = 0
     total_energy_loss = 0
     total_l1_loss = 0
+    correct = 0
     model.train()
 
     # for each batch 
@@ -205,6 +206,9 @@ def train(train_loader, n_classes, model, named_params):
                                                                    config.num_readout)  # take the first 40 neurons for read out
             output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
             output = F.log_softmax(output_spikes_sum, dim=1)
+            # get prediction 
+            pred = output.data.max(1, keepdim=True)[1]
+            correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
             if p % omega == 0 and p > 0:
                 optimizer.zero_grad()
@@ -249,6 +253,7 @@ def train(train_loader, n_classes, model, named_params):
                 total_l1_loss += l1_norm.item()
 
         if batch_idx > 0 and batch_idx % log_interval == 0:
+
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\tLoss: {:.6f}\
                 \tClf: {:.6f}\tReg: {:.6f}\tFr: {:.6f}'.format(
                 epoch, batch_idx * batch_size, len(train_loader.dataset),
@@ -258,6 +263,7 @@ def train(train_loader, n_classes, model, named_params):
 
             wandb.log({
                 'clf_loss': total_clf_loss / log_interval,
+                'train_acc': 100 * correct / log_interval / B, 
                 'regularisation_loss': total_regularizaton_loss / log_interval,
                 'energy_loss': total_energy_loss / log_interval,
                 'l1_loss': config.l1_lambda * total_l1_loss / log_interval,
@@ -270,6 +276,7 @@ def train(train_loader, n_classes, model, named_params):
             total_regularizaton_loss = 0
             total_energy_loss = 0
             total_l1_loss = 0
+            correct = 0
         model.network.fr = 0
 
 
