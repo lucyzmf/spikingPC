@@ -37,8 +37,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC", entity="lucyzmf")
-# wandb.init(mode="disabled")
+# wandb.init(project="spikingPC", entity="lucyzmf")
+wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -47,14 +47,15 @@ config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1  # - config.clf_alpha
-config.num_readout = 10
-config.onetoone = True
+config.num_readout = 1
+config.onetoone = False
+config.fc_on = True  # fc connected input transformation 
 config.input_scale = 0.3
 input_scale = config.input_scale
-pad_size = 2
+pad_size = 4
 
 # experiment name 
-exp_name = 'exp14_fc'
+exp_name = 'feedforward'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -101,7 +102,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 # %%
 # set input and t param
-IN_dim = (28 + pad_size) * 28
+IN_dim = 784 #(28 + pad_size) * 28
 T = 20  # sequence length, reading from the same image T times 
 
 
@@ -120,11 +121,11 @@ def test(model, test_loader):
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
         # pad input
-        p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        data = F.pad(data, p2d, 'constant', -1)
+        # p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+        # data = F.pad(data, p2d, 'constant', -1)
 
         data, target = data.to(device), target.to(device)
-        data = data.view(-1, IN_dim)
+        data = data.view(-1, 784)
 
         with torch.no_grad():
             model.eval()
@@ -136,7 +137,7 @@ def test(model, test_loader):
             # pred = prob_outputs[-1].data.max(1, keepdim=True)[1]
 
             # if use line below, prob output here computed from sum of spikes over entire seq 
-            pred = prob_outputs.data.max(1, keepdim=True)[1]
+            pred = log_softmax_outputs[-1].data.max(1, keepdim=True)[1]
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -181,12 +182,12 @@ def train(train_loader, n_classes, model, named_params):
     # for each batch 
     for batch_idx, (data, target) in enumerate(train_loader):
         # pad input
-        p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        data = F.pad(data, p2d, 'constant', -1)
+        # p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+        # data = F.pad(data, p2d, 'constant', -1)
 
         # to device and reshape
         data, target = data.to(device), target.to(device)
-        data = data.view(-1, IN_dim)
+        data = data.view(-1, 784)
 
         B = target.size()[0]
 
@@ -200,10 +201,11 @@ def train(train_loader, n_classes, model, named_params):
             o, h, hs = model.network.forward(data, h)
 
             #  read out for population code
-            output_spikes = h[1][:, :config.num_readout * 10].view(-1, 10,
-                                                                   config.num_readout)  # take the first 40 neurons for read out
-            output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
-            output = F.log_softmax(output_spikes_sum, dim=1)
+            # output_spikes = h[1][:, :config.num_readout * 10].view(-1, 10,
+            #                                                        config.num_readout)  # take the first 40 neurons for read out
+            # output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
+            # output = F.log_softmax(output_spikes_sum, dim=1)
+            output = o
 
             if p % omega == 0 and p > 0:
                 optimizer.zero_grad()
@@ -279,7 +281,7 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = OneLayerSeqModelPop(IN_dim, 784 + 28 * pad_size, n_classes, is_rec=True, is_LTC=False,
+model = OneLayerSeqModelPop(784, 784, n_classes, is_rec=False, is_LTC=False,
                             isAdaptNeu=adap_neuron, oneToOne=config.onetoone)
 model.to(device)
 print(model)
