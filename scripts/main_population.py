@@ -1,5 +1,8 @@
 """
 this file tests within layer readout with n neurons per class, static image
+
+Overall scheme: maintain train and test the same, just change network class
+add bool for: fc, spike counting vs output membrane
 """
 
 # %%
