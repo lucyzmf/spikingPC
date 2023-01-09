@@ -41,7 +41,7 @@ transform = transforms.Compose(
     [transforms.ToTensor(),
      transforms.Normalize((0.5), (0.5))])
 
-batch_size = 10
+batch_size = 100
 
 traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
