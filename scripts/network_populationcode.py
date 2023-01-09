@@ -87,7 +87,7 @@ class OneLayerSnnUpdated(nn.Module):
         if self.ontoone:
             x_to_hidden = x * 0.3  # input scaling in one to one case
         else:  # fc case
-            x_to_hidden = self.input_layer(x)  # this has reduced size excluding prediction neurons
+            x_to_hidden = self.input_w(x)  # this has reduced size excluding prediction neurons
 
         # shape x_to_hidden back to of size hidden
         x_to_hidden = torch.cat((torch.zeros(b, self.readout_size*10).to(device), x_to_hidden), dim=1)
