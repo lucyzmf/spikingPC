@@ -1,5 +1,8 @@
 """
 this file tests within layer readout with n neurons per class, static image
+
+Overall scheme: maintain train and test the same, just change network class
+add bool for: fc, spike counting vs output membrane
 """
 
 # %%
@@ -50,8 +53,8 @@ config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
 config.input_scale = 0.3
+config.use_spikes = True
 input_scale = config.input_scale
-pad_size = 2
 
 # experiment name 
 exp_name = 'exp14_fc'
@@ -100,12 +103,15 @@ for batch_idx, (data, target) in enumerate(train_loader):
     break
 
 # %%
+pad_size = 2
+# pad input
+p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+pad_const = -1
+
 # set input and t param
-IN_dim = (28 + pad_size) * 28
-T = 20  # sequence length, reading from the same image T times 
-
-
-# if apply first layer drop out, creates sth similar to poisson encoding
+IN_dim = 784
+hidden_dim = (28 + pad_size) * 28
+T = 20  # sequence length, reading from the same image T times
 
 # %%
 ###############################################################################################
@@ -119,9 +125,7 @@ def test(model, test_loader):
 
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
-        # pad input
-        p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        data = F.pad(data, p2d, 'constant', -1)
+        data = F.pad(data, p2d, 'constant', pad_const)
 
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
@@ -130,13 +134,13 @@ def test(model, test_loader):
             model.eval()
             hidden = model.init_hidden(data.size(0))
 
-            prob_outputs, log_softmax_outputs, hidden = model(data, hidden, T)
+            log_softmax_outputs, hiddens_all = model(data, hidden, T)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
             # pred = prob_outputs[-1].data.max(1, keepdim=True)[1]
 
             # if use line below, prob output here computed from sum of spikes over entire seq 
-            pred = prob_outputs.data.max(1, keepdim=True)[1]
+            pred = log_softmax_outputs[-1].data.max(1, keepdim=True)[1]
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -180,9 +184,7 @@ def train(train_loader, n_classes, model, named_params):
 
     # for each batch 
     for batch_idx, (data, target) in enumerate(train_loader):
-        # pad input
-        p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        data = F.pad(data, p2d, 'constant', -1)
+        data = F.pad(data, p2d, 'constant', pad_const)
 
         # to device and reshape
         data, target = data.to(device), target.to(device)
@@ -197,19 +199,13 @@ def train(train_loader, n_classes, model, named_params):
             elif p % omega == 0:
                 h = tuple(v.detach() for v in h)
 
-            o, h, hs = model.network.forward(data, h)
-
-            #  read out for population code
-            output_spikes = h[1][:, :config.num_readout * 10].view(-1, 10,
-                                                                   config.num_readout)  # take the first 40 neurons for read out
-            output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
-            output = F.log_softmax(output_spikes_sum, dim=1)
+            log_softmax_output, h = model.network.forward(data, h)
 
             if p % omega == 0 and p > 0:
                 optimizer.zero_grad()
 
-                # classification loss
-                clf_loss = (p + 1) / (K) * F.nll_loss(output, target)
+                # classification loss, weighted by p
+                clf_loss = (p + 1) / K * F.nll_loss(log_softmax_output, target)
                 # clf_loss = snr*F.cross_entropy(output, target,reduction='none')
                 # clf_loss = torch.mean(clf_loss)
 
@@ -250,10 +246,10 @@ def train(train_loader, n_classes, model, named_params):
         if batch_idx > 0 and batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\tLoss: {:.6f}\
                 \tClf: {:.6f}\tReg: {:.6f}\tFr: {:.6f}'.format(
-                epoch, batch_idx * batch_size, len(train_loader.dataset),
-                       100. * batch_idx / len(train_loader), lr, train_loss / log_interval,
-                       total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
-                       model.network.fr / T / log_interval))
+                    epoch, batch_idx * batch_size, len(train_loader.dataset),
+                    100. * batch_idx / len(train_loader), lr, train_loss / log_interval,
+                    total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
+                    model.network.fr / T / log_interval))
 
             wandb.log({
                 'clf_loss': total_clf_loss / log_interval,
@@ -279,8 +275,8 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = OneLayerSeqModelPop(IN_dim, 784 + 28 * pad_size, n_classes, is_rec=True, is_LTC=False,
-                            isAdaptNeu=adap_neuron, oneToOne=config.onetoone)
+model = OneLayerSeqModelPop(IN_dim, hidden_dim, n_classes, config.num_readout, config.use_spikes, is_rec=True,
+                            is_LTC=False, is_adapt=adap_neuron, one_to_one=config.onetoone)
 model.to(device)
 print(model)
 
