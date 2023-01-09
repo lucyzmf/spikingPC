@@ -40,8 +40,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC", entity="lucyzmf")
-# wandb.init(mode="disabled")
+# wandb.init(project="spikingPC", entity="lucyzmf")
+wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -57,7 +57,7 @@ config.use_spikes = True
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'exp14_fc'
+exp_name = 'clean_up_code'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
