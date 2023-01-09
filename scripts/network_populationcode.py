@@ -30,6 +30,7 @@ class one_layer_SeqModel_pop(nn.Module):
         self.is_LTC = is_LTC
         self.isAdaptNeu = isAdaptNeu
         self.onToOne = oneToOne
+        self.dp = nn.Dropout(0.4)
 
         self.network = one_layer_SNN(input_size=ninp, hidden_size=nhid, output_size=nout, is_rec=is_rec, is_LTC=is_LTC,
                                      isAdaptNeu=isAdaptNeu, oneToOne = oneToOne)
@@ -43,6 +44,8 @@ class one_layer_SeqModel_pop(nn.Module):
         log_softmax_outputs = []  # for loss computation
         hiddens_all = []
         spike_sum = torch.zeros(B, 10).to(device)
+
+        inputs = self.dp(inputs)
 
         for i in range(t):
             f_output, hidden, hiddens = self.network.forward(inputs, hidden)

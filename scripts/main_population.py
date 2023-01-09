@@ -54,7 +54,7 @@ input_scale = config.input_scale
 pad_size = 2
 
 # experiment name 
-exp_name = 'add_train_acc_log'
+exp_name = 'input_dp04'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -206,9 +206,11 @@ def train(train_loader, n_classes, model, named_params):
                                                                    config.num_readout)  # take the first 40 neurons for read out
             output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
             output = F.log_softmax(output_spikes_sum, dim=1)
+
             # get prediction 
-            pred = output.data.max(1, keepdim=True)[1]
-            correct += pred.eq(target.data.view_as(pred)).cpu().sum()
+            if p == (T-1):
+                pred = output.data.max(1, keepdim=True)[1]
+                correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
             if p % omega == 0 and p > 0:
                 optimizer.zero_grad()
@@ -254,16 +256,17 @@ def train(train_loader, n_classes, model, named_params):
 
         if batch_idx > 0 and batch_idx % log_interval == 0:
 
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\tLoss: {:.6f}\
+            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
                 \tClf: {:.6f}\tReg: {:.6f}\tFr: {:.6f}'.format(
-                epoch, batch_idx * batch_size, len(train_loader.dataset),
-                       100. * batch_idx / len(train_loader), lr, train_loss / log_interval,
-                       total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
-                       model.network.fr / T / log_interval))
+                    epoch, batch_idx * batch_size, len(train_loader.dataset),
+                    100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B), 
+                    train_loss / log_interval,
+                    total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
+                    model.network.fr / T / log_interval))
 
             wandb.log({
                 'clf_loss': total_clf_loss / log_interval,
-                'train_acc': 100 * correct / log_interval / B, 
+                'train_acc': 100 * correct / (log_interval * B), 
                 'regularisation_loss': total_regularizaton_loss / log_interval,
                 'energy_loss': total_energy_loss / log_interval,
                 'l1_loss': config.l1_lambda * total_l1_loss / log_interval,
@@ -351,5 +354,10 @@ for epoch in range(epochs):
 
     all_test_losses.append(test_loss)
 
+train_acc = test(model, train_loader)
+print('model train acc: %.4f' % train_acc)
+
 test_loss, acc1 = test(model, test_loader)
+print('model test acc: %.4f' % acc1)
+
 # %%
