@@ -52,7 +52,6 @@ config.onetoone = True
 config.input_scale = 0.3
 config.use_spikes = True
 input_scale = config.input_scale
-pad_size = 2
 
 # experiment name 
 exp_name = 'exp_10_adp_memloss_clf1_10popencode_03scale_l11e-3'
@@ -101,16 +100,15 @@ for batch_idx, (data, target) in enumerate(train_loader):
     break
 
 # %%
-# set input and t param
-IN_dim = (28 + pad_size) * 28
-T = 20  # sequence length, reading from the same image T times
-
+pad_size = 2
 # pad input
 p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
 pad_const = -1
 
-
-# if apply first layer drop out, creates sth similar to poisson encoding
+# set input and t param
+IN_dim = 784
+hidden_dim = (28 + pad_size) * 28
+T = 20  # sequence length, reading from the same image T times
 
 # %%
 ###############################################################################################
@@ -274,7 +272,7 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = OneLayerSeqModelPop(IN_dim, 784 + 28 * pad_size, n_classes, config.num_readout, config.use_spikes, is_rec=True,
+model = OneLayerSeqModelPop(IN_dim, hidden_dim, n_classes, config.num_readout, config.use_spikes, is_rec=True,
                             is_LTC=False, is_adapt=adap_neuron, one_to_one=config.onetoone)
 model.to(device)
 print(model)
