@@ -124,8 +124,8 @@ class SNN_rec_cell(nn.Module):
         if is_rec:
             if not oneToOne:
                 # self.layer1_x = nn.Linear(input_size + hidden_size, hidden_size)
-                self.input_layer = nn.Linear(input_size, input_size)
-                nn.init.xavier_uniform_(self.input_layer.weight)
+                # self.input_layer = nn.Linear(input_size, input_size)
+                # nn.init.xavier_uniform_(self.input_layer.weight)
                 self.layer1_x = nn.Linear(hidden_size, hidden_size)
             else:
                 self.layer1_x = nn.Linear(hidden_size, hidden_size)
@@ -149,21 +149,18 @@ class SNN_rec_cell(nn.Module):
         nn.init.xavier_uniform_(self.layer1_x.weight)
 
     def forward(self, x_t, mem_t, spk_t, b_t):
+        # x_t here is either one to one or after multiplied by w in fc case
         if self.is_rec:
-            if not self.oneToOne:
-                # dense_x = self.layer1_x(torch.cat((x_t, spk_t), dim=-1))
-                recurrent_spk = self.layer1_x(spk_t)
-                transformed_input = self.input_layer(x_t)
-                # pad input 
-                p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-                transformed_input = F.pad(transformed_input.view(-1, 28, 28), p2d, 'constant', -1)
-
-                transformed_input = transformed_input.view(-1, self.hidden_size)
-                dense_x = transformed_input + recurrent_spk
-            else:
-                # compute input drive, 1 to 1 input 
-                recurrent_spk = self.layer1_x(spk_t)
-                dense_x = x_t * 0.3 + recurrent_spk
+            recurrent_input = self.layer1_x(spk_t)
+            dense_x = x_t + recurrent_input
+            # if not self.oneToOne:
+            #     # dense_x = self.layer1_x(torch.cat((x_t, spk_t), dim=-1))
+            #     recurrent_input = self.layer1_x(spk_t)
+            #     dense_x = x_t + recurrent_input
+            # else:
+            #     # compute input drive, 1 to 1 input
+            #     recurrent_input = self.layer1_x(spk_t)
+            #     dense_x = x_t * 0.3 + recurrent_input
         else:
             dense_x = self.layer1_x(x_t)
 

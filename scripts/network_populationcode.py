@@ -33,10 +33,14 @@ class OneLayerSnnUpdated(nn.Module):
         self.isAdaptNew = is_adapt
         self.is_rec = is_rec
         self.is_LTC = is_LTC
+        self.ontoone = one_to_one
         self.use_spikes = use_spikes
 
         self.rnn_name = 'SNN: is_LTC-' + str(is_LTC)
 
+        # if input is fc
+        if not self.ontoone:
+            self.input_w = nn.Linear(input_size, hidden_size - 10 * self.readout_size)  # minus the prediction neurons
         # one recurrent layer
         self.snn_layer = SNN_rec_cell(hidden_size, hidden_size, is_rec, is_LTC, is_adapt, one_to_one)
 
@@ -76,9 +80,17 @@ class OneLayerSnnUpdated(nn.Module):
 
         b, in_dim = inputs.shape  # b is batch
 
-        x_down = inputs.reshape(b, self.input_size).float()
+        # x_to_hidden is input to recurrent layer
+        x = inputs.reshape(b, self.input_size).float()
 
-        mem_1, spk_1, b_1 = self.snn_layer(x_down, mem_t=h[0], spk_t=h[1], b_t=h[2])
+        if self.ontoone:
+            x_to_hidden = x * 0.3  # input scaling in one to one case
+        else:  # fc case
+            x_to_hidden = self.input_layer(x)  # this has reduced size excluding prediction neurons
+            # reshape x_to_hidden back to of size hidden
+            x_to_hidden = torch.cat((torch.zeros(b, self.readout_size*10), x_to_hidden), dim=1)
+
+        mem_1, spk_1, b_1 = self.snn_layer(x_to_hidden, mem_t=h[0], spk_t=h[1], b_t=h[2])
 
         self.fr = self.fr + spk_1.detach().cpu().numpy().mean()
 

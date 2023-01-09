@@ -125,8 +125,6 @@ def test(model, test_loader):
 
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
-        data = F.pad(data, p2d, 'constant', pad_const)
-
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
 
@@ -184,8 +182,6 @@ def train(train_loader, n_classes, model, named_params):
 
     # for each batch 
     for batch_idx, (data, target) in enumerate(train_loader):
-        data = F.pad(data, p2d, 'constant', pad_const)
-
         # to device and reshape
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
