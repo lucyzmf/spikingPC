@@ -41,7 +41,7 @@ transform = transforms.Compose(
     [transforms.ToTensor(),
      transforms.Normalize((0.5), (0.5))])
 
-batch_size = 10
+batch_size = 100
 
 traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
@@ -133,7 +133,7 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
 # %%
 # untar saved dict 
-exp_dir = '/home/lucy/spikingPC/results/Dec-16-2022/exp_10_adp_memloss_clf1_10popencode_03scale_l11e-3/'
+exp_dir = '/home/lucy/spikingPC/results/Jan-09-2023/exp14_fc/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 # %%
 model.load_state_dict(saved_dict['state_dict'])
