@@ -20,6 +20,8 @@ import IPython.display as ipd
 from tqdm import tqdm
 
 # %%
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 # %%
 ###############################################################
 # DEFINE NETWORK
@@ -106,6 +108,8 @@ def output_Neuron(inputs, mem, tau_m, dt=1):
 ###############################################################################################
 ###############################################################################################
 ###############################################################################################
+pad_size = 4
+
 class SNN_rec_cell(nn.Module):
     def __init__(self, input_size, hidden_size, is_rec=False, is_LTC=True, isAdaptNeu=True, oneToOne=False):
         super(SNN_rec_cell, self).__init__()
@@ -119,7 +123,10 @@ class SNN_rec_cell(nn.Module):
 
         if is_rec:
             if not oneToOne:
-                self.layer1_x = nn.Linear(input_size + hidden_size, hidden_size)
+                # self.layer1_x = nn.Linear(input_size + hidden_size, hidden_size)
+                self.input_layer = nn.Linear(input_size, input_size)
+                nn.init.xavier_uniform_(self.input_layer.weight)
+                self.layer1_x = nn.Linear(hidden_size, hidden_size)
             else:
                 self.layer1_x = nn.Linear(hidden_size, hidden_size)
         else:
@@ -144,12 +151,19 @@ class SNN_rec_cell(nn.Module):
     def forward(self, x_t, mem_t, spk_t, b_t):
         if self.is_rec:
             if not self.oneToOne:
-                dense_x = self.layer1_x(torch.cat((x_t, spk_t), dim=-1))
+                # dense_x = self.layer1_x(torch.cat((x_t, spk_t), dim=-1))
+                recurrent_spk = self.layer1_x(spk_t)
+                transformed_input = self.input_layer(x_t)
+                # pad input 
+                p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+                transformed_input = F.pad(transformed_input.view(-1, 28, 28), p2d, 'constant', -1)
+
+                transformed_input = transformed_input.view(-1, self.hidden_size)
+                dense_x = transformed_input + recurrent_spk
             else:
                 # compute input drive, 1 to 1 input 
                 recurrent_spk = self.layer1_x(spk_t)
                 dense_x = x_t * 0.3 + recurrent_spk
-
         else:
             dense_x = self.layer1_x(x_t)
 
@@ -184,7 +198,7 @@ class OneLayerSnn(nn.Module):
         self.rnn_name = 'SNN: is_LTC-' + str(is_LTC)
 
         # one recurrent layer 
-        self.snn_layer = SNN_rec_cell(hidden_size, hidden_size, is_rec, is_LTC, is_adapt, one_to_one)
+        self.snn_layer = SNN_rec_cell(input_size, hidden_size, is_rec, is_LTC, is_adapt, one_to_one)
 
         self.output_layer = nn.Linear(hidden_size, output_size, bias=True)
         self.output_layer_tauM = nn.Linear(output_size * 2, output_size)
