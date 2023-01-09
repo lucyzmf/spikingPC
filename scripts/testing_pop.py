@@ -154,6 +154,10 @@ print(param_names)
 # %%
 # plot weight distribution 
 plot_distribution(param_names, param_dict, 'weight')
+
+# %%
+test(model, train_loader)
+
 # %%
 # get all the hidden states for the last batch in test loader 
 hiddens, test_loss, _, data, targets = test(model, test_loader)
