@@ -37,14 +37,14 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-# wandb.init(project="spikingPC", entity="lucyzmf")
-wandb.init(mode="disabled")
+wandb.init(project="spikingPC", entity="lucyzmf")
+# wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
 config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
 config.adap_neuron = True  # whether use adaptive neuron or not
-config.l1_lambda = 1e-3  # weighting for l1 reg
+config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
@@ -54,7 +54,7 @@ input_scale = config.input_scale
 pad_size = 2
 
 # experiment name 
-exp_name = 'exp_10_adp_memloss_clf1_10popencode_03scale_l11e-3'
+exp_name = 'exp14_fc'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
