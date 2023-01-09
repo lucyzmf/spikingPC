@@ -89,7 +89,7 @@ class OneLayerSnnUpdated(nn.Module):
             x_to_hidden = self.input_layer(x)  # this has reduced size excluding prediction neurons
 
         # shape x_to_hidden back to of size hidden
-        x_to_hidden = torch.cat((torch.zeros(b, self.readout_size*10), x_to_hidden), dim=1)
+        x_to_hidden = torch.cat((torch.zeros(b, self.readout_size*10).to(device), x_to_hidden), dim=1)
 
         mem_1, spk_1, b_1 = self.snn_layer(x_to_hidden, mem_t=h[0], spk_t=h[1], b_t=h[2])
 
