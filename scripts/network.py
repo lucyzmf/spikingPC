@@ -148,7 +148,7 @@ class SNN_rec_cell(nn.Module):
 
     def forward(self, x_t, mem_t,spk_t,b_t):    
         if self.is_rec:
-            # if not self.oneToOne:
+            # if not self.one_to_one:
             #     dense_x = self.layer1_x(torch.cat((x_t,spk_t),dim=-1))
             # else:
                 # compute input drive, 1 to 1 input

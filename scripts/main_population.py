@@ -46,7 +46,7 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1 #- config.clf_alpha
+config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 5
 config.onetoone = True
 config.input_scale = 0.3
@@ -115,15 +115,14 @@ for i in range(10):
 
     correct = 0
 
-    for b, (data, target) in enumerate(train_loader): 
-
+    for b, (data, target) in enumerate(train_loader):
         # to device and reshape
         data, target = data.to(device), target.to(device)
         data = data.view(-1, 784)
 
         optimizer.zero_grad()
 
-        o = feature_extractor(data) 
+        o = feature_extractor(data)
         loss = F.nll_loss(F.log_softmax(o, dim=1), target)
 
         loss.backward()
@@ -132,9 +131,8 @@ for i in range(10):
 
         pred = o.data.max(1, keepdim=True)[1]
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
-    
-    print('acc %.4f' % (correct / len(traindata)))
 
+    print('acc %.4f' % (correct / len(traindata)))
 
 feature_extractor.eval()
 feature_w = feature_extractor.linear_layer.weight.data.cpu()
@@ -148,7 +146,7 @@ pad_const = -1
 
 # set input and t param
 IN_dim = 256
-hidden_dim = 256 + 10*config.num_readout
+hidden_dim = 256 + 10 * config.num_readout
 T = 20  # sequence length, reading from the same image T times
 
 
@@ -187,7 +185,6 @@ def test(model, test_loader):
 
             # if use line below, prob output here computed from sum of spikes over entire seq
             pred = prob_outputs.data.max(1, keepdim=True)[1]
-
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -243,7 +240,6 @@ def train(train_loader, n_classes, model, named_params):
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
 
-
         B = target.size()[0]
 
         for p in range(T):
@@ -262,7 +258,7 @@ def train(train_loader, n_classes, model, named_params):
             output = F.log_softmax(output_spikes_sum, dim=1)
 
             # get prediction 
-            if p == (T-1):
+            if p == (T - 1):
                 pred = output.data.max(1, keepdim=True)[1]
                 correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
@@ -309,18 +305,17 @@ def train(train_loader, n_classes, model, named_params):
                 total_l1_loss += l1_norm.item()
 
         if batch_idx > 0 and batch_idx % log_interval == 0:
-
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
                 \tClf: {:.6f}\tReg: {:.6f}\tFr: {:.6f}'.format(
                     epoch, batch_idx * batch_size, len(train_loader.dataset),
-                    100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B), 
+                    100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B),
                     train_loss / log_interval,
                     total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
                     model.network.fr / T / log_interval))
 
             wandb.log({
                 'clf_loss': total_clf_loss / log_interval,
-                'train_acc': 100 * correct / (log_interval * B), 
+                'train_acc': 100 * correct / (log_interval * B),
                 'regularisation_loss': total_regularizaton_loss / log_interval,
                 'energy_loss': total_energy_loss / log_interval,
                 'l1_loss': config.l1_lambda * total_l1_loss / log_interval,
@@ -344,8 +339,8 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = one_layer_SeqModel_pop(IN_dim, hidden_dim, n_classes, is_rec=True, is_LTC=False,
-                               isAdaptNeu=adap_neuron, oneToOne=config.onetoone)
+model = OneLayerSeqModelPop(IN_dim, hidden_dim, n_classes, is_rec=True, is_LTC=False,
+                            is_adapt=adap_neuron, one_to_one=config.onetoone)
 model.to(device)
 print(model)
 
@@ -408,10 +403,5 @@ for epoch in range(epochs):
 
     all_test_losses.append(test_loss)
 
-train_acc = test(model, train_loader)
-print('model train acc: %.4f' % train_acc)
-
-test_loss, acc1 = test(model, test_loader)
-print('model test acc: %.4f' % acc1)
 
 # %%
