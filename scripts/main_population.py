@@ -138,6 +138,7 @@ for i in range(10):
 
 feature_extractor.eval()
 feature_w = feature_extractor.linear_layer.weight.data.cpu()
+relu = nn.ReLU()
 
 # %%
 pad_size = 2
@@ -170,6 +171,7 @@ def test(model, test_loader):
         # data = F.pad(data, p2d, 'constant', -1)
 
         data = data.view(-1, 784) @ feature_w.T
+        data = relu(data)
 
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
@@ -235,6 +237,7 @@ def train(train_loader, n_classes, model, named_params):
         # data = F.pad(data, p2d, 'constant', -1)
 
         data = data.view(-1, 784) @ feature_w.T
+        data = relu(data)
 
         # to device and reshape
         data, target = data.to(device), target.to(device)
