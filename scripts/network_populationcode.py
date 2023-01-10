@@ -69,11 +69,7 @@ class OneLayerSnn(nn.Module):
     def forward(self, inputs, h):
 
         # outputs = []
-        hiddens = []
-
         b, in_dim = inputs.shape  # b is batch
-        # this is just one forward pass
-        t = 1
 
         x_down = inputs.reshape(b, self.input_size).float()
 
@@ -98,24 +94,22 @@ class OneLayerSnn(nn.Module):
              mem_out)
 
         f_output = F.log_softmax(mem_out, dim=1)
-        hiddens.append(h)
 
-        final_state = h
-        return f_output, final_state, hiddens
+        return f_output, h
 
 
 class OneLayerSeqModelPop(nn.Module):
-    def __init__(self, ninp, nhid, nout, is_rec=True, is_LTC=True, is_adapt=True, one_to_one=False):
+    def __init__(self, n_inp, n_hid, n_out, is_rec=True, is_LTC=True, is_adapt=True, one_to_one=False):
         super(OneLayerSeqModelPop, self).__init__()
-        self.nout = nout  # Should be the number of classes
-        self.nhid = nhid
+        self.n_out = n_out  # Should be the number of classes
+        self.n_hid = n_hid
         self.is_rec = is_rec
         self.is_LTC = is_LTC
         self.isAdaptNeu = is_adapt
         self.one_to_one = one_to_one
         self.dp = nn.Dropout(0.4)
 
-        self.network = OneLayerSnn(input_size=ninp, hidden_size=nhid, output_size=nout, is_rec=is_rec, is_LTC=is_LTC,
+        self.network = OneLayerSnn(input_size=n_inp, hidden_size=n_hid, output_size=n_out, is_rec=is_rec, is_LTC=is_LTC,
                                    is_adapt=is_adapt, one_to_one=one_to_one)
 
     def forward(self, inputs, hidden, T):  # this function is only used during inference not training
@@ -131,7 +125,7 @@ class OneLayerSeqModelPop(nn.Module):
         inputs = self.dp(inputs)
 
         for i in range(t):
-            f_output, hidden, hiddens = self.network.forward(inputs, hidden)
+            f_output, hidden = self.network.forward(inputs, hidden)
 
             # read out from 10 populations
             output_spikes = hidden[1][:, :10 * num_readout].view(-1, 10,
@@ -144,7 +138,7 @@ class OneLayerSeqModelPop(nn.Module):
 
             probs_outputs.append(prob_out)
             log_softmax_outputs.append(output)
-            hiddens_all.append(hiddens)
+            hiddens_all.append(hidden)
 
         prob_out_sum = F.softmax(spike_sum, dim=1)
 
