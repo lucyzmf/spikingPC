@@ -37,8 +37,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC", entity="lucyzmf")
-# wandb.init(mode="disabled")
+# wandb.init(project="spikingPC", entity="lucyzmf")
+wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -48,12 +48,12 @@ config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1 #- config.clf_alpha
 config.num_readout = 5
-config.onetoone = False
+config.onetoone = True
 config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'test_imple8_mask'
+exp_name = 'test_imple9_featureextractor'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -97,6 +97,47 @@ test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
 for batch_idx, (data, target) in enumerate(train_loader):
     print(data.shape)
     break
+# %%
+###############train feature extractor 
+feature_extractor = FeatureExtractor(784, 256, 10)
+lr = 1e-3
+
+feature_extractor.to(device)
+print(feature_extractor)
+
+# define optimiser
+optimizer = optim.Adamax(feature_extractor.parameters(), lr=lr, weight_decay=0.0001)
+# reduce the learning after 20 epochs by a factor of 10
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
+
+for i in range(10):
+    scheduler.step()
+
+    correct = 0
+
+    for b, (data, target) in enumerate(train_loader): 
+
+        # to device and reshape
+        data, target = data.to(device), target.to(device)
+        data = data.view(-1, 784)
+
+        optimizer.zero_grad()
+
+        o = feature_extractor(data) 
+        loss = F.nll_loss(F.log_softmax(o, dim=1), target)
+
+        loss.backward()
+
+        optimizer.step()
+
+        pred = o.data.max(1, keepdim=True)[1]
+        correct += pred.eq(target.data.view_as(pred)).cpu().sum()
+    
+    print('acc %.4f' % (correct / len(traindata)))
+
+
+feature_extractor.eval()
+feature_w = feature_extractor.linear_layer.weight.data.cpu()
 
 # %%
 pad_size = 2
@@ -105,7 +146,7 @@ p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
 pad_const = -1
 
 # set input and t param
-IN_dim = 784
+IN_dim = 256
 hidden_dim = 256 + 10*config.num_readout
 T = 20  # sequence length, reading from the same image T times
 
@@ -127,6 +168,8 @@ def test(model, test_loader):
         # pad input
         # p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
         # data = F.pad(data, p2d, 'constant', -1)
+
+        data = data.view(-1, 784) @ feature_w.T
 
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
@@ -191,9 +234,12 @@ def train(train_loader, n_classes, model, named_params):
         # p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
         # data = F.pad(data, p2d, 'constant', -1)
 
+        data = data.view(-1, 784) @ feature_w.T
+
         # to device and reshape
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
+
 
         B = target.size()[0]
 
