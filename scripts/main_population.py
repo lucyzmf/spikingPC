@@ -250,7 +250,7 @@ def train(train_loader, n_classes, model, named_params):
             elif p % omega == 0:
                 h = tuple(v.detach() for v in h)
 
-            o, h, hs = model.network.forward(data, h)
+            o, h = model.network.forward(data, h)
 
             #  read out for population code
             output_spikes = h[1][:, :config.num_readout * 10].view(-1, 10,
