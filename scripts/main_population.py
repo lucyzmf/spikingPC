@@ -46,14 +46,14 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1 #- config.clf_alpha
+config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 5
-config.onetoone = False
+config.onetoone = True
 config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'test_imple10_fctor'
+exp_name = 'test_imple9_featureextractor'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -97,6 +97,46 @@ test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
 for batch_idx, (data, target) in enumerate(train_loader):
     print(data.shape)
     break
+# %%
+###############train feature extractor 
+feature_extractor = FeatureExtractor(784, 256, 10)
+lr = 1e-3
+
+feature_extractor.to(device)
+print(feature_extractor)
+
+# define optimiser
+optimizer = optim.Adamax(feature_extractor.parameters(), lr=lr, weight_decay=0.0001)
+# reduce the learning after 20 epochs by a factor of 10
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
+
+for i in range(10):
+    scheduler.step()
+
+    correct = 0
+
+    for b, (data, target) in enumerate(train_loader):
+        # to device and reshape
+        data, target = data.to(device), target.to(device)
+        data = data.view(-1, 784)
+
+        optimizer.zero_grad()
+
+        o = feature_extractor(data)
+        loss = F.nll_loss(F.log_softmax(o, dim=1), target)
+
+        loss.backward()
+
+        optimizer.step()
+
+        pred = o.data.max(1, keepdim=True)[1]
+        correct += pred.eq(target.data.view_as(pred)).cpu().sum()
+
+    print('acc %.4f' % (correct / len(traindata)))
+
+feature_extractor.eval()
+feature_w = feature_extractor.linear_layer.weight.data.cpu()
+relu = nn.ReLU()
 
 # %%
 pad_size = 2
@@ -105,8 +145,8 @@ p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
 pad_const = -1
 
 # set input and t param
-IN_dim = 784
-hidden_dim = 256 + 10*config.num_readout 
+IN_dim = 256
+hidden_dim = 256 + 10 * config.num_readout
 T = 20  # sequence length, reading from the same image T times
 
 
@@ -128,6 +168,9 @@ def test(model, test_loader):
         # p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
         # data = F.pad(data, p2d, 'constant', -1)
 
+        data = data.view(-1, 784) @ feature_w.T
+        data = relu(data)
+
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
 
@@ -142,7 +185,6 @@ def test(model, test_loader):
 
             # if use line below, prob output here computed from sum of spikes over entire seq
             pred = prob_outputs.data.max(1, keepdim=True)[1]
-
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -191,6 +233,9 @@ def train(train_loader, n_classes, model, named_params):
         # p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
         # data = F.pad(data, p2d, 'constant', -1)
 
+        data = data.view(-1, 784) @ feature_w.T
+        data = relu(data)
+
         # to device and reshape
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
@@ -213,7 +258,7 @@ def train(train_loader, n_classes, model, named_params):
             output = F.log_softmax(output_spikes_sum, dim=1)
 
             # get prediction 
-            if p == (T-1):
+            if p == (T - 1):
                 pred = output.data.max(1, keepdim=True)[1]
                 correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
@@ -260,18 +305,17 @@ def train(train_loader, n_classes, model, named_params):
                 total_l1_loss += l1_norm.item()
 
         if batch_idx > 0 and batch_idx % log_interval == 0:
-
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
                 \tClf: {:.6f}\tReg: {:.6f}\tFr: {:.6f}'.format(
                     epoch, batch_idx * batch_size, len(train_loader.dataset),
-                    100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B), 
+                    100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B),
                     train_loss / log_interval,
                     total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
                     model.network.fr / T / log_interval))
 
             wandb.log({
                 'clf_loss': total_clf_loss / log_interval,
-                'train_acc': 100 * correct / (log_interval * B), 
+                'train_acc': 100 * correct / (log_interval * B),
                 'regularisation_loss': total_regularizaton_loss / log_interval,
                 'energy_loss': total_energy_loss / log_interval,
                 'l1_loss': config.l1_lambda * total_l1_loss / log_interval,
@@ -295,8 +339,8 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = one_layer_SeqModel_pop(IN_dim, hidden_dim, n_classes, is_rec=True, is_LTC=False,
-                               isAdaptNeu=adap_neuron, oneToOne=config.onetoone)
+model = OneLayerSeqModelPop(IN_dim, hidden_dim, n_classes, is_rec=True, is_LTC=False,
+                            is_adapt=adap_neuron, one_to_one=config.onetoone)
 model.to(device)
 print(model)
 
@@ -359,10 +403,5 @@ for epoch in range(epochs):
 
     all_test_losses.append(test_loss)
 
-train_acc = test(model, train_loader)
-print('model train acc: %.4f' % train_acc)
-
-test_loss, acc1 = test(model, test_loader)
-print('model test acc: %.4f' % acc1)
 
 # %%
