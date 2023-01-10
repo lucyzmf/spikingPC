@@ -37,8 +37,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC", entity="lucyzmf")
-# wandb.init(mode="disabled")
+# wandb.init(project="spikingPC", entity="lucyzmf")
+wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -49,12 +49,11 @@ config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1 #- config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
-config.input_scale = 0.2
+config.input_scale = 0.3
 input_scale = config.input_scale
-pad_size = 2
 
 # experiment name 
-exp_name = 'input_dp04'
+exp_name = 'test_imple'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -100,9 +99,15 @@ for batch_idx, (data, target) in enumerate(train_loader):
     break
 
 # %%
+pad_size = 2
+# pad input
+p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+pad_const = -1
+
 # set input and t param
-IN_dim = (28 + pad_size) * 28
-T = 20  # sequence length, reading from the same image T times 
+IN_dim = 784
+hidden_dim = 784 + 10*config.num_readout
+T = 20  # sequence length, reading from the same image T times
 
 
 # if apply first layer drop out, creates sth similar to poisson encoding
@@ -120,8 +125,8 @@ def test(model, test_loader):
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
         # pad input
-        p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        data = F.pad(data, p2d, 'constant', -1)
+        # p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+        # data = F.pad(data, p2d, 'constant', -1)
 
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
