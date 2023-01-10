@@ -79,14 +79,14 @@ class OneLayerSnn(nn.Module):
             if self.onetoone:
                 x_down = x_down * 0.3
                 # x_down = F.normalize(x_down, dim=1)
-                x_down = torch.cat((torch.zeros(b, 100).to(device), x_down), dim=1)
+                x_down = torch.cat((torch.zeros(b, 10*num_readout).to(device), x_down), dim=1)
             else: 
                 self.input_w.weight.data = self.input_w.weight.data * self.weight_mask
                 x_down = self.input_w(x_down) 
                 # x_down = F.normalize(x_down, dim=1) 
                 # x_down = normalize(x_down)
                 # x_down = self.act_o(x_down) 
-                # x_down = torch.cat((torch.full((b, 50), -1).to(device), x_down), dim=1)
+                # x_down = torch.cat((torch.full((b, 10*num_readout), -1).to(device), x_down), dim=1)
 
             mem_1,spk_1,b_1 = self.snn_layer(x_down, mem_t=h[0],spk_t=h[1],b_t = h[2])
 
@@ -166,4 +166,20 @@ class one_layer_SeqModel_pop(nn.Module):
                 # sum spike
                 weight.new(bsz, self.nout).zero_(),
                 )
+# %%
+
+class FeatureExtractor(nn.Module):
+    def __init__(self, in_dim, hidden_dim, out_dim) -> None:
+        super(FeatureExtractor, self).__init__()
+
+        self.linear_layer = nn.Linear(in_dim, hidden_dim, out_dim)
+        self.out = nn.Linear(hidden_dim, out_dim)
+        self.relu = nn.ReLU()
+
+    def forward(self, input): 
+        h = self.linear_layer(input)
+        h = self.relu(h)
+        out = self.out(h)
+
+        return out
 # %%
