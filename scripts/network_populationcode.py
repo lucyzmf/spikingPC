@@ -32,7 +32,7 @@ class one_layer_SeqModel_pop(nn.Module):
         self.onToOne = oneToOne
         self.dp = nn.Dropout(0.4)
 
-        self.network = one_layer_SNN(input_size=ninp, hidden_size=nhid, output_size=nout, is_rec=is_rec, is_LTC=is_LTC,
+        self.network = OneLayerSnn(input_size=ninp, hidden_size=nhid, output_size=nout, is_rec=is_rec, is_LTC=is_LTC,
                                      isAdaptNeu=isAdaptNeu, oneToOne = oneToOne)
 
     def forward(self, inputs, hidden, T):  # this function is only used during inference not training

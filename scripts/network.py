@@ -118,7 +118,10 @@ class SNN_rec_cell(nn.Module):
 
         if is_rec:
             if not oneToOne:
-                self.layer1_x = nn.Linear(input_size+hidden_size, hidden_size)
+                # self.layer1_x = nn.Linear(input_size + hidden_size, hidden_size)
+                # self.input_layer = nn.Linear(input_size, input_size)
+                # nn.init.xavier_uniform_(self.input_layer.weight)
+                self.layer1_x = nn.Linear(hidden_size, hidden_size)
             else:
                 self.layer1_x = nn.Linear(hidden_size, hidden_size)
         else:
@@ -144,7 +147,9 @@ class SNN_rec_cell(nn.Module):
     def forward(self, x_t, mem_t,spk_t,b_t):    
         if self.is_rec:
             if not self.oneToOne:
-                dense_x = self.layer1_x(torch.cat((x_t,spk_t),dim=-1))
+                # dense_x = self.layer1_x(torch.cat((x_t,spk_t),dim=-1))
+                recurrent_input = self.layer1_x(spk_t)
+                dense_x = x_t + recurrent_input
             else:
                 # compute input drive, 1 to 1 input
                 recurrent_spk = self.layer1_x(spk_t)
@@ -168,18 +173,20 @@ class SNN_rec_cell(nn.Module):
     def compute_output_size(self):
         return [self.hidden_size]
 
-class one_layer_SNN(nn.Module):
-    def __init__(self, input_size, hidden_size,output_size,is_rec=True, is_LTC=False, isAdaptNeu=True, oneToOne=False):
-        super(one_layer_SNN, self).__init__()
-        
+
+class OneLayerSnn(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, is_rec=True, is_LTC=False, is_adapt=True,
+                 one_to_one=False):
+        super(OneLayerSnn, self).__init__()
+
         self.input_size = input_size
-        self.hidden_size = hidden_size 
+        self.hidden_size = hidden_size
         self.output_size = output_size
-        self.isAdaptNew = isAdaptNeu
+        self.isAdaptNew = is_adapt
         self.is_rec = is_rec
         self.is_LTC = is_LTC
-        
-        self.rnn_name = 'SNN: is_LTC-'+str(is_LTC)
+
+        self.rnn_name = 'SNN: is_LTC-' + str(is_LTC)
 
         # one recurrent layer 
         self.snn_layer = SNN_rec_cell(hidden_size,hidden_size,is_rec,is_LTC, isAdaptNeu, oneToOne)
