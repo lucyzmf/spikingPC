@@ -53,7 +53,7 @@ config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'test_imple9_featureextractor'
+exp_name = 'baseline_fc_relu_rec'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -136,6 +136,7 @@ for i in range(10):
 
 feature_extractor.eval()
 feature_w = feature_extractor.linear_layer.weight.data.cpu()
+print(feature_w.size())
 relu = nn.ReLU()
 
 # %%

@@ -90,7 +90,7 @@ class OneLayerSnn(nn.Module):
         dense3_x = self.output_layer(spk_1)
         # tauM2 = self.act3(self.layer3_tauM(torch.cat((dense3_x, h[-2]),dim=-1)))
         tauM2 = torch.exp(-1. / (self.tau_m_o))
-        mem_out = output_Neuron(dense3_x, mem=h[-2], tau_m=tauM2)
+        mem_out = output_Neuron(dense3_x, mem=h[-1], tau_m=tauM2)
 
         self.fr = self.fr + spk_1.detach().cpu().numpy().mean()
 
