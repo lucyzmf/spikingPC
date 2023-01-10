@@ -53,7 +53,7 @@ config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'test_imple4'
+exp_name = 'test_imple8_mask'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
