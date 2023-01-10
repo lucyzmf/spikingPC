@@ -152,8 +152,8 @@ class SNN_rec_cell(nn.Module):
             #     dense_x = self.layer1_x(torch.cat((x_t,spk_t),dim=-1))
             # else:
                 # compute input drive, 1 to 1 input
-            recurrent_spk = self.layer1_x(spk_t)
-            dense_x = x_t + recurrent_spk
+            recurrent_input = self.layer1_x(spk_t)
+            dense_x = x_t + recurrent_input
 
         else:
             dense_x = self.layer1_x(x_t)
@@ -174,76 +174,7 @@ class SNN_rec_cell(nn.Module):
         return [self.hidden_size]
 
 
-class OneLayerSnn(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size, is_rec=True, is_LTC=False, is_adapt=True,
-                 one_to_one=False):
-        super(OneLayerSnn, self).__init__()
 
-        self.input_size = input_size
-        self.hidden_size = hidden_size 
-        self.output_size = output_size
-        self.isAdaptNew = is_adapt
-        self.is_rec = is_rec
-        self.is_LTC = is_LTC
-        self.onetoone = one_to_one
-        
-        self.rnn_name = 'SNN: is_LTC-'+str(is_LTC)
-
-        # one recurrent layer 
-        self.snn_layer = SNN_rec_cell(input_size, hidden_size, is_rec, is_LTC, is_adapt, one_to_one)
-
-        self.output_layer = nn.Linear(hidden_size,output_size,bias=True)
-        self.output_layer_tauM = nn.Linear(output_size*2,output_size)
-        self.tau_m_o = nn.Parameter(torch.Tensor(output_size))
-
-        nn.init.constant_(self.tau_m_o, 20.)
-        # nn.init.constant_(self.tau_m_o, 0.)
-        nn.init.xavier_uniform_(self.output_layer.weight)
-        nn.init.zeros_(self.output_layer_tauM.weight)
-        self.act_o = nn.Sigmoid()
-        self.relu = nn.ELU()
-
-        self.dp1 = nn.Dropout(0.1)#.1
-        self.dp2 = nn.Dropout(0.1)
-        self.dp3 = nn.Dropout(0.1)
-        self.fr = 0
-        
-    def forward(self, inputs, h):
-        
-        
-        # outputs = []
-        hiddens = []
- 
-        b,in_dim= inputs.shape # b is batch 
-        # this is just one forward pass
-        t = 1
-        for x_i in range(t):
-            x_down = inputs.reshape(b,self.input_size).float()
-
-            if self.onetoone:
-                x_down = x_down * 0.3
-                x_down = torch.cat((torch.zeros(b, 100).to(device), x_down), dim=1)
-
-            mem_1,spk_1,b_1 = self.snn_layer(x_down, mem_t=h[0],spk_t=h[1],b_t = h[2])
-
-            dense3_x = self.output_layer(spk_1)
-            # tauM2 = self.act3(self.layer3_tauM(torch.cat((dense3_x, h[-2]),dim=-1)))
-            tauM2 = torch.exp(-1./(self.tau_m_o))
-            mem_out = output_Neuron(dense3_x,mem=h[-2],tau_m = tauM2)
-
-            out =mem_out
-            self.fr = self.fr+ spk_1.detach().cpu().numpy().mean()/2.
-
-        h = (mem_1,spk_1,b_1,
-            mem_out,
-            out)
-
-        f_output = F.log_softmax(out, dim=1)
-        hiddens.append(h)
-
-        
-        final_state = h
-        return f_output, final_state, hiddens
 
 class one_layer_SeqModel(nn.Module):
     def __init__(self, ninp, nhid, nout,is_rec=True,is_LTC = True, isAdaptNeu=True):

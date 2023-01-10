@@ -37,8 +37,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-# wandb.init(project="spikingPC", entity="lucyzmf")
-wandb.init(mode="disabled")
+wandb.init(project="spikingPC", entity="lucyzmf")
+# wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -47,13 +47,13 @@ config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1 #- config.clf_alpha
-config.num_readout = 10
-config.onetoone = True
+config.num_readout = 5
+config.onetoone = False
 config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'test_imple'
+exp_name = 'test_imple4'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -106,7 +106,7 @@ pad_const = -1
 
 # set input and t param
 IN_dim = 784
-hidden_dim = 784 + 10*config.num_readout
+hidden_dim = 256 + 10*config.num_readout
 T = 20  # sequence length, reading from the same image T times
 
 
@@ -188,8 +188,8 @@ def train(train_loader, n_classes, model, named_params):
     # for each batch 
     for batch_idx, (data, target) in enumerate(train_loader):
         # pad input
-        p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        data = F.pad(data, p2d, 'constant', -1)
+        # p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+        # data = F.pad(data, p2d, 'constant', -1)
 
         # to device and reshape
         data, target = data.to(device), target.to(device)
@@ -295,7 +295,7 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = one_layer_SeqModel_pop(IN_dim, 784 + 28 * pad_size, n_classes, is_rec=True, is_LTC=False,
+model = one_layer_SeqModel_pop(IN_dim, hidden_dim, n_classes, is_rec=True, is_LTC=False,
                                isAdaptNeu=adap_neuron, oneToOne=config.onetoone)
 model.to(device)
 print(model)
