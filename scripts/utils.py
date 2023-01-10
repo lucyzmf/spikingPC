@@ -199,3 +199,18 @@ def get_spikes(hiddens):
 
     return spikes_all
 # %%
+
+def normalize(tensor): 
+    """normalise batch data 
+
+    Args:
+        tensor (tensor): b * input dim 
+    """
+    mean = tensor.mean(dim=1).unsqueeze(dim=1)
+    std = tensor.std(dim=1).unsqueeze(dim=1)
+    # mean = torch.full(tensor.size(), 0.5)
+    # std = torch.full(tensor.size(), 0.5)
+    tensor = (tensor-mean)/std
+
+    return tensor
+# %%

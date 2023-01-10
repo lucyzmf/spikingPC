@@ -53,7 +53,7 @@ config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'baseline_fc_relu_rec'
+exp_name = 'refrac'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
