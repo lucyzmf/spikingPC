@@ -37,8 +37,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-# wandb.init(project="spikingPC", entity="lucyzmf")
-wandb.init(mode="disabled")
+wandb.init(project="spikingPC", entity="lucyzmf")
+# wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -46,15 +46,15 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1  # - config.clf_alpha
+config.energy_alpha = 1 #- config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
-config.input_scale = 0.3
-config.use_spikes = True
+config.input_scale = 0.2
 input_scale = config.input_scale
+pad_size = 2
 
 # experiment name 
-exp_name = 'test_imple'
+exp_name = 'input_dp04'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -100,15 +100,9 @@ for batch_idx, (data, target) in enumerate(train_loader):
     break
 
 # %%
-pad_size = 2
-# pad input
-p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-pad_const = -1
-
 # set input and t param
-IN_dim = 784
-hidden_dim = 784 + 10*config.num_readout
-T = 20  # sequence length, reading from the same image T times
+IN_dim = (28 + pad_size) * 28
+T = 20  # sequence length, reading from the same image T times 
 
 
 # if apply first layer drop out, creates sth similar to poisson encoding
@@ -125,6 +119,10 @@ def test(model, test_loader):
 
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
+        # pad input
+        p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+        data = F.pad(data, p2d, 'constant', -1)
+
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
 
@@ -184,6 +182,10 @@ def train(train_loader, n_classes, model, named_params):
 
     # for each batch 
     for batch_idx, (data, target) in enumerate(train_loader):
+        # pad input
+        p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+        data = F.pad(data, p2d, 'constant', -1)
+
         # to device and reshape
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
@@ -226,7 +228,7 @@ def train(train_loader, n_classes, model, named_params):
                     energy = h[1].mean()  # * 0.1
                 else:
                     # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = torch.norm(h[0], p=1) / B / hidden_dim
+                    energy = torch.norm(h[0], p=1) / B / 784
 
                 # l1 loss on rec weights 
                 l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
@@ -288,8 +290,8 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = OneLayerSeqModelPop(IN_dim, hidden_dim, n_classes, config.num_readout, config.use_spikes, is_rec=True,
-                            is_LTC=False, is_adapt=adap_neuron, one_to_one=config.onetoone)
+model = one_layer_SeqModel_pop(IN_dim, 784 + 28 * pad_size, n_classes, is_rec=True, is_LTC=False,
+                               isAdaptNeu=adap_neuron, oneToOne=config.onetoone)
 model.to(device)
 print(model)
 
