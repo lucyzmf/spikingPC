@@ -146,13 +146,13 @@ class OneLayerSeqModelPop(nn.Module):
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
-        return (weight.new(bsz, self.nhid).uniform_(),
-                weight.new(bsz, self.nhid).zero_(),
-                weight.new(bsz, self.nhid).fill_(b_j0),
+        return (weight.new(bsz, self.n_hid).uniform_(),
+                weight.new(bsz, self.n_hid).zero_(),
+                weight.new(bsz, self.n_hid).fill_(b_j0),
                 # layer out
-                weight.new(bsz, self.nout).zero_(),
+                weight.new(bsz, self.n_out).zero_(),
                 # sum spike
-                weight.new(bsz, self.nout).zero_(),
+                weight.new(bsz, self.n_out).zero_(),
                 )
 
 
