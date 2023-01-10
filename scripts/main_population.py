@@ -37,8 +37,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC", entity="lucyzmf")
-# wandb.init(mode="disabled")
+# wandb.init(project="spikingPC", entity="lucyzmf")
+wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -53,7 +53,7 @@ config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'test_imple8_mask'
+exp_name = 'test_imple10_fctor'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -106,7 +106,7 @@ pad_const = -1
 
 # set input and t param
 IN_dim = 784
-hidden_dim = 256 + 10*config.num_readout
+hidden_dim = 256 + 10*config.num_readout 
 T = 20  # sequence length, reading from the same image T times
 
 

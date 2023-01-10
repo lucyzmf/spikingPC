@@ -36,8 +36,8 @@ class OneLayerSnn(nn.Module):
         self.onetoone = one_to_one
 
         if not self.onetoone:
-            # self.input_w = nn.Linear(input_size, hidden_size-50)
-            self.input_w = nn.Linear(input_size, hidden_size)
+            self.input_w = nn.Linear(input_size, hidden_size-50)
+            # self.input_w = nn.Linear(input_size, hidden_size)
             nn.init.xavier_uniform_(self.input_w.weight)
             self.weight_mask = torch.ones(hidden_size, input_size).to(device)
             self.weight_mask[:50, :] = 0
@@ -57,7 +57,7 @@ class OneLayerSnn(nn.Module):
         nn.init.xavier_uniform_(self.output_layer.weight)
         nn.init.zeros_(self.output_layer_tauM.weight)
         self.act_o = nn.Sigmoid()
-        self.relu = nn.ELU()
+        self.relu = nn.ReLU()
 
         self.dp1 = nn.Dropout(0.1)#.1
         self.dp2 = nn.Dropout(0.1)
@@ -79,14 +79,15 @@ class OneLayerSnn(nn.Module):
             if self.onetoone:
                 x_down = x_down * 0.3
                 # x_down = F.normalize(x_down, dim=1)
-                x_down = torch.cat((torch.zeros(b, 100).to(device), x_down), dim=1)
+                x_down = torch.cat((torch.zeros(b, 10*num_readout).to(device), x_down), dim=1)
             else: 
-                self.input_w.weight.data = self.input_w.weight.data * self.weight_mask
+                # self.input_w.weight.data = self.input_w.weight.data * self.weight_mask
                 x_down = self.input_w(x_down) 
+                x_down = self.relu(x_down)
                 # x_down = F.normalize(x_down, dim=1) 
                 # x_down = normalize(x_down)
                 # x_down = self.act_o(x_down) 
-                # x_down = torch.cat((torch.full((b, 50), -1).to(device), x_down), dim=1)
+                x_down = torch.cat((torch.full((b, 10*num_readout), -0.1).to(device), x_down), dim=1)
 
             mem_1,spk_1,b_1 = self.snn_layer(x_down, mem_t=h[0],spk_t=h[1],b_t = h[2])
 
