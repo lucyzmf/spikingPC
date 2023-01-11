@@ -51,9 +51,9 @@ testdata = torchvision.datasets.MNIST(root='./data', train=False,
 
 # data loading 
 train_loader = torch.utils.data.DataLoader(traindata, batch_size=batch_size,
-                                           shuffle=True, num_workers=2)
+                                           shuffle=False, num_workers=2)
 test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
-                                          shuffle=True, num_workers=2)
+                                          shuffle=False, num_workers=2)
 
 # %%
 # set input and t param
@@ -91,7 +91,7 @@ print('total param count %i' % total_params)
 
 # %%
 # untar saved dict
-exp_dir = '/home/lucy/spikingPC/results/Jan-08-2023/sanity_check2/'
+exp_dir = '/home/lucy/spikingPC/results/Jan-11-2023/fc_relu_rec_baseline/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -143,6 +143,7 @@ def get_analysis_data(model, test_loader):
 
             # log network predictions
             preds_all_.append(pred.detach().cpu().numpy())
+            hiddens_log.append(hiddens)
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -195,33 +196,44 @@ for b in range(len(hiddens_all)):  # iter over each batch
     spikes_all.append(batch_spike)
 
 spikes_all = np.stack(spikes_all)
-spikes_all = spikes_all.transpose(0, 2, 1, 3).reshape(10000, 20, 784+pad_size*28)
+spikes_all = spikes_all.transpose(0, 2, 1, 3).reshape(10000, 20, hidden_dim)
+
+# %%
+spike_sums = np.zeros((10, 10))
+for i in range(10):
+    class_spikes = spikes_all[target_all == i, :, :].sum(axis=0).sum(axis=0)[:10*num_readout].reshape(10, num_readout)
+
+    group_sum = class_spikes.sum(axis=1)
+
+    spike_sums[i, :] = group_sum.T
+
+sns.heatmap(spike_sums)
+plt.show()
+
+
 
 # %%
 # class mean spiking
-fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
+fig, axs = plt.subplots(2, 10, figsize=(20, 3), sharex=True)
 for i in range(10):
     class_mean = spikes_all[target_all == i, :, :].mean(axis=0).mean(axis=0)
-    pos = axs[i].imshow(class_mean.reshape(28+pad_size, 28)[0:, :])
-    fig.colorbar(pos, ax=axs[i], shrink=0.3)
-    axs[i].axis('off')
+
+    # prediction neuron spiking 
+    pos1 = axs[0][i].imshow(class_mean[:10*num_readout].reshape(10, num_readout))
+    fig.colorbar(pos1, ax=axs[0][i], shrink=0.3)
+    axs[0][i].axis('off')
+
+    # error neuron spiking 
+    pos2 = axs[1][i].imshow(class_mean[10*num_readout:].reshape(16, 16))
+    fig.colorbar(pos2, ax=axs[1][i], shrink=0.3)
+    axs[1][i].axis('off')
+
+
 plt.title('spiking mean per class')
 plt.show()
 # %%
-# class mean rec drive
 rec_layer_weight = param_dict['network.snn_layer.layer1_x.weight']
 
-rec_drive = spikes_all @ rec_layer_weight
-fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
-for i in range(10):
-    class_mean = rec_drive[target_all == i, :, :].mean(axis=0).mean(axis=0)
-    pos = axs[i].imshow(class_mean.reshape(28+pad_size, 28))
-    fig.colorbar(pos, ax=axs[i], shrink=0.3)
-    axs[i].axis('off')
-plt.title('rec drive mean per class')
-plt.show()
-
-# %%
 # class mean rec projection from 10 popluation neuron
 rec_drive = spikes_all[:, :, :10*10] @ rec_layer_weight[:, :10*10].T
 fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
