@@ -69,7 +69,7 @@ log_interval = 100
 lr = 1e-3
 epoch = 10
 n_classes = 10
-num_readout = 5
+num_readout = 10
 adap_neuron = True
 onetoone = True
 
@@ -91,7 +91,7 @@ print('total param count %i' % total_params)
 
 # %%
 # untar saved dict
-exp_dir = '/home/lucy/spikingPC/results/Jan-11-2023/fc_relu_rec_baseline/'
+exp_dir = '/home/lucy/spikingPC/results/Jan-11-2023/fc_relu_rec_10readout/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -176,7 +176,7 @@ print(param_names)
 
 # %%
 # plot weight distribution 
-plot_distribution(param_names, param_dict, 'weight')
+# plot_distribution(param_names, param_dict, 'weight')
 # %%
 # get all the hidden states
 hiddens_all, preds_all = get_analysis_data(model, test_loader)
@@ -235,21 +235,64 @@ plt.show()
 rec_layer_weight = param_dict['network.snn_layer.layer1_x.weight']
 
 # class mean rec projection from 10 popluation neuron
-rec_drive = spikes_all[:, :, :10*10] @ rec_layer_weight[:, :10*10].T
+rec_drive = spikes_all[:, :, :10*num_readout] @ rec_layer_weight[:, :10*num_readout].T
 fig, axs = plt.subplots(1, 10, figsize=(20, 3), sharex=True)
 for i in range(10):
-    class_mean = rec_drive[target_all == i, :, :].mean(axis=0).mean(axis=0)
-    pos = axs[i].imshow(class_mean.reshape(28+pad_size, 28)[4:, :])
-    fig.colorbar(pos, ax=axs[i], shrink=0.3)
+    # correct 
+    rec_drive_by_class = spikes_all[:, :, i*num_readout:(i+1)*num_readout] @ rec_layer_weight[:, i*num_readout:(i+1)*num_readout].T
+
+    class_mean = rec_drive_by_class[target_all == i, :, :].mean(axis=0).mean(axis=0)
+    pos1 = axs[i].imshow((class_mean[10*num_readout:]@feature_w.numpy()).reshape(28, 28))
+    fig.colorbar(pos1, ax=axs[i], shrink=0.3)
     axs[i].axis('off')
-plt.title('rec projection from 10 neuron populations')
+
+plt.title('rec projection from class neuron populations')
 plt.show()
 
 
 # %%
 # weights from pred neuron for class 0 to other pred neurons
-sns.heatmap(rec_layer_weight[:10*10, :10*10], cmap="vlag")
+abs_max = np.max(np.abs(rec_layer_weight[:10*num_readout, :10*num_readout]))
+sns.heatmap(rec_layer_weight[:10*num_readout, :10*num_readout], vmax=abs_max, vmin=-abs_max, cmap='icefire')
 plt.show()
+
+# %%
+# plot a sequence 
+sample = 0 
+spike_seq = spikes_all[sample, :, :]
+fig, axs = plt.subplots(3, T, figsize=(40, 6), sharex=True)
+for i in range(T):
+    # pred spiking 
+    pos1 = axs[0][i].imshow(spike_seq[i, :10*num_readout].reshape(10, num_readout))
+    # fig.colorbar(pos1, ax=axs[0][i], shrink=0.3)
+    axs[0][i].axis('off')
+
+    # error spiking 
+    pos2 = axs[1][i].imshow(spike_seq[i, 10*num_readout:].reshape(16, 16))
+    # fig.colorbar(pos2, ax=axs[1][i], shrink=0.3)
+    axs[1][i].axis('off')
+
+    # pred to error drive 
+    pos3 = axs[2][i].imshow((rec_drive[sample, i, 10*num_readout:] @ feature_w.numpy()).reshape(28, 28))
+    fig.colorbar(pos3, ax=axs[2][i], shrink=0.3)
+    axs[1][i].axis('off')
+
+plt.show()
+
+# %%
+# rec drive from one single neuron 
+sample=0
+neuron_number = 20
+one_neuron = np.expand_dims(spikes_all[:, :, neuron_number], axis=2) @ np.expand_dims(rec_layer_weight[:, neuron_number], axis=1).T
+sns.heatmap((one_neuron[sample, 19, 10*num_readout:] @ feature_w.numpy()).reshape(28, 28))
+plt.show()
+
+
+
+
+
+
+
 
 
 
@@ -288,37 +331,6 @@ plt.plot(t, mean_spike_seq)
 plt.title('mean spiking by t')
 plt.show()
 
-# %%
-################################
-# mean internal drive along sequence 
-################################ 
-plt.plot(t, mean_internal_drive_seq)
-plt.title('mean internal drive by t')
-plt.show()
-
-# %%
-################################
-# 2d visualisation of internal drive 
-################################ 
-n = 4  # sample number from batch 
-rec_drive = get_internal_drive(spikes_all[n, :, :], rec_layer_weight)
-
-
-def plot_drive(internal_drive, name, sample, step_size):
-    fig, axs = plt.subplots(1, int(len(internal_drive) / step_size) + 1, sharey=True)
-    axs[0].imshow(data[sample, :].numpy().reshape((28+pad_size, 28)))
-    step = np.arange(len(internal_drive), step=step_size)  # plot every 4 time steps
-    for i in range(len(step)):
-        pos = axs[i + 1].imshow(internal_drive[step[i], :].reshape((28+pad_size, 28)))
-        axs[i + 1].set_title('t = %i' % step[i])
-    fig.suptitle(name + ' drive')
-    fig.colorbar(pos, ax=axs[-1], shrink=0.6)
-    fig.tight_layout()
-    fig.subplots_adjust(top=1.5)
-    plt.show()
-
-
-plot_drive(rec_drive, 'recurrent', n, 4)
 
 # %%
 ################################
