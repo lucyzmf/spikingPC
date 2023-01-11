@@ -136,6 +136,9 @@ for i in range(10):
 
 feature_extractor.eval()
 feature_w = feature_extractor.linear_layer.weight.data.cpu()
+# save feature weights
+torch.save(feature_w, 'feature_extractor_weights.pt')
+
 print(feature_w.size())
 relu = nn.ReLU()
 
