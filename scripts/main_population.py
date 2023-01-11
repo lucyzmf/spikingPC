@@ -53,7 +53,7 @@ config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'mask_self_rec'
+exp_name = 'fc_relu_rec_baseline'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -137,7 +137,7 @@ for i in range(10):
 feature_extractor.eval()
 feature_w = feature_extractor.linear_layer.weight.data.cpu()
 # save feature weights
-torch.save(feature_w, 'feature_extractor_weights.pt')
+torch.save(feature_w, prefix + 'feature_extractor_weights.pt')
 
 print(feature_w.size())
 relu = nn.ReLU()
