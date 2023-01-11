@@ -23,7 +23,6 @@ num_readout = 5
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-# %%
 class OneLayerSnn(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, is_rec=True, is_LTC=False, is_adapt=True,
                  one_to_one=False):
@@ -38,11 +37,11 @@ class OneLayerSnn(nn.Module):
         self.onetoone = one_to_one
 
         if not self.onetoone:
-            self.input_w = nn.Linear(input_size, hidden_size-50)
+            self.input_w = nn.Linear(input_size, hidden_size-10*num_readout)
             # self.input_w = nn.Linear(input_size, hidden_size)
             nn.init.xavier_uniform_(self.input_w.weight)
             self.weight_mask = torch.ones(hidden_size, input_size).to(device)
-            self.weight_mask[:50, :] = 0
+            self.weight_mask[:10*num_readout, :] = 0
             # nn.init.normal_(self.input_w.weight, mean=1, std=0.5)
 
         self.rnn_name = 'SNN: is_LTC-' + str(is_LTC)
