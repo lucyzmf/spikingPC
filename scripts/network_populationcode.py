@@ -19,7 +19,7 @@ from utils import *
 from tqdm import tqdm
 
 # %%
-num_readout = 5
+num_readout = 10
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 

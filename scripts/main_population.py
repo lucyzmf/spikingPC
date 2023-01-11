@@ -47,13 +47,13 @@ config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1  # - config.clf_alpha
-config.num_readout = 5
+config.num_readout = 10
 config.onetoone = True
 config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'fc_relu_rec_baseline'
+exp_name = 'fc_relu_rec_10readout'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
