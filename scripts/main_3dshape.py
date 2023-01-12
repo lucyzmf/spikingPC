@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import torchaudio
+import torch.utils.data as Data
 
 from torch.nn.parameter import Parameter
 from torch.nn import init
@@ -65,19 +65,53 @@ else:
 # IMPORT DATASET 
 ###############################################################
 
-transform = transforms.Compose(
-    [transforms.ToTensor(),
-     transforms.Normalize((0.5), (0.5))])
+# %%
+_FACTORS_IN_ORDER = ['floor_hue', 'wall_hue', 'object_hue', 'scale', 'shape',
+                     'orientation']
+_NUM_VALUES_PER_FACTOR = {'floor_hue': 10, 'wall_hue': 10, 'object_hue': 10,
+                          'scale': 8, 'shape': 4, 'orientation': 15}
 
+data_path = '/home/lucy/spikingPC/3dshape_data/'
+imgPath = data_path + 'images.npy'
+labelPath = data_path + 'labels.npy'
+
+
+class Shape3d(torch.utils.data.Dataset):
+    def __init__(self, image_path=imgPath, label_path=labelPath, transform=None):
+        self.images = torch.from_numpy(np.load(image_path, mmap_mode='r'))
+        self.labels = torch.from_numpy(np.load(label_path, mmap_mode='r'))
+        self.dataset_len = self.images.shape[0]
+        self.transform = transform
+
+    def __getitem__(self, index):
+        image = self.images[index].float()
+        label = self.labels[index].float()
+
+        if self.transform:
+            image = self.transform(image)
+
+        return label, image
+
+    def __len__(self):
+        return self.dataset_len
+
+
+# %%
+transform = transforms.Compose(
+    [transforms.Normalize((0.5), (0.5))])
+
+dataset = Shape3d(transform=transform)
 batch_size = 128
 
-traindata = torchvision.datasets.MNIST(root='./data', train=True,
-                                       download=True, transform=transform)
+loader_params = {'batch_size': 100, 'shuffle': True, 'num_workers': 2}
 
-testdata = torchvision.datasets.MNIST(root='./data', train=False,
-                                      download=True, transform=transform)
+data_loader = Data.DataLoader(dataset, **loader_params)
 
-# data loading 
+# %%
+# create train test dataset
+
+# %%
+# data loading
 train_loader = torch.utils.data.DataLoader(traindata, batch_size=batch_size,
                                            shuffle=True, num_workers=2)
 test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
@@ -255,7 +289,7 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = one_layer_SeqModel(IN_dim, 784, n_classes, is_rec=True, is_LTC=False, isAdaptNeu=adap_neuron)
+model = OneLayerSeqModel(IN_dim, 784, n_classes, is_rec=True, is_LTC=False, is_adapt=adap_neuron)
 model.to(device)
 print(model)
 

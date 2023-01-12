@@ -20,7 +20,7 @@ import IPython.display as ipd
 
 from tqdm import tqdm
 
-from network import *
+from network_seq import *
 from utils import *
 from FTTP import *
 
@@ -38,14 +38,20 @@ wandb.init(project="spikingPC", entity="lucyzmf")
 
 # add wandb.config
 config = wandb.config
-config.spike_loss = True  # whether use energy penalty on spike or on mem potential
+config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
 config.adap_neuron = True  # whether use adaptive neuron or not
-config.l1_lambda = 1  # weighting for l1 reg
-config.clf_alpha = 1 # proportion of clf loss
-config.energy_alpha = 1 #1-config.clf_alpha
+config.l1_lambda = 0  # weighting for l1 reg
+config.clf_alpha = 1  # proportion of clf loss
+config.spatial_loss = 1e-3
+config.energy_alpha = 1  # - config.clf_alpha
+config.num_readout = 10
+config.onetoone = True
+config.input_scale = 0.2
+input_scale = config.input_scale
+pad_size = 2
 
 # experiment name 
-exp_name = 'exp_5_adp_spk_loss1_clf1_l11'
+exp_name = 'exp_12_adp_memloss_clf1ener1_10popencode_wiringcost'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -92,8 +98,9 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 # %%
 # set input and t param
-IN_dim = 28 * 28
+IN_dim = (28 + pad_size) * (28 + pad_size * 2)
 T = 20  # sequence length, reading from the same image T times 
+dist_map = torch.tensor(creat_dist_map(28 + pad_size, 28 + pad_size * 2)).to(device)
 
 
 # if apply first layer drop out, creates sth similar to poisson encoding
@@ -110,17 +117,53 @@ def test(model, test_loader):
 
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
+        # pad input
+        p2d = (pad_size, pad_size, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+        data = F.pad(data, p2d, 'constant', -1)
+
         data, target = data.to(device), target.to(device)
-        data = data.view(-1, IN_dim)
+        B = data.size()[0]
 
         with torch.no_grad():
             model.eval()
             hidden = model.init_hidden(data.size(0))
 
-            prob_outputs, log_softmax_outputs, hidden = model(data, hidden, T)
+            probs_outputs = []  # for pred computation
+            log_softmax_outputs = []  # for loss computation
+            hiddens_all = []
+            spike_sum = torch.zeros(B, 10).to(device)
+
+            for t in range(T):
+                # transform data
+                data = shift_input(t, T, data)
+                data = data.view(-1, IN_dim)
+
+                if t == 0:
+                    hidden = model.init_hidden(data.size(0))
+                    f_output, hidden, hiddens = model.network.forward(data, hidden)
+                elif t % omega == 0:
+                    f_output, hidden, hiddens = model.network.forward(data, hidden)
+
+                # read out from 10 populations
+                output_spikes = hidden[1][:, :10 * num_readout].view(-1, 10,
+                                                                     num_readout)  # take the first 10*28 neurons for read out
+                output_spikes_sum = output_spikes.sum(dim=2)  # mean firing of neurons for each class
+                spike_sum += output_spikes_sum
+
+                prob_out = F.softmax(output_spikes_sum, dim=1)
+                output = F.log_softmax(output_spikes_sum, dim=1)
+
+                probs_outputs.append(prob_out)
+                log_softmax_outputs.append(output)
+                hiddens_all.append(hiddens)
+
+            prob_out_sum = F.softmax(spike_sum, dim=1)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
-            pred = prob_outputs[-1].data.max(1, keepdim=True)[1]
+            # pred = prob_outputs[-1].data.max(1, keepdim=True)[1]
+
+            # if use line below, prob output here computed from sum of spikes over entire seq 
+            pred = prob_out_sum.data.max(1, keepdim=True)[1]
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -146,7 +189,7 @@ omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 100
 lr = 1e-3
-epoch = 10
+epoch = 7
 n_classes = 10
 
 
@@ -159,17 +202,24 @@ def train(train_loader, n_classes, model, named_params):
     total_clf_loss = 0
     total_regularizaton_loss = 0
     total_energy_loss = 0
+    total_spatial_loss = 0
     total_l1_loss = 0
     model.train()
 
     # for each batch 
     for batch_idx, (data, target) in enumerate(train_loader):
+        # pad input
+        p2d = (pad_size, pad_size, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
+        data = F.pad(data, p2d, 'constant', -1)
+
+        # to device and reshape
         data, target = data.to(device), target.to(device)
-        data = data.view(-1, IN_dim)
 
         B = target.size()[0]
 
         for p in range(T):
+            data = shift_input(p, T, data)
+            data = data.view(-1, IN_dim)
 
             if p == 0:
                 h = model.init_hidden(data.size(0))
@@ -178,9 +228,11 @@ def train(train_loader, n_classes, model, named_params):
 
             o, h, hs = model.network.forward(data, h)
 
-            # change readout method to implement read out in same layer 
-            prob_out = F.softmax(h[1][:, :10], dim=1) # take the first 10 neurons for read out 
-            output = F.log_softmax(h[1][:, :10], dim=1)
+            #  read out for population code
+            output_spikes = h[1][:, :config.num_readout * 10].view(-1, 10,
+                                                                   config.num_readout)  # take the first 40 neurons for read out
+            output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
+            output = F.log_softmax(output_spikes_sum, dim=1)
 
             if p % omega == 0 and p > 0:
                 optimizer.zero_grad()
@@ -202,11 +254,14 @@ def train(train_loader, n_classes, model, named_params):
 
                 # l1 loss on rec weights 
                 l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
+                # spatial loss
+                spatial_loss = ((torch.norm(model.network.snn_layer.layer1_x.weight, p=2) \
+                    * torch.norm(dist_map, p=2)) / torch.norm(dist_map, p=2)).sum()
 
                 # overall loss    
                 if energy_penalty:
-                    loss = config.clf_alpha*clf_loss + regularizer + config.energy_alpha*energy \
-                           + config.l1_lambda * l1_norm
+                    loss = config.clf_alpha * clf_loss + regularizer + config.energy_alpha * energy \
+                           + config.l1_lambda * l1_norm + config.spatial_loss * spatial_loss
                 else:
                     loss = clf_loss + regularizer
 
@@ -223,6 +278,7 @@ def train(train_loader, n_classes, model, named_params):
                 total_regularizaton_loss += regularizer  # .item()
                 total_energy_loss += energy.item()
                 total_l1_loss += l1_norm.item()
+                total_spatial_loss += spatial_loss.item()
 
         if batch_idx > 0 and batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\tLoss: {:.6f}\
@@ -237,6 +293,7 @@ def train(train_loader, n_classes, model, named_params):
                 'regularisation_loss': total_regularizaton_loss / log_interval,
                 'energy_loss': total_energy_loss / log_interval,
                 'l1_loss': config.l1_lambda * total_l1_loss / log_interval,
+                'spatial_loss': config.spatial_loss * total_spatial_loss / log_interval,
                 'total_loss': train_loss / log_interval,
                 'network spiking freq': model.network.fr / T / log_interval  # firing per time step
             })
@@ -256,7 +313,8 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = OneLayerSeqModel(IN_dim, 784, n_classes, is_rec=True, is_LTC=False, is_adapt=adap_neuron)
+model = SeqModel_pop(IN_dim, IN_dim, n_classes, is_rec=True, is_LTC=False,
+                     isAdaptNeu=adap_neuron, oneToOne=config.onetoone)
 model.to(device)
 print(model)
 
@@ -307,14 +365,15 @@ for epoch in range(epochs):
     is_best = acc1 > best_acc1
     best_acc1 = max(acc1, best_acc1)
 
-    save_checkpoint({
-        'epoch': epoch + 1,
-        'state_dict': model.state_dict(),
-        # 'oracle_state_dict': oracle.state_dict(),
-        'best_acc1': best_acc1,
-        'optimizer': optimizer.state_dict(),
-        # 'oracle_optimizer' : oracle_optim.state_dict(),
-    }, is_best, prefix=prefix, filename=check_fn)
+    if is_best:
+        save_checkpoint({
+            'epoch': epoch + 1,
+            'state_dict': model.state_dict(),
+            # 'oracle_state_dict': oracle.state_dict(),
+            'best_acc1': best_acc1,
+            'optimizer': optimizer.state_dict(),
+            # 'oracle_optimizer' : oracle_optim.state_dict(),
+        }, is_best, prefix=prefix, filename=check_fn)
 
     all_test_losses.append(test_loss)
 
