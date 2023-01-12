@@ -37,11 +37,11 @@ class OneLayerSnn(nn.Module):
         self.onetoone = one_to_one
 
         if not self.onetoone:
-            self.input_w = nn.Linear(input_size, hidden_size-10*num_readout)
-            # self.input_w = nn.Linear(input_size, hidden_size)
+            # self.input_w = nn.Linear(input_size, hidden_size-10*num_readout)
+            self.input_w = nn.Linear(input_size, hidden_size)
             nn.init.xavier_uniform_(self.input_w.weight)
-            self.weight_mask = torch.ones(hidden_size, input_size).to(device)
-            self.weight_mask[:10*num_readout, :] = 0
+            # self.weight_mask = torch.ones(hidden_size, input_size).to(device)
+            # self.weight_mask[:10*num_readout, :] = 0
             # nn.init.normal_(self.input_w.weight, mean=1, std=0.5)
 
         self.rnn_name = 'SNN: is_LTC-' + str(is_LTC)
@@ -76,8 +76,8 @@ class OneLayerSnn(nn.Module):
             x_down = x_down * 0.3
             x_down = torch.cat((torch.zeros(b, 10 * num_readout).to(device), x_down), dim=1)
         else:
-            self.input_w.weight.data = self.input_w.weight.data * self.weight_mask
-            x_down = self.input_w(x_down)
+            # self.input_w.weight.data = self.input_w.weight.data * self.weight_mask
+            x_down = self.input_w(x_down) 
             # x_down = torch.cat((torch.full((b, 10*num_readout), -1).to(device), x_down), dim=1)
 
         mem_1, spk_1, b_1 = self.snn_layer(x_down, mem_t=h[0], spk_t=h[1], b_t=h[2])
