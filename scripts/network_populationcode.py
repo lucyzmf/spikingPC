@@ -90,7 +90,7 @@ class OneLayerSnn(nn.Module):
             input2rec = self.l1_to_rec(spk_in) 
             input2rec = torch.cat((torch.zeros(b, 10 * num_readout_).to(device), input2rec), dim=1)
 
-        mem_1, spk_1, curr_1, b_1 = self.snn_layer(input2rec, mem_t=h[3], spk_t=h[5], current_t=h[6],b_t=h[7])
+        mem_1, spk_1, curr_1, b_1 = self.snn_layer(input2rec, mem_t=h[4], spk_t=h[5], current_t=h[6],b_t=h[7])
 
         dense3_x = self.output_layer(spk_1)
         # tauM2 = self.act3(self.layer3_tauM(torch.cat((dense3_x, h[-2]),dim=-1)))
