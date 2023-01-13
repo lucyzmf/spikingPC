@@ -70,9 +70,10 @@ class ActFun_adp(torch.autograd.Function):
 
 act_fun_adp = ActFun_adp.apply
 
-def mem_update_adp(inputs, mem, spike, tau_adp,tau_m, b, isAdapt=1, dt=1):
+def mem_update_adp(inputs, mem, spike, current, tau_adp,tau_m, b, dt=1, isAdapt=1, tau_i=1/5):
+    # computation of exp is outside of this function
     alpha = tau_m
-    
+
     ro = tau_adp
 
     if isAdapt:
@@ -80,19 +81,55 @@ def mem_update_adp(inputs, mem, spike, tau_adp,tau_m, b, isAdapt=1, dt=1):
     else:
         beta = 0.
 
+    # adaptive contribution, decays with tau_adp, also dependent on spike
     b = ro * b + (1 - ro) * spike
+    # compute current adapted threshold
     B = b_j0 + beta * b
-    
 
+    #
+    d_current = -current * tau_i + inputs
+    current = current + d_current * dt
 
-    d_mem = -mem + inputs
-    mem = mem + d_mem*alpha
+    d_mem = -alpha * mem + 0.5*current
+    mem = mem + d_mem * dt
+    # diff between adapted threshold and current mem
     inputs_ = mem - B
 
     spike = act_fun_adp(inputs_)  # act_fun : approximation firing function
     mem = (1-spike)*mem
+    # mem = mem-spike*B
 
-    return mem, spike, B, b
+
+    return mem, spike, current, B, b
+
+
+# def mem_update_adp(inputs, mem, spike, tau_adp,tau_m, b, dt=1, isAdapt=1):
+#     # computation of exp is outside of this function
+#     alpha = tau_m
+
+#     ro = tau_adp
+
+#     if isAdapt:
+#         beta = 1.8
+#     else:
+#         beta = 0.
+
+#     # adaptive contribution, decays with tau_adp, also dependent on spike
+#     b = ro * b + (1 - ro) * spike
+#     # compute current adapted threshold
+#     B = b_j0 + beta * b
+
+#     #
+#     mem = mem*alpha + (1-alpha)*R_m*inputs - B*spike*dt
+#     # diff between adapted threshold and current mem
+#     inputs_ = mem - B
+
+#     spike = act_fun_adp(inputs_)  # act_fun : approximation firing function
+#     # mem = (1-spike)*mem
+#     # mem = mem-spike*B
+
+
+#     return mem, spike, B, b
 
 
 def output_Neuron(inputs, mem, tau_m, dt=1):
@@ -140,7 +177,7 @@ class SNN_rec_cell(nn.Module):
         nn.init.xavier_uniform_(self.layer1_x.weight)
         
 
-    def forward(self, x_t, mem_t,spk_t,b_t):    
+    def forward(self, x_t, mem_t,spk_t, current_t, b_t):    
         if self.is_rec:
             # if not self.one_to_one:
             #     dense_x = self.layer1_x(torch.cat((x_t,spk_t),dim=-1))
@@ -159,10 +196,10 @@ class SNN_rec_cell(nn.Module):
             tauM1 = self.act1(self.tau_m)
             tauAdp1 = self.act2(self.tau_adp)
         
-        mem_1,spk_1,_,b_1 = mem_update_adp(dense_x, mem=mem_t,spike=spk_t,
+        mem_1,spk_1, current_1,_,b_1 = mem_update_adp(dense_x, mem=mem_t,spike=spk_t, current=current_t, 
                                         tau_adp=tauAdp1,tau_m=tauM1,b =b_t, isAdapt=self.isAdaptNeu)
 
-        return mem_1,spk_1,b_1
+        return mem_1,spk_1, current_1, b_1
 
     def compute_output_size(self):
         return [self.hidden_size]
