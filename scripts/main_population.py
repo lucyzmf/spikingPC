@@ -50,7 +50,7 @@ config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'spike_feature_extract_baseline'
+exp_name = 'spike_feature_extract_baseline2'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -191,8 +191,6 @@ def train(train_loader, n_classes, model, named_params):
                                                                    config.num_readout)  # take the first 40 neurons for read out
             output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
             output = F.log_softmax(output_spikes_sum, dim=1)
-
-            output = o
 
             # get prediction 
             if p == (T - 1):
