@@ -44,7 +44,7 @@ class OneLayerSnn(nn.Module):
             # self.weight_mask[:10*num_readout, :] = 0
             # nn.init.normal_(self.input_w.weight, mean=1, std=0.5)
         else: 
-            self.o2o_weights = torch.full((hidden_size-10*num_readout_,), 0.5).to(device)
+            self.o2o_weights = torch.full((hidden_size-10*num_readout_,), 0.9).to(device)
             # self.o2o_weights = nn.Parameter(torch.zeros(hidden_size-10*num_readout, 1))
             # nn.init.xavier_uniform_(self.o2o_weights)
 
@@ -80,7 +80,7 @@ class OneLayerSnn(nn.Module):
         x_down = inputs.reshape(b, self.input_size).float()
         
         # output of first spiking layer 
-        mem_in, spk_in, b_in = self.fc1(x_down, mem_t=h[0], spk_t=h[1], b_t=h[2]) 
+        mem_in, spk_in, curr_in, b_in = self.fc1(x_down, mem_t=h[0], spk_t=h[1], current_t=h[2], b_t=h[3]) 
 
         if self.onetoone:
             input2rec = spk_in * self.o2o_weights
@@ -90,7 +90,7 @@ class OneLayerSnn(nn.Module):
             input2rec = self.l1_to_rec(spk_in) 
             input2rec = torch.cat((torch.zeros(b, 10 * num_readout_).to(device), input2rec), dim=1)
 
-        mem_1, spk_1, b_1 = self.snn_layer(input2rec, mem_t=h[3], spk_t=h[4], b_t=h[5])
+        mem_1, spk_1, curr_1, b_1 = self.snn_layer(input2rec, mem_t=h[3], spk_t=h[5], current_t=h[6],b_t=h[7])
 
         dense3_x = self.output_layer(spk_1)
         # tauM2 = self.act3(self.layer3_tauM(torch.cat((dense3_x, h[-2]),dim=-1)))
@@ -99,8 +99,8 @@ class OneLayerSnn(nn.Module):
 
         self.fr = self.fr + spk_1.detach().cpu().numpy().mean()
 
-        h = (mem_in, spk_in, b_in, 
-             mem_1, spk_1, b_1,
+        h = (mem_in, spk_in, curr_in, b_in, 
+             mem_1, spk_1, curr_1, b_1,
              mem_out)
 
         f_output = F.log_softmax(mem_out, dim=1)
@@ -164,9 +164,11 @@ class OneLayerSeqModelPop(nn.Module):
         return (# input layer
                 weight.new(bsz, self.n_hid-10*num_readout_).uniform_(),
                 weight.new(bsz, self.n_hid-10*num_readout_).zero_(),
+                weight.new(bsz, self.n_hid-10*num_readout_).zero_(),
                 weight.new(bsz, self.n_hid-10*num_readout_).fill_(b_j0),
                 # rec
                 weight.new(bsz, self.n_hid).uniform_(),
+                weight.new(bsz, self.n_hid).zero_(),
                 weight.new(bsz, self.n_hid).zero_(),
                 weight.new(bsz, self.n_hid).fill_(b_j0),
                 # layer out

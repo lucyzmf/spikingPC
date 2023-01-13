@@ -50,7 +50,7 @@ config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'spike_feature_extract_baseline2'
+exp_name = 'spike_feature_extract_baseline3'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
