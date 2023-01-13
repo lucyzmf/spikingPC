@@ -1,6 +1,3 @@
-"""
-version stamp: this is for future sanity check
-"""
 
 # %%
 import torch
@@ -53,7 +50,7 @@ config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'fc_relu_rec_10readout'
+exp_name = 'spike_feature_extract_baseline'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -97,61 +94,6 @@ test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
 for batch_idx, (data, target) in enumerate(train_loader):
     print(data.shape)
     break
-# %%
-###############train feature extractor 
-feature_extractor = FeatureExtractor(784, 256, 10)
-lr = 1e-3
-
-feature_extractor.to(device)
-print(feature_extractor)
-
-# define optimiser
-optimizer = optim.Adamax(feature_extractor.parameters(), lr=lr, weight_decay=0.0001)
-# reduce the learning after 20 epochs by a factor of 10
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
-
-for i in range(10):
-    scheduler.step()
-
-    correct = 0
-
-    for b, (data, target) in enumerate(train_loader):
-        # to device and reshape
-        data, target = data.to(device), target.to(device)
-        data = data.view(-1, 784)
-
-        optimizer.zero_grad()
-
-        o = feature_extractor(data)
-        loss = F.nll_loss(F.log_softmax(o, dim=1), target)
-
-        loss.backward()
-
-        optimizer.step()
-
-        pred = o.data.max(1, keepdim=True)[1]
-        correct += pred.eq(target.data.view_as(pred)).cpu().sum()
-
-    print('acc %.4f' % (correct / len(traindata)))
-
-feature_extractor.eval()
-feature_w = feature_extractor.linear_layer.weight.data.cpu()
-# save feature weights
-torch.save(feature_w, prefix + 'feature_extractor_weights.pt')
-
-print(feature_w.size())
-relu = nn.ReLU()
-
-# %%
-pad_size = 2
-# pad input
-p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-pad_const = -1
-
-# set input and t param
-IN_dim = 256
-hidden_dim = 256 + 10 * config.num_readout
-T = 20  # sequence length, reading from the same image T times
 
 
 # if apply first layer drop out, creates sth similar to poisson encoding
@@ -168,12 +110,6 @@ def test(model, test_loader):
 
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
-        # pad input
-        # p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        # data = F.pad(data, p2d, 'constant', -1)
-
-        data = data.view(-1, 784) @ feature_w.T
-        data = relu(data)
 
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
@@ -209,6 +145,7 @@ def test(model, test_loader):
 ##########################          Train function             ###############################
 ###############################################################################################
 # training parameters
+T = 20
 K = T  # K is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
@@ -233,12 +170,6 @@ def train(train_loader, n_classes, model, named_params):
 
     # for each batch 
     for batch_idx, (data, target) in enumerate(train_loader):
-        # pad input
-        # p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        # data = F.pad(data, p2d, 'constant', -1)
-
-        data = data.view(-1, 784) @ feature_w.T
-        data = relu(data)
 
         # to device and reshape
         data, target = data.to(device), target.to(device)
@@ -256,10 +187,12 @@ def train(train_loader, n_classes, model, named_params):
             o, h = model.network.forward(data, h)
 
             #  read out for population code
-            output_spikes = h[1][:, :config.num_readout * 10].view(-1, 10,
+            output_spikes = h[4][:, :config.num_readout * 10].view(-1, 10,
                                                                    config.num_readout)  # take the first 40 neurons for read out
             output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
             output = F.log_softmax(output_spikes_sum, dim=1)
+
+            output = o
 
             # get prediction 
             if p == (T - 1):
@@ -282,7 +215,7 @@ def train(train_loader, n_classes, model, named_params):
                     energy = h[1].mean()  # * 0.1
                 else:
                     # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = torch.norm(h[0], p=1) / B / 784
+                    energy = torch.norm(h[0], p=1) / B / 784 + torch.norm(h[3], p=1) / B / 784
 
                 # l1 loss on rec weights 
                 l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
@@ -340,7 +273,10 @@ def train(train_loader, n_classes, model, named_params):
 ###############################################################
 # DEFINE NETWORK
 ###############################################################
-
+# set input and t param
+IN_dim = 784
+hidden_dim = 256 + 10 * config.num_readout
+T = 20  # sequence length, reading from the same image T times
 
 # define network
 model = OneLayerSeqModelPop(IN_dim, hidden_dim, n_classes, is_rec=True, is_LTC=False,
