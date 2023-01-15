@@ -119,13 +119,7 @@ class SNN_rec_cell(nn.Module):
         self.oneToOne = oneToOne  # whether one to one input or fully connected input
 
         if is_rec:
-            if not oneToOne:
-                # self.layer1_x = nn.Linear(input_size + hidden_size, hidden_size)
-                # self.input_layer = nn.Linear(input_size, input_size)
-                # nn.init.xavier_uniform_(self.input_layer.weight)
-                self.layer1_x = nn.Linear(hidden_size, hidden_size)
-            else:
-                self.layer1_x = nn.Linear(hidden_size, hidden_size)
+            self.layer1_x = nn.Linear(hidden_size, hidden_size)
         else:
             self.layer1_x = nn.Linear(input_size, hidden_size)
         
