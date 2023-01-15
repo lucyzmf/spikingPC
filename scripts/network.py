@@ -90,7 +90,8 @@ def mem_update_adp(inputs, mem, spike, tau_adp, tau_m, b, isAdapt=1, dt=1):
     inputs_ = mem - B
 
     spike = act_fun_adp(inputs_)  # act_fun : approximation firing function
-    mem = (1 - spike) * mem
+    # mem = (1 - spike) * mem
+    mem = mem - spike * B
 
     return mem, spike, B, b
 

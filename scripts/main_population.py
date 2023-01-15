@@ -50,7 +50,7 @@ config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'p_r_imple2_noener_b256_debug_dp'
+exp_name = 'p_r_imple_b256_softreset'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -213,7 +213,7 @@ def train(train_loader, n_classes, model, named_params):
                     energy = h[1].mean()  # * 0.1
                 else:
                     # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = torch.norm(h[0], p=1) / B / 784 + torch.norm(h[3], p=1) / B / 784
+                    energy = torch.norm(h[3], p=1) / B / 784
 
                 # l1 loss on rec weights 
                 # l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
