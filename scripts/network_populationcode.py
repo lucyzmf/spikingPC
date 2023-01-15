@@ -34,27 +34,17 @@ class OneLayerSnn(nn.Module):
         self.isAdaptNew = is_adapt
         self.is_rec = is_rec
         self.is_LTC = is_LTC
-        self.onetoone = one_to_one  # whether inputs to rec are one to one or fc 
-
-        if not self.onetoone:
-            self.l1_to_rec = nn.Linear(hidden_size-10*num_readout_, hidden_size-10*num_readout_)
-            # self.l1_to_rec = nn.Linear(input_size, hidden_size)
-            nn.init.xavier_uniform_(self.l1_to_rec.weight)
-            # self.weight_mask = torch.ones(hidden_size, input_size).to(device)
-            # self.weight_mask[:10*num_readout, :] = 0
-            # nn.init.normal_(self.input_w.weight, mean=1, std=0.5)
-        else: 
-            self.o2o_weights = torch.full((hidden_size-10*num_readout_,), 0.5).to(device)
-            # self.o2o_weights = nn.Parameter(torch.zeros(hidden_size-10*num_readout, 1))
-            # nn.init.xavier_uniform_(self.o2o_weights)
+        self.onetoone = one_to_one  # whether inputs to rec are one to one or fc
 
         self.rnn_name = 'SNN: is_LTC-' + str(is_LTC)
 
         # one input non rec layer 
-        self.fc1 = SNN_rec_cell(input_size, hidden_size-10*num_readout_, False, is_LTC, is_adapt, one_to_one)
+        self.fc1 = SNN_rec_cell(input_size, hidden_size, readout_size_per_class=0, is_rec=False, is_LTC=is_LTC,
+                                isAdaptNeu=is_adapt, oneToOne=one_to_one)
 
         # one recurrent layer 
-        self.snn_layer = SNN_rec_cell(input_size, hidden_size, is_rec, is_LTC, is_adapt, one_to_one)
+        self.snn_layer = SNN_rec_cell(input_size, hidden_size, readout_size_per_class=num_readout_, is_rec=is_rec,
+                                      is_LTC=is_LTC, isAdaptNeu=is_adapt, oneToOne=one_to_one)
 
         self.output_layer = nn.Linear(hidden_size, output_size, bias=True)
         self.output_layer_tauM = nn.Linear(output_size * 2, output_size)
@@ -81,16 +71,7 @@ class OneLayerSnn(nn.Module):
         
         # output of first spiking layer 
         mem_in, spk_in, b_in = self.fc1(x_down, mem_t=h[0], spk_t=h[1], b_t=h[2])
-
-        if self.onetoone:
-            input2rec = spk_in * self.o2o_weights
-            input2rec = torch.cat((torch.zeros(b, 10 * num_readout_).to(device), input2rec), dim=1)
-        else:
-            # self.input_w.weight.data = self.input_w.weight.data * self.weight_mask
-            input2rec = self.l1_to_rec(spk_in) 
-            input2rec = torch.cat((torch.zeros(b, 10 * num_readout_).to(device), input2rec), dim=1)
-
-        mem_1, spk_1, b_1 = self.snn_layer(input2rec, mem_t=h[3], spk_t=h[4], b_t=h[5])
+        mem_1, spk_1, b_1 = self.snn_layer(spk_in, mem_t=h[3], spk_t=h[4], b_t=h[5])
 
         dense3_x = self.output_layer(spk_1)
         # tauM2 = self.act3(self.layer3_tauM(torch.cat((dense3_x, h[-2]),dim=-1)))

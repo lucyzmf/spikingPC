@@ -124,11 +124,21 @@ class SNN_rec_cell(nn.Module):
         if is_rec:
             # self.layer1_x = nn.Linear(hidden_size, hidden_size)
             self.r_size = hidden_size - readout_size_per_class * 10
-            self.i2r = nn.Linear(input_size, self.r_size)
+            if not self.oneToOne:
+                self.i2r = nn.Linear(input_size, self.r_size)
+                nn.init.xavier_uniform_(self.i2r.weight)
+            else:
+                self.i2r = torch.full((self.r_size,), 0.5).to(device)
             self.r2r = nn.Linear(self.r_size, self.r_size)
             self.p2r = nn.Linear(readout_size_per_class * 10, self.r_size)
             self.p2p = nn.Linear(readout_size_per_class * 10, readout_size_per_class * 10)
             self.r2p = nn.Linear(self.r_size, readout_size_per_class * 10)
+
+            nn.init.xavier_uniform_(self.r2r.weight)
+            nn.init.xavier_uniform_(self.p2r.weight)
+            nn.init.xavier_uniform_(self.p2p.weight)
+            nn.init.xavier_uniform_(self.r2r.weight)
+
         else:
             self.layer1_x = nn.Linear(input_size, hidden_size)
 
