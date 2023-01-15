@@ -157,15 +157,18 @@ class SNN_rec_cell(nn.Module):
         self.act1 = nn.Sigmoid()
         self.act2 = nn.Sigmoid()
 
-
     def forward(self, x_t, mem_t, spk_t, b_t):
         if self.is_rec:
             # if not self.one_to_one:
             #     dense_x = self.layer1_x(torch.cat((x_t,spk_t),dim=-1))
             # else:
             # compute input drive, 1 to 1 input
+            if self.oneToOne:
+                x = x_t * self.i2r
+            else:
+                x = self.i2r(x_t)
             r_input = self.r2r(spk_t[:, self.readout_size_per_class * 10:]) + \
-                      self.p2r(spk_t[:, :self.readout_size_per_class * 10]) + self.i2r(x_t)
+                      self.p2r(spk_t[:, :self.readout_size_per_class * 10]) + x
             p_input = self.p2p(spk_t[:, :self.readout_size_per_class * 10]) + \
                       self.r2p(spk_t[:, self.readout_size_per_class * 10:])
             dense_x = x_t + torch.cat((p_input, r_input))
