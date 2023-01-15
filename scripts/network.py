@@ -141,8 +141,9 @@ class SNN_rec_cell(nn.Module):
 
         else:
             self.layer1_x = nn.Linear(input_size, hidden_size)
+            nn.init.xavier_uniform_(self.layer1_x.weight)
 
-        # time-constant definiation and initilization 
+        # time-constant definiation and initilization
         if is_LTC:
             self.layer1_tauAdp = nn.Linear(2 * hidden_size, hidden_size)
             self.layer1_tauM = nn.Linear(2 * hidden_size, hidden_size)
@@ -156,7 +157,6 @@ class SNN_rec_cell(nn.Module):
         self.act1 = nn.Sigmoid()
         self.act2 = nn.Sigmoid()
 
-        nn.init.xavier_uniform_(self.layer1_x.weight)
 
     def forward(self, x_t, mem_t, spk_t, b_t):
         if self.is_rec:
