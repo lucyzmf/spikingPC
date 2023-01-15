@@ -23,10 +23,10 @@ num_readout_ = 10
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-class OneLayerSnn(nn.Module):
+class TwoLayerSnn(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, is_rec=True, is_LTC=False, is_adapt=True,
                  one_to_one=False):
-        super(OneLayerSnn, self).__init__()
+        super(TwoLayerSnn, self).__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
@@ -38,9 +38,13 @@ class OneLayerSnn(nn.Module):
 
         self.rnn_name = 'SNN: is_LTC-' + str(is_LTC)
 
-        # one input non rec layer 
-        self.fc1 = SNN_rec_cell(input_size, hidden_size, readout_size_per_class=0, is_rec=False, is_LTC=is_LTC,
-                                isAdaptNeu=is_adapt, oneToOne=one_to_one)
+        # one input non rec layer
+        if self.onetoone:
+            self.fc1 = SNN_rec_cell(input_size, hidden_size-10*num_readout_, readout_size_per_class=0, is_rec=False,
+                                    is_LTC=is_LTC, isAdaptNeu=is_adapt, oneToOne=one_to_one)
+        else:
+            self.fc1 = SNN_rec_cell(input_size, hidden_size, readout_size_per_class=0, is_rec=False, is_LTC=is_LTC,
+                                    isAdaptNeu=is_adapt, oneToOne=one_to_one)
 
         # one recurrent layer 
         self.snn_layer = SNN_rec_cell(input_size, hidden_size, readout_size_per_class=num_readout_, is_rec=is_rec,
@@ -68,7 +72,7 @@ class OneLayerSnn(nn.Module):
         b, in_dim = inputs.shape  # b is batch
 
         x_down = inputs.reshape(b, self.input_size).float()
-        
+
         # output of first spiking layer 
         mem_in, spk_in, b_in = self.fc1(x_down, mem_t=h[0], spk_t=h[1], b_t=h[2])
         mem_1, spk_1, b_1 = self.snn_layer(spk_in, mem_t=h[3], spk_t=h[4], b_t=h[5])
@@ -100,7 +104,7 @@ class OneLayerSeqModelPop(nn.Module):
         self.one_to_one = one_to_one
         self.dp = nn.Dropout(0.4)
 
-        self.network = OneLayerSnn(input_size=n_inp, hidden_size=n_hid, output_size=n_out, is_rec=is_rec, is_LTC=is_LTC,
+        self.network = TwoLayerSnn(input_size=n_inp, hidden_size=n_hid, output_size=n_out, is_rec=is_rec, is_LTC=is_LTC,
                                    is_adapt=is_adapt, one_to_one=one_to_one)
 
     def forward(self, inputs, hidden, T):  # this function is only used during inference not training
@@ -124,7 +128,7 @@ class OneLayerSeqModelPop(nn.Module):
 
             # read out from 10 populations
             output_spikes = hidden[4][:, :10 * num_readout_].view(-1, 10,
-                                                                 num_readout_)  # take the first 10*28 neurons for read out
+                                                                  num_readout_)  # take the first 10*28 neurons for read out
             output_spikes_sum = output_spikes.sum(dim=2)  # mean firing of neurons for each class
             spike_sum += output_spikes_sum
 
@@ -142,19 +146,18 @@ class OneLayerSeqModelPop(nn.Module):
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
-        return (# input layer
-                weight.new(bsz, self.n_hid-10*num_readout_).uniform_(),
-                weight.new(bsz, self.n_hid-10*num_readout_).zero_(),
-                weight.new(bsz, self.n_hid-10*num_readout_).fill_(b_j0),
-                # rec
-                weight.new(bsz, self.n_hid).uniform_(),
-                weight.new(bsz, self.n_hid).zero_(),
-                weight.new(bsz, self.n_hid).fill_(b_j0),
-                # layer out
-                weight.new(bsz, self.n_out).zero_(),
-                # sum spike
-                weight.new(bsz, self.n_out).zero_(),
-                )
-
+        return (  # input layer
+            weight.new(bsz, self.n_hid - 10 * num_readout_).uniform_(),
+            weight.new(bsz, self.n_hid - 10 * num_readout_).zero_(),
+            weight.new(bsz, self.n_hid - 10 * num_readout_).fill_(b_j0),
+            # rec
+            weight.new(bsz, self.n_hid).uniform_(),
+            weight.new(bsz, self.n_hid).zero_(),
+            weight.new(bsz, self.n_hid).fill_(b_j0),
+            # layer out
+            weight.new(bsz, self.n_out).zero_(),
+            # sum spike
+            weight.new(bsz, self.n_out).zero_(),
+        )
 
 # %%
