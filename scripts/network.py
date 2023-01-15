@@ -171,7 +171,7 @@ class SNN_rec_cell(nn.Module):
                       self.p2r(spk_t[:, :self.readout_size_per_class * 10]) + x
             p_input = self.p2p(spk_t[:, :self.readout_size_per_class * 10]) + \
                       self.r2p(spk_t[:, self.readout_size_per_class * 10:])
-            dense_x = torch.cat((p_input, r_input))
+            dense_x = torch.cat((p_input, r_input), dim=1)
 
         else:
             dense_x = self.layer1_x(x_t)
