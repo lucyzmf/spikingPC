@@ -34,8 +34,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-# wandb.init(project="spikingPC", entity="lucyzmf")
-wandb.init(mode="disabled")
+wandb.init(project="spikingPC", entity="lucyzmf")
+# wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -43,14 +43,14 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1  # - config.clf_alpha
+config.energy_alpha = 0  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
 config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'spike_feature_extract_baseline2'
+exp_name = 'p_r_imple2'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -216,12 +216,12 @@ def train(train_loader, n_classes, model, named_params):
                     energy = torch.norm(h[0], p=1) / B / 784 + torch.norm(h[3], p=1) / B / 784
 
                 # l1 loss on rec weights 
-                l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
+                # l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
 
                 # overall loss    
                 if energy_penalty:
                     loss = config.clf_alpha * clf_loss + regularizer + config.energy_alpha * energy \
-                           + config.l1_lambda * l1_norm
+                        #    + config.l1_lambda * l1_norm
                 else:
                     loss = clf_loss + regularizer
 
@@ -237,7 +237,7 @@ def train(train_loader, n_classes, model, named_params):
                 total_clf_loss += clf_loss.item()
                 total_regularizaton_loss += regularizer  # .item()
                 total_energy_loss += energy.item()
-                total_l1_loss += l1_norm.item()
+                # total_l1_loss += l1_norm.item()
 
         if batch_idx > 0 and batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
