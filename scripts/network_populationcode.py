@@ -61,10 +61,11 @@ class TwoLayerSnn(nn.Module):
         self.act_o = nn.Sigmoid()
         self.relu = nn.ReLU()
 
-        self.dp1 = nn.Dropout(0.1)  # .1
+        self.dp1 = nn.Dropout(0.3)  # .1
         self.dp2 = nn.Dropout(0.1)
         self.dp3 = nn.Dropout(0.1)
-        self.fr = 0
+        self.fr_p = 0
+        self.fr_r = 0
 
     def forward(self, inputs, h):
 
@@ -72,6 +73,7 @@ class TwoLayerSnn(nn.Module):
         b, in_dim = inputs.shape  # b is batch
 
         x_down = inputs.reshape(b, self.input_size).float()
+        x_down = self.dp1(x_down)
 
         # output of first spiking layer 
         mem_in, spk_in, b_in = self.fc1(x_down, mem_t=h[0], spk_t=h[1], b_t=h[2])
@@ -82,7 +84,8 @@ class TwoLayerSnn(nn.Module):
         tauM2 = torch.exp(-1. / (self.tau_m_o))
         mem_out = output_Neuron(dense3_x, mem=h[-1], tau_m=tauM2)
 
-        self.fr = self.fr + spk_1.detach().cpu().numpy().mean()
+        self.fr_p = self.fr_p + spk_1[:, :num_readout_*10].detach().cpu().numpy().mean()
+        self.fr_r = self.fr_p + spk_1[:, num_readout_*10:].detach().cpu().numpy().mean()
 
         h = (mem_in, spk_in, b_in,
              mem_1, spk_1, b_1,

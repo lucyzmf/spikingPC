@@ -128,7 +128,7 @@ class SNN_rec_cell(nn.Module):
                 self.i2r = nn.Linear(input_size, self.r_size)
                 nn.init.xavier_uniform_(self.i2r.weight)
             else:
-                self.i2r = torch.full((self.r_size,), 0.5).to(device)
+                self.i2r = torch.full((self.r_size,), 1).to(device)
             self.r2r = nn.Linear(self.r_size, self.r_size)
             self.p2r = nn.Linear(readout_size_per_class * 10, self.r_size)
             self.p2p = nn.Linear(readout_size_per_class * 10, readout_size_per_class * 10)
@@ -169,8 +169,12 @@ class SNN_rec_cell(nn.Module):
                 x = self.i2r(x_t)
             r_input = self.r2r(spk_t[:, self.readout_size_per_class * 10:]) + \
                       self.p2r(spk_t[:, :self.readout_size_per_class * 10]) + x
+            # print('r input')
+            # print(r_input[0, :].sum().data)
             p_input = self.p2p(spk_t[:, :self.readout_size_per_class * 10]) + \
                       self.r2p(spk_t[:, self.readout_size_per_class * 10:])
+            # print('p input')
+            # print(p_input[0, :].sum().data)
             dense_x = torch.cat((p_input, r_input), dim=1)
 
         else:

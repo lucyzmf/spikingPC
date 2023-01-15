@@ -50,7 +50,7 @@ config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'p_r_imple2'
+exp_name = 'p_r_imple2_noener_b256_debug_dp'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -76,7 +76,7 @@ transform = transforms.Compose(
     [transforms.ToTensor(),
      transforms.Normalize((0.5), (0.5))])
 
-batch_size = 128
+batch_size = 256
 
 traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
@@ -149,7 +149,7 @@ T = 20
 K = T  # K is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
-log_interval = 100
+log_interval = 50
 lr = 1e-3
 epoch = 10
 n_classes = 10
@@ -241,12 +241,13 @@ def train(train_loader, n_classes, model, named_params):
 
         if batch_idx > 0 and batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
-                \tClf: {:.6f}\tReg: {:.6f}\tFr: {:.6f}'.format(
+                \tClf: {:.6f}\tReg: {:.6f}\tFr_p: {:.6f}\tFr_r: {:.6f}'.format(
                     epoch, batch_idx * batch_size, len(train_loader.dataset),
                     100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B),
                     train_loss / log_interval,
                     total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
-                    model.network.fr / T / log_interval))
+                    model.network.fr_p / T / log_interval,
+                    model.network.fr_r / T / log_interval))
 
             wandb.log({
                 'clf_loss': total_clf_loss / log_interval,
@@ -255,8 +256,13 @@ def train(train_loader, n_classes, model, named_params):
                 'energy_loss': total_energy_loss / log_interval,
                 'l1_loss': config.l1_lambda * total_l1_loss / log_interval,
                 'total_loss': train_loss / log_interval,
-                'network spiking freq': model.network.fr / T / log_interval  # firing per time step
-            })
+                'pred spiking freq': model.network.fr_p / T / log_interval,   # firing per time step
+                'rep spiking fr': model.network.fr_r /T /log_interval, 
+                'r2r weights': model.network.snn_layer.r2r.weight.detach().cpu().numpy(), 
+                'p2r weights': model.network.snn_layer.p2r.weight.detach().cpu().numpy(),  
+                'p2p weights': model.network.snn_layer.p2p.weight.detach().cpu().numpy(),  
+                'r2p weights': model.network.snn_layer.r2p.weight.detach().cpu().numpy(),  
+                })
 
             train_loss = 0
             total_clf_loss = 0
@@ -264,7 +270,9 @@ def train(train_loader, n_classes, model, named_params):
             total_energy_loss = 0
             total_l1_loss = 0
             correct = 0
-        model.network.fr = 0
+        # model.network.fr = 0
+        model.network.fr_p = 0
+        model.network.fr_r = 0
 
 
 # %%
@@ -301,7 +309,7 @@ test_loss, acc1 = test(model, test_loader)
 
 # %%
 
-epochs = 10
+epochs = 30
 named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20
