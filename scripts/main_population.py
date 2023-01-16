@@ -45,9 +45,10 @@ config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 0  # - config.clf_alpha
 config.num_readout = 10
-config.onetoone = True
+config.onetoone = False
 config.input_scale = 0.3
 input_scale = config.input_scale
+config.lr = 1e-3
 
 # experiment name 
 exp_name = 'p_r_imple_b256_softreset'
@@ -150,7 +151,7 @@ K = T  # K is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 50
-lr = 1e-3
+lr = config.lr
 epoch = 10
 n_classes = 10
 
@@ -262,6 +263,8 @@ def train(train_loader, n_classes, model, named_params):
                 'p2r weights': model.network.snn_layer.p2r.weight.detach().cpu().numpy(),  
                 'p2p weights': model.network.snn_layer.p2p.weight.detach().cpu().numpy(),  
                 'r2p weights': model.network.snn_layer.r2p.weight.detach().cpu().numpy(),  
+                'fc weights': model.network.fc1.layer1_x.weight.detach().cpu().numpy(),
+                'i2r weights': model.network.snn_layer.i2r.weight.detach().cpu().numpy()
                 })
 
             train_loss = 0

@@ -61,7 +61,7 @@ class TwoLayerSnn(nn.Module):
         self.act_o = nn.Sigmoid()
         self.relu = nn.ReLU()
 
-        self.dp1 = nn.Dropout(0.3)  # .1
+        self.dp1 = nn.Dropout(0.5)  # .1
         self.dp2 = nn.Dropout(0.1)
         self.dp3 = nn.Dropout(0.1)
         self.fr_p = 0
@@ -121,8 +121,6 @@ class OneLayerSeqModelPop(nn.Module):
         spike_sum = torch.zeros(B, 10).to(device)
         f_outs = []
 
-        inputs = self.dp(inputs)
-
         for i in range(t):
             f_output, hidden = self.network.forward(inputs, hidden)
 
@@ -149,18 +147,25 @@ class OneLayerSeqModelPop(nn.Module):
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
-        return (  # input layer
-            weight.new(bsz, self.n_hid - 10 * num_readout_).uniform_(),
-            weight.new(bsz, self.n_hid - 10 * num_readout_).zero_(),
-            weight.new(bsz, self.n_hid - 10 * num_readout_).fill_(b_j0),
-            # rec
-            weight.new(bsz, self.n_hid).uniform_(),
-            weight.new(bsz, self.n_hid).zero_(),
-            weight.new(bsz, self.n_hid).fill_(b_j0),
-            # layer out
-            weight.new(bsz, self.n_out).zero_(),
-            # sum spike
-            weight.new(bsz, self.n_out).zero_(),
-        )
+        return (# input layer
+                weight.new(bsz, self.n_hid).uniform_(),
+                weight.new(bsz, self.n_hid).zero_(),
+                weight.new(bsz, self.n_hid).zero_(),
+                weight.new(bsz, self.n_hid).fill_(b_j0),
+
+                # weight.new(bsz, self.n_hid-10*num_readout_).uniform_(), #mem
+                # weight.new(bsz, self.n_hid-10*num_readout_).zero_(), # spk
+                # weight.new(bsz, self.n_hid-10*num_readout_).zero_(), # curr
+                # weight.new(bsz, self.n_hid-10*num_readout_).fill_(b_j0), # thre
+                # rec
+                weight.new(bsz, self.n_hid).uniform_(),
+                weight.new(bsz, self.n_hid).zero_(),
+                weight.new(bsz, self.n_hid).zero_(),
+                weight.new(bsz, self.n_hid).fill_(b_j0),
+                # layer out
+                weight.new(bsz, self.n_out).zero_(),
+                # sum spike
+                weight.new(bsz, self.n_out).zero_(),
+                )
 
 # %%

@@ -126,7 +126,7 @@ class SNN_rec_cell(nn.Module):
             # self.layer1_x = nn.Linear(hidden_size, hidden_size)
             self.r_size = hidden_size - readout_size_per_class * 10
             if not self.oneToOne:
-                self.i2r = nn.Linear(input_size, self.r_size)
+                self.i2r = nn.Linear(hidden_size, self.r_size)
                 nn.init.xavier_uniform_(self.i2r.weight)
             else:
                 self.i2r = torch.full((self.r_size,), 1).to(device)
@@ -138,7 +138,7 @@ class SNN_rec_cell(nn.Module):
             nn.init.xavier_uniform_(self.r2r.weight)
             nn.init.xavier_uniform_(self.p2r.weight)
             nn.init.xavier_uniform_(self.p2p.weight)
-            nn.init.xavier_uniform_(self.r2r.weight)
+            nn.init.xavier_uniform_(self.r2p.weight)
 
         else:
             self.layer1_x = nn.Linear(input_size, hidden_size)
@@ -153,8 +153,8 @@ class SNN_rec_cell(nn.Module):
         else:
             self.tau_adp = nn.Parameter(torch.Tensor(hidden_size))
             self.tau_m = nn.Parameter(torch.Tensor(hidden_size))
-            nn.init.normal_(self.tau_adp, 4.6, .1)
-            nn.init.normal_(self.tau_m, 3., .1)
+            nn.init.normal_(self.tau_adp, 200., .1)
+            nn.init.normal_(self.tau_m, 20., .1)
         self.act1 = nn.Sigmoid()
         self.act2 = nn.Sigmoid()
 
@@ -185,8 +185,8 @@ class SNN_rec_cell(nn.Module):
             tauM1 = self.act1(self.layer1_tauM(torch.cat((dense_x, mem_t), dim=-1)))
             tauAdp1 = self.act1(self.layer1_tauAdp(torch.cat((dense_x, b_t), dim=-1)))
         else:
-            tauM1 = self.act1(self.tau_m)
-            tauAdp1 = self.act2(self.tau_adp)
+            tauM1 = torch.exp(-1 / self.tau_m) # self.act1(self.tau_m)
+            tauAdp1 = torch.exp(-1 / self.tau_adp)# self.act2(self.tau_adp)
 
         mem_1, spk_1, _, b_1 = mem_update_adp(dense_x, mem=mem_t, spike=spk_t,
                                               tau_adp=tauAdp1, tau_m=tauM1, b=b_t, isAdapt=self.isAdaptNeu)
