@@ -61,7 +61,7 @@ class TwoLayerSnn(nn.Module):
         self.act_o = nn.Sigmoid()
         self.relu = nn.ReLU()
 
-        self.dp1 = nn.Dropout(0.5)  # .1
+        self.dp1 = nn.Dropout(0.3)  # .1
         self.dp2 = nn.Dropout(0.1)
         self.dp3 = nn.Dropout(0.1)
         self.fr_p = 0
