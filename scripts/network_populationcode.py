@@ -150,7 +150,6 @@ class OneLayerSeqModelPop(nn.Module):
         return (# input layer
                 weight.new(bsz, self.n_hid).uniform_(),
                 weight.new(bsz, self.n_hid).zero_(),
-                weight.new(bsz, self.n_hid).zero_(),
                 weight.new(bsz, self.n_hid).fill_(b_j0),
 
                 # weight.new(bsz, self.n_hid-10*num_readout_).uniform_(), #mem
@@ -159,7 +158,6 @@ class OneLayerSeqModelPop(nn.Module):
                 # weight.new(bsz, self.n_hid-10*num_readout_).fill_(b_j0), # thre
                 # rec
                 weight.new(bsz, self.n_hid).uniform_(),
-                weight.new(bsz, self.n_hid).zero_(),
                 weight.new(bsz, self.n_hid).zero_(),
                 weight.new(bsz, self.n_hid).fill_(b_j0),
                 # layer out

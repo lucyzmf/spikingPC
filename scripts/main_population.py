@@ -51,7 +51,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'p_r_imple_b256_softreset'
+exp_name = 'baseline_test_memupdate_relu'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron

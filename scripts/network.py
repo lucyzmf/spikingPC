@@ -85,13 +85,12 @@ def mem_update_adp(inputs, mem, spike, tau_adp, tau_m, b, isAdapt=1, dt=1):
     b = ro * b + (1 - ro) * spike
     B = b_j0 + beta * b
 
-    d_mem = -mem + inputs
-    mem = mem + d_mem * alpha
+    mem = mem*alpha + (1-alpha) * R_m * inputs - B * spike * dt
     inputs_ = mem - B
 
-    spike = act_fun_adp(inputs_)  # act_fun : approximation firing function
+    # spike = act_fun_adp(inputs_)  # act_fun : approximation firing function
+    spike = F.relu(inputs_)
     # mem = (1 - spike) * mem
-    mem = mem - spike * B
 
     return mem, spike, B, b
 
