@@ -47,7 +47,7 @@ class SnnLayer(nn.Module):
             nn.init.xavier_uniform_(self.rec4out.weight)
             nn.init.xavier_uniform_(self.out2in.weight)
         else:
-            self.fc_weights = nn.Linear(in_dim, hidden_dim[0])
+            self.fc_weights = nn.Linear(in_dim, hidden_dim)
 
         # define param for time constants
         self.tau_adp = nn.Parameter(torch.Tensor(sum(hidden_dim)))
