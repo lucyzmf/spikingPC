@@ -50,7 +50,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'new_network_class'
+exp_name = 'new_network_class_noise'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -182,6 +182,10 @@ def train(train_loader, n_classes, model, named_params):
                 h = tuple(v.detach() for v in h)
 
             o, h = model.forward(data, h)
+            # wandb.log({
+            #         'rec layer adap threshold': h[5].detach().cpu().numpy(), 
+            #         'rec layer mem potential': h[3].detach().cpu().numpy()
+            #     })
 
             # get prediction 
             if p == (T - 1):
@@ -278,7 +282,7 @@ hidden_dim = [[256], [10 * config.num_readout, 128]]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
-model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone)
+model = SnnNetwork([IN_dim], hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone)
 model.to(device)
 print(model)
 
@@ -289,7 +293,7 @@ print('total param count %i' % total_params)
 # define optimiser
 optimizer = optim.Adamax(model.parameters(), lr=lr, weight_decay=0.0001)
 # reduce the learning after 20 epochs by a factor of 10
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
 
 # %%
 ###############################################################################################

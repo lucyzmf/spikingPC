@@ -48,11 +48,11 @@ class SnnLayer(nn.Module):
             nn.init.xavier_uniform_(self.rec4out.weight)
             nn.init.xavier_uniform_(self.out2in.weight)
         else:
-            self.fc_weights = nn.Linear(in_dim, hidden_dim[0])
+            self.fc_weights = nn.Linear(in_dim[0], hidden_dim[0])
 
         # define param for time constants
-        self.tau_adp = nn.Parameter(torch.Tensor(sum(hidden_dim)))
-        self.tau_m = nn.Parameter(torch.Tensor(sum(hidden_dim)))
+        self.tau_adp = nn.Parameter(torch.Tensor(sum(hidden_dim)), requires_grad=False)
+        self.tau_m = nn.Parameter(torch.Tensor(sum(hidden_dim)), requires_grad=False)
 
         nn.init.normal_(self.tau_adp, 4.6, .1)
         nn.init.normal_(self.tau_m, 3., .1)
@@ -60,18 +60,18 @@ class SnnLayer(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def mem_update(self, inputs, mem, spike, b, is_adapt, dt=1, baseline_thre=0.1, r_m=3):
-        tau_m = self.sigmoid(self.tau_m)
-        tau_adp = self.sigmoid(self.tau_adp)
+        alpha = self.sigmoid(self.tau_m)
+        rho = self.sigmoid(self.tau_adp)
 
         if is_adapt:
             beta = 1.8
         else:
             beta = 0.
 
-        b = tau_adp * b + (1 - tau_adp) * spike  # adaptive contribution
+        b = rho * b + (1 - rho) * spike  # adaptive contribution
         new_thre = baseline_thre + beta * b  # udpated threshold
 
-        mem = mem * tau_m + (1 - tau_m) * r_m * inputs - new_thre * spike * dt
+        mem = mem * alpha + (1 - alpha) * r_m * inputs - new_thre * spike 
         inputs_ = mem - new_thre
 
         spike = act_fun_adp(inputs_)  # act_fun : approximation firing function
@@ -128,7 +128,7 @@ class OutputLayer(nn.Module):
 
         # tau_m
         self.tau_m = nn.Parameter(torch.Tensor(out_dim))
-        nn.init.constant_(self.tau_m, 20.)
+        nn.init.constant_(self.tau_m, 0.5)
 
         self.sigmoid = nn.Sigmoid()
 
@@ -136,15 +136,15 @@ class OutputLayer(nn.Module):
         """
         integrator neuron without spikes
         """
-        tau_m = self.sigmoid(self.tau_m)
+        # alpha = torch.exp(-1/self.tau_m)
 
         if self.is_fc:
             x_t = self.fc(x_t)
         else:
             x_t = x_t.view(-1, 10, int(self.in_dim / 10)).sum(dim=2)  # sum up population spike
 
-        d_mem = -mem_t + x_t
-        mem = mem_t + d_mem * tau_m
+        # d_mem = -mem_t + x_t
+        mem = mem_t + x_t * self.tau_m
         return mem
 
 
@@ -179,7 +179,7 @@ class SnnNetwork(nn.Module):
     def forward(self, x_t, h):
         batch_dim, input_size = x_t.shape
 
-        x_t = x_t.reshape(batch_dim, self.in_dim).float()
+        x_t = x_t.reshape(batch_dim, input_size).float()
         x_t = self.dp(x_t)
 
         mem1, spk1, b1 = self.fc_layer(x_t, mem_t=h[0], spk_t=h[1], b_t=h[2])
@@ -212,10 +212,10 @@ class SnnNetwork(nn.Module):
         h_hist = []
 
         for t in range(T):
-            log_softmax, hidden = self.forward(x_t, h)
+            log_softmax, h = self.forward(x_t, h)
 
             log_softmax_hist.append(log_softmax)
-            h_hist.append(hidden)
+            h_hist.append(h)
 
         return log_softmax_hist, h_hist
 
