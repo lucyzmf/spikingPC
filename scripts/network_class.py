@@ -1,3 +1,4 @@
+# %%
 import math
 
 import torch
@@ -17,7 +18,7 @@ class SnnLayer(nn.Module):
         super(SnnLayer, self).__init__()
         '''
             hidden_dim contains 
-                if rec: (r_in, r_out) where each indicates how many neurons are receiving output or input 
+                if rec: (r_out, r_in) where each indicates how many neurons are receiving output or input 
                 else: (hidden_dim)
         '''
 
@@ -32,9 +33,9 @@ class SnnLayer(nn.Module):
             raise Exception('input dim and r_in size does not match for one to one set up')
 
         if is_rec:
-            self.r_out = hidden_dim[1]
-            self.r_in = hidden_dim[0]
-            self.x2in = nn.Linear(in_dim, self.r_in)
+            self.r_out = hidden_dim[0]
+            self.r_in = hidden_dim[1]
+            self.x2in = nn.Linear(in_dim[0], self.r_in)
             self.rec4in = nn.Linear(self.r_in, self.r_in)
             self.in2out = nn.Linear(self.r_in, self.r_out)
             self.rec4out = nn.Linear(self.r_out, self.r_out)
@@ -140,7 +141,7 @@ class OutputLayer(nn.Module):
         if self.is_fc:
             x_t = self.fc(x_t)
         else:
-            x_t = x_t.view(-1, 10, self.in_dim / 10).sum(dim=2)  # sum up population spike
+            x_t = x_t.view(-1, 10, int(self.in_dim / 10)).sum(dim=2)  # sum up population spike
 
         d_mem = -mem_t + x_t
         mem = mem_t + d_mem * tau_m
@@ -184,14 +185,17 @@ class SnnNetwork(nn.Module):
         mem1, spk1, b1 = self.fc_layer(x_t, mem_t=h[0], spk_t=h[1], b_t=h[2])
         mem2, spk2, b2 = self.rec_layer(spk1, mem_t=h[3], spk_t=h[4], b_t=h[5])
 
+        self.fr_p = self.fr_p + spk2[:, :self.rec_layer.r_out].detach().cpu().numpy().mean()
+        self.fr_r = self.fr_r + spk2[:, self.rec_layer.r_out:].detach().cpu().numpy().mean()
+
         # read out from r_out neurons
-        mem_out = self.output_layer(spk2[:, :self.rec_layer.r_out])
+        mem_out = self.output_layer(spk2[:, :self.rec_layer.r_out], h[-1])
 
         h = (mem1, spk1, b1,
              mem2, spk2, b2,
              mem_out)
 
-        log_softmax = F.log_softmax(mem_out)
+        log_softmax = F.log_softmax(mem_out, dim=1)
 
         return log_softmax, h
 
@@ -219,9 +223,9 @@ class SnnNetwork(nn.Module):
         weight = next(self.parameters()).data
         return (
             # input layer
-            weight.new(bsz, self.hidden_dims[0]).uniform_(),  # mem
-            weight.new(bsz, self.hidden_dims[0]).zero_(),  # spk
-            weight.new(bsz, self.hidden_dims[0]).fill_(b_j0),  # thre
+            weight.new(bsz, self.hidden_dims[0][0]).uniform_(),  # mem
+            weight.new(bsz, self.hidden_dims[0][0]).zero_(),  # spk
+            weight.new(bsz, self.hidden_dims[0][0]).fill_(b_j0),  # thre
             # rec
             weight.new(bsz, sum(self.hidden_dims[1])).uniform_(),
             weight.new(bsz, sum(self.hidden_dims[1])).zero_(),
@@ -231,3 +235,5 @@ class SnnNetwork(nn.Module):
             # sum spike
             weight.new(bsz, self.out_dim).zero_(),
         )
+
+# %%

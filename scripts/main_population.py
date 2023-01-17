@@ -50,7 +50,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'baseline_test_memupdate_relu'
+exp_name = 'new_network_class'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -117,7 +117,7 @@ def test(model, test_loader):
             model.eval()
             hidden = model.init_hidden(data.size(0))
 
-            log_softmax_outputs, hidden = model.inferece(data, hidden, T)
+            log_softmax_outputs, hidden = model.inference(data, hidden, T)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
 
@@ -181,7 +181,7 @@ def train(train_loader, n_classes, model, named_params):
             elif p % omega == 0:
                 h = tuple(v.detach() for v in h)
 
-            o, h = model.network.forward(data, h)
+            o, h = model.forward(data, h)
 
             # get prediction 
             if p == (T - 1):
@@ -237,8 +237,8 @@ def train(train_loader, n_classes, model, named_params):
                        100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B),
                        train_loss / log_interval,
                        total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
-                       model.network.fr_p / T / log_interval,
-                       model.network.fr_r / T / log_interval))
+                       model.fr_p / T / log_interval,
+                       model.fr_r / T / log_interval))
 
             wandb.log({
                 'clf_loss': total_clf_loss / log_interval / T,
@@ -247,14 +247,14 @@ def train(train_loader, n_classes, model, named_params):
                 'energy_loss': total_energy_loss / log_interval / T,
                 'l1_loss': config.l1_lambda * total_l1_loss / log_interval / T,
                 'total_loss': train_loss / log_interval / T,
-                'pred spiking freq': model.network.fr_p / T / log_interval,  # firing per time step
-                'rep spiking fr': model.network.fr_r / T / log_interval,
-                'r2r weights': model.network.snn_layer.r2r.weight.detach().cpu().numpy(),
-                'p2r weights': model.network.snn_layer.p2r.weight.detach().cpu().numpy(),
-                'p2p weights': model.network.snn_layer.p2p.weight.detach().cpu().numpy(),
-                'r2p weights': model.network.snn_layer.r2p.weight.detach().cpu().numpy(),
-                'fc weights': model.network.fc1.layer1_x.weight.detach().cpu().numpy(),
-                'i2r weights': model.network.snn_layer.i2r.weight.detach().cpu().numpy()
+                'pred spiking freq': model.fr_p / T / log_interval,  # firing per time step
+                'rep spiking fr': model.fr_r / T / log_interval,
+                'r2r weights': model.rec_layer.rec4in.weight.detach().cpu().numpy(),
+                'p2r weights': model.rec_layer.out2in.weight.detach().cpu().numpy(),
+                'p2p weights': model.rec_layer.rec4out.weight.detach().cpu().numpy(),
+                'r2p weights': model.rec_layer.in2out.weight.detach().cpu().numpy(),
+                'fc weights': model.fc_layer.fc_weights.weight.detach().cpu().numpy(),
+                'i2r weights': model.rec_layer.x2in.weight.detach().cpu().numpy()
             })
 
             train_loss = 0
@@ -264,8 +264,8 @@ def train(train_loader, n_classes, model, named_params):
             total_l1_loss = 0
             correct = 0
         # model.network.fr = 0
-        model.network.fr_p = 0
-        model.network.fr_r = 0
+        model.fr_p = 0
+        model.fr_r = 0
 
 
 # %%
@@ -274,7 +274,7 @@ def train(train_loader, n_classes, model, named_params):
 ###############################################################
 # set input and t param
 IN_dim = 784
-hidden_dim = [256, [10 * config.num_readout, 128]]
+hidden_dim = [[256], [10 * config.num_readout, 128]]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
