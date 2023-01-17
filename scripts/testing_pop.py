@@ -91,7 +91,7 @@ print('total param count %i' % total_params)
 
 # %%
 # untar saved dict
-exp_dir = '/home/lucy/spikingPC/results/Jan-11-2023/fc_relu_rec_10readout_noener/'
+exp_dir = '/home/lucy/spikingPC/results/Jan-17-2023/fc_relu_rec_10readout/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])

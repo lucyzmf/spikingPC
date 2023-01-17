@@ -37,8 +37,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-# wandb.init(project="spikingPC", entity="lucyzmf")
-wandb.init(mode="disabled")
+wandb.init(project="spikingPC", entity="lucyzmf")
+# wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -324,7 +324,8 @@ def train(train_loader, n_classes, model, named_params):
                 'energy_loss': total_energy_loss / log_interval,
                 'l1_loss': config.l1_lambda * total_l1_loss / log_interval,
                 'total_loss': train_loss / log_interval,
-                'network spiking freq': model.network.fr / T / log_interval  # firing per time step
+                'network spiking freq': model.network.fr / T / log_interval,  # firing per time step 
+                'weights': model.network.snn_layer.layer1_x.weight.detach().cpu().numpy()
             })
 
             train_loss = 0
