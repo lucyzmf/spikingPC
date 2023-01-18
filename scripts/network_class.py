@@ -9,7 +9,7 @@ from network import *
 class SnnLayer(nn.Module):
     def __init__(
             self,
-            in_dim: int,
+            in_dim: list,
             hidden_dim: list,
             is_rec: bool,
             is_adapt: bool,
@@ -151,7 +151,7 @@ class OutputLayer(nn.Module):
 class SnnNetwork(nn.Module):
     def __init__(
             self,
-            in_dim: int,
+            in_dim: list,
             hidden_dims: list,
             out_dim: int,
             is_adapt: bool,
