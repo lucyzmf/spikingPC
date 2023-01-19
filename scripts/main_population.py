@@ -54,7 +54,7 @@ config.input_scale = 0.3
 input_scale = config.input_scale
 
 # experiment name 
-exp_name = 'fc_relu_rec_10readout'
+exp_name = 'fc_relu_rec_10readout2'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -111,7 +111,7 @@ optimizer = optim.Adamax(feature_extractor.parameters(), lr=lr, weight_decay=0.0
 # reduce the learning after 20 epochs by a factor of 10
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
-for i in range(10):
+for i in range(5):
     scheduler.step()
 
     correct = 0
@@ -280,7 +280,7 @@ def train(train_loader, n_classes, model, named_params):
                     energy = (torch.norm(h[0], p=1) + torch.norm(h[3], p=1)) / B / 784
 
                 # l1 loss on rec weights 
-                l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
+                l1_norm = torch.linalg.norm(model.rin2rout.weight)
 
                 # overall loss    
                 if energy_penalty:
@@ -368,7 +368,7 @@ named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20
 
-wandb.watch(model, log_freq=100)
+wandb.watch(model, log_freq=10)
 
 wandb.config = {
     'learning_rate': lr,

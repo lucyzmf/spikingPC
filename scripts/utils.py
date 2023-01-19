@@ -82,7 +82,7 @@ def save_checkpoint(state, is_best, prefix, filename='_rec2_bias_checkpoint.pth.
 
 
 def count_parameters(model):
-    return sum(p.numel() for p in model.network.parameters() if p.requires_grad)
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 # %%
 def plot_distribution(param_names, param_dict, keyword):
