@@ -127,7 +127,7 @@ class SingleLayerSnnNetwork(nn.Module):
     def __init__(
             self,
             in_dim: int,
-            hidden_dims: list,  # [h1, [r out, r in]]
+            hidden_dims: list,  # [r out, r in]
             out_dim: int,
             is_adapt: bool,
             one_to_one: bool,
@@ -143,17 +143,17 @@ class SingleLayerSnnNetwork(nn.Module):
 
         self.dp = nn.Dropout(dp_rate)
 
-        self.r_in_rec = SnnLayer(hidden_dims[1][1], hidden_dims[1][1], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
+        self.r_in_rec = SnnLayer(hidden_dims[1], hidden_dims[1], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
 
         # r in to r out
-        self.rin2rout = nn.Linear(hidden_dims[1][1], hidden_dims[1][0])
+        self.rin2rout = nn.Linear(hidden_dims[1], hidden_dims[0])
         nn.init.xavier_uniform_(self.rin2rout.weight)
 
         # r out to r in
-        self.rout2rin = nn.Linear(hidden_dims[1][0], hidden_dims[1][1])
+        self.rout2rin = nn.Linear(hidden_dims[0], hidden_dims[1])
         nn.init.xavier_uniform_(self.rout2rin.weight)
 
-        self.r_out_rec = SnnLayer(hidden_dims[1][0], hidden_dims[1][0], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
+        self.r_out_rec = SnnLayer(hidden_dims[0], hidden_dims[0], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
 
         self.fr_p = 0
         self.fr_r = 0
@@ -216,13 +216,13 @@ class SingleLayerSnnNetwork(nn.Module):
         weight = next(self.parameters()).data
         return (
             # r
-            weight.new(bsz, self.hidden_dims[1][1]).uniform_(),
-            weight.new(bsz, self.hidden_dims[1][1]).zero_(),
-            weight.new(bsz, self.hidden_dims[1][1]).fill_(b_j0),
+            weight.new(bsz, self.hidden_dims[1]).uniform_(),
+            weight.new(bsz, self.hidden_dims[1]).zero_(),
+            weight.new(bsz, self.hidden_dims[1]).fill_(b_j0),
             # p
-            weight.new(bsz, self.hidden_dims[1][0]).uniform_(),
-            weight.new(bsz, self.hidden_dims[1][0]).zero_(),
-            weight.new(bsz, self.hidden_dims[1][0]).fill_(b_j0),
+            weight.new(bsz, self.hidden_dims[0]).uniform_(),
+            weight.new(bsz, self.hidden_dims[0]).zero_(),
+            weight.new(bsz, self.hidden_dims[0]).fill_(b_j0),
             # layer out
             weight.new(bsz, self.out_dim).zero_(),
             # sum spike
