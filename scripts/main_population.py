@@ -183,7 +183,7 @@ def test(model, test_loader):
             model.eval()
             hidden = model.init_hidden(data.size(0))
 
-            log_softmax_outputs, hidden = model.inference(data, hidden, T)
+            log_softmax_outputs, hidden = model(data, hidden, T)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
             # pred = prob_outputs[-1].data.max(1, keepdim=True)[1]
@@ -254,7 +254,7 @@ def train(train_loader, n_classes, model, named_params):
             elif p % omega == 0:
                 h = tuple(v.detach() for v in h)
 
-            o, h = model.forward(data, h)
+            o, h = model.network.forward(data, h)
 
             # get prediction 
             if p == (T - 1):
