@@ -9,18 +9,13 @@ from network import *
 class SnnLayer(nn.Module):
     def __init__(
             self,
-            in_dim: list,
-            hidden_dim: list,
+            in_dim: int,
+            hidden_dim: int,
             is_rec: bool,
             is_adapt: bool,
             one_to_one: bool,
     ):
         super(SnnLayer, self).__init__()
-        '''
-            hidden_dim contains 
-                if rec: (r_out, r_in) where each indicates how many neurons are receiving output or input 
-                else: (hidden_dim)
-        '''
 
         self.in_dim = in_dim
         self.hidden_dim = hidden_dim
@@ -28,32 +23,18 @@ class SnnLayer(nn.Module):
         self.is_adapt = is_adapt
         self.one_to_one = one_to_one
 
-        # check if dim is correct for one to one set up
-        if one_to_one and in_dim != self.r_in:
-            raise Exception('input dim and r_in size does not match for one to one set up')
-
         if is_rec:
-            self.r_out = hidden_dim[0]
-            self.r_in = hidden_dim[1]
-            self.x2in = nn.Linear(in_dim[0], self.r_in)
-            self.rec4in = nn.Linear(self.r_in, self.r_in)
-            self.in2out = nn.Linear(self.r_in, self.r_out)
-            self.rec4out = nn.Linear(self.r_out, self.r_out)
-            self.out2in = nn.Linear(self.r_out, self.r_in)
-
+            self.rec_w = nn.Linear(hidden_dim, hidden_dim)
             # init weights
-            nn.init.xavier_uniform_(self.x2in.weight)
-            nn.init.xavier_uniform_(self.rec4in.weight)
-            nn.init.xavier_uniform_(self.in2out.weight)
-            nn.init.xavier_uniform_(self.rec4out.weight)
-            nn.init.xavier_uniform_(self.out2in.weight)
+            nn.init.xavier_uniform_(self.rec_w.weight)
+
         else:
-            self.fc_weights = nn.Linear(in_dim[0], hidden_dim[0])
+            self.fc_weights = nn.Linear(in_dim, hidden_dim)
             nn.init.xavier_uniform_(self.fc_weights.weight)
 
         # define param for time constants
-        self.tau_adp = nn.Parameter(torch.Tensor(sum(hidden_dim)), requires_grad=False)
-        self.tau_m = nn.Parameter(torch.Tensor(sum(hidden_dim)), requires_grad=False)
+        self.tau_adp = nn.Parameter(torch.Tensor(hidden_dim))
+        self.tau_m = nn.Parameter(torch.Tensor(hidden_dim))
 
         nn.init.normal_(self.tau_adp, 4.6, .1)
         nn.init.normal_(self.tau_m, 3., .1)
@@ -90,18 +71,11 @@ class SnnLayer(nn.Module):
         :return: new neuron states
         """
         if self.is_rec:
-            if self.one_to_one:
-                x = x_t
-            else:
-                x = self.x2in(x_t)
-            r_in_ = x + self.rec4in(spk_t[:, self.r_out:]) + self.out2in(spk_t[:, :self.r_out])
-            r_out_ = self.rec4out(spk_t[:, :self.r_out]) + self.in2out(spk_t[:, self.r_out:])
-
-            input2hidden = torch.cat((r_out_, r_in_), dim=1)
+            r_in = x_t + self.rec_w(spk_t)
         else:
-            input2hidden = self.fc_weights(x_t)
+            r_in = self.fc_weights(x_t)
 
-        mem_t1, spk_t1, _, b_t1 = self.mem_update(input2hidden, mem_t, spk_t, b_t, self.is_adapt)
+        mem_t1, spk_t1, _, b_t1 = self.mem_update(r_in, mem_t, spk_t, b_t, self.is_adapt)
 
         return mem_t1, spk_t1, b_t1
 
@@ -152,8 +126,8 @@ class OutputLayer(nn.Module):
 class SnnNetwork(nn.Module):
     def __init__(
             self,
-            in_dim: list,
-            hidden_dims: list,
+            in_dim: int,
+            hidden_dims: list,  # [h1, [r out, r in]]
             out_dim: int,
             is_adapt: bool,
             one_to_one: bool,
@@ -170,7 +144,21 @@ class SnnNetwork(nn.Module):
         self.dp = nn.Dropout(dp_rate)
 
         self.fc_layer = SnnLayer(in_dim, hidden_dims[0], is_rec=False, is_adapt=is_adapt, one_to_one=False)
-        self.rec_layer = SnnLayer(hidden_dims[0], hidden_dims[1], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
+
+        self.fc2r_in = nn.Linear(hidden_dims[0], hidden_dims[1][1])
+        nn.init.xavier_uniform_(self.fc2r_in.weight)
+
+        self.r_in_rec = SnnLayer(hidden_dims[1][1], hidden_dims[1][1], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
+
+        # r in to r out
+        self.rin2rout = nn.Linear(hidden_dims[1][1], hidden_dims[1][0])
+        nn.init.xavier_uniform_(self.rin2rout.weight)
+
+        # r out to r in
+        self.rout2rin = nn.Linear(hidden_dims[1][0], hidden_dims[1][1])
+        nn.init.xavier_uniform_(self.rout2rin.weight)
+
+        self.r_out_rec = SnnLayer(hidden_dims[1][0], hidden_dims[1][0], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
 
         self.output_layer = OutputLayer(hidden_dims[1][0], out_dim, is_fc=False)
 
@@ -184,16 +172,22 @@ class SnnNetwork(nn.Module):
         x_t = self.dp(x_t)
 
         mem1, spk1, b1 = self.fc_layer(x_t, mem_t=h[0], spk_t=h[1], b_t=h[2])
-        mem2, spk2, b2 = self.rec_layer(spk1, mem_t=h[3], spk_t=h[4], b_t=h[5])
 
-        self.fr_p = self.fr_p + spk2[:, :self.rec_layer.r_out].detach().cpu().numpy().mean()
-        self.fr_r = self.fr_r + spk2[:, self.rec_layer.r_out:].detach().cpu().numpy().mean()
+        r_input = self.fc2r_in(spk1) + self.rout2rin(h[7])
+
+        mem_r, spk_r, b_r = self.r_in_rec(r_input, mem_t=h[3], spk_t=h[4], b_t=h[5])
+
+        mem_p, spk_p, b_p = self.rec_layer(spk1, mem_t=h[6], spk_t=h[7], b_t=h[8])
+
+        self.fr_p = self.fr_p + spk_p.detach().cpu().numpy().mean()
+        self.fr_r = self.fr_r + spk_r.detach().cpu().numpy().mean()
 
         # read out from r_out neurons
-        mem_out = self.output_layer(spk2[:, :self.rec_layer.r_out], h[-1])
+        mem_out = self.output_layer(spk_p, h[-1])
 
         h = (mem1, spk1, b1,
-             mem2, spk2, b2,
+             mem_r, spk_r, b_r,
+             mem_p, spk_p, b_p,
              mem_out)
 
         log_softmax = F.log_softmax(mem_out, dim=1)
@@ -227,10 +221,14 @@ class SnnNetwork(nn.Module):
             weight.new(bsz, self.hidden_dims[0][0]).uniform_(),  # mem
             weight.new(bsz, self.hidden_dims[0][0]).zero_(),  # spk
             weight.new(bsz, self.hidden_dims[0][0]).fill_(b_j0),  # thre
-            # rec
-            weight.new(bsz, sum(self.hidden_dims[1])).uniform_(),
-            weight.new(bsz, sum(self.hidden_dims[1])).zero_(),
-            weight.new(bsz, sum(self.hidden_dims[1])).fill_(b_j0),
+            # r
+            weight.new(bsz, sum(self.hidden_dims[1][1])).uniform_(),
+            weight.new(bsz, sum(self.hidden_dims[1][1])).zero_(),
+            weight.new(bsz, sum(self.hidden_dims[1][1])).fill_(b_j0),
+            # p
+            weight.new(bsz, sum(self.hidden_dims[1][0])).uniform_(),
+            weight.new(bsz, sum(self.hidden_dims[1][0])).zero_(),
+            weight.new(bsz, sum(self.hidden_dims[1][0])).fill_(b_j0),
             # layer out
             weight.new(bsz, self.out_dim).zero_(),
             # sum spike
