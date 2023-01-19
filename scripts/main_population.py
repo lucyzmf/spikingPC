@@ -24,6 +24,7 @@ import IPython.display as ipd
 
 from tqdm import tqdm
 
+from network_class import *
 from network_populationcode import *
 from utils import *
 from FTTP import *
@@ -150,7 +151,7 @@ pad_const = -1
 
 # set input and t param
 IN_dim = 256
-hidden_dim = 256 + 10 * config.num_readout
+hidden_dim = [10 * config.num_readout, 256]
 T = 20  # sequence length, reading from the same image T times
 
 
@@ -182,13 +183,13 @@ def test(model, test_loader):
             model.eval()
             hidden = model.init_hidden(data.size(0))
 
-            prob_outputs, log_softmax_outputs, hidden = model(data, hidden, T)
+            log_softmax_outputs, hidden = model(data, hidden, T)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
             # pred = prob_outputs[-1].data.max(1, keepdim=True)[1]
 
             # if use line below, prob output here computed from sum of spikes over entire seq
-            pred = prob_outputs.data.max(1, keepdim=True)[1]
+            pred = log_softmax_outputs[-1].data.max(1, keepdim=True)[1]
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -255,22 +256,16 @@ def train(train_loader, n_classes, model, named_params):
 
             o, h = model.network.forward(data, h)
 
-            #  read out for population code
-            output_spikes = h[1][:, :config.num_readout * 10].view(-1, 10,
-                                                                   config.num_readout)  # take the first 40 neurons for read out
-            output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
-            output = F.log_softmax(output_spikes_sum, dim=1)
-
             # get prediction 
             if p == (T - 1):
-                pred = output.data.max(1, keepdim=True)[1]
+                pred = o.data.max(1, keepdim=True)[1]
                 correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
             if p % omega == 0 and p > 0:
                 optimizer.zero_grad()
 
                 # classification loss
-                clf_loss = (p + 1) / (K) * F.nll_loss(output, target)
+                clf_loss = (p + 1) / (K) * F.nll_loss(o, target)
                 # clf_loss = snr*F.cross_entropy(output, target,reduction='none')
                 # clf_loss = torch.mean(clf_loss)
 
@@ -282,7 +277,7 @@ def train(train_loader, n_classes, model, named_params):
                     energy = h[1].mean()  # * 0.1
                 else:
                     # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = torch.norm(h[0], p=1) / B / 784
+                    energy = (torch.norm(h[0], p=1) + torch.norm(h[3], p=1)) / B / 784
 
                 # l1 loss on rec weights 
                 l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
@@ -311,11 +306,11 @@ def train(train_loader, n_classes, model, named_params):
         if batch_idx > 0 and batch_idx % log_interval == 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
                 \tClf: {:.6f}\tReg: {:.6f}\tFr: {:.6f}'.format(
-                    epoch, batch_idx * batch_size, len(train_loader.dataset),
-                    100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B),
-                    train_loss / log_interval,
-                    total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
-                    model.network.fr / T / log_interval))
+                epoch, batch_idx * batch_size, len(train_loader.dataset),
+                       100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B),
+                       train_loss / log_interval,
+                       total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
+                       (model.fr_p + model.fr_r) / T / log_interval))
 
             wandb.log({
                 'clf_loss': total_clf_loss / log_interval,
@@ -324,8 +319,8 @@ def train(train_loader, n_classes, model, named_params):
                 'energy_loss': total_energy_loss / log_interval,
                 'l1_loss': config.l1_lambda * total_l1_loss / log_interval,
                 'total_loss': train_loss / log_interval,
-                'network spiking freq': model.network.fr / T / log_interval,  # firing per time step 
-                'weights': model.network.snn_layer.layer1_x.weight.detach().cpu().numpy()
+                # 'network spiking freq': model.network.fr / T / log_interval,  # firing per time step
+                # 'weights': model.network.snn_layer.layer1_x.weight.detach().cpu().numpy()
             })
 
             train_loss = 0
@@ -334,7 +329,8 @@ def train(train_loader, n_classes, model, named_params):
             total_energy_loss = 0
             total_l1_loss = 0
             correct = 0
-        model.network.fr = 0
+        model.fr_p = 0
+        model.fr_r = 0
 
 
 # %%
@@ -344,8 +340,7 @@ def train(train_loader, n_classes, model, named_params):
 
 
 # define network
-model = OneLayerSeqModelPop(IN_dim, hidden_dim, n_classes, is_rec=True, is_LTC=False,
-                            is_adapt=adap_neuron, one_to_one=config.onetoone)
+model = SingleLayerSnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone)
 model.to(device)
 print(model)
 
@@ -407,6 +402,5 @@ for epoch in range(epochs):
         }, is_best, prefix=prefix, filename=check_fn)
 
     all_test_losses.append(test_loss)
-
 
 # %%
