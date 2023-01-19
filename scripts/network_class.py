@@ -178,7 +178,7 @@ class SingleLayerSnnNetwork(nn.Module):
         # read out from r_out neurons
         # mem_out = self.output_layer(spk_p, h[-1])
 
-        output_spikes = h[4].view(-1, 10, self.hidden_dims[0]/10)  # take the first 40 neurons for read out
+        output_spikes = h[4].view(-1, 10, int(self.hidden_dims[0]/10))  # take the first 40 neurons for read out
         output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
 
         # output using spike sum
