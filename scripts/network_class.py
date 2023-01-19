@@ -176,7 +176,7 @@ class SingleLayerSnnNetwork(nn.Module):
         self.fr_r = self.fr_r + spk_r.detach().cpu().numpy().mean()
 
         # read out from r_out neurons
-        mem_out = self.output_layer(spk_p, h[-1])
+        # mem_out = self.output_layer(spk_p, h[-1])
 
         output_spikes = h[4].view(-1, 10, self.hidden_dims[0]/10)  # take the first 40 neurons for read out
         output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
@@ -188,7 +188,7 @@ class SingleLayerSnnNetwork(nn.Module):
              mem_p, spk_p, b_p,
              output)
 
-        log_softmax = F.log_softmax(mem_out, dim=1)
+        log_softmax = F.log_softmax(output, dim=1)
 
         return log_softmax, h
 
