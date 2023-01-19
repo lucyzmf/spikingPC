@@ -179,7 +179,7 @@ class SnnNetwork(nn.Module):
 
         p_input = self.rin2rout(spk_r)
 
-        mem_p, spk_p, b_p = self.rec_layer(p_input, mem_t=h[6], spk_t=h[7], b_t=h[8])
+        mem_p, spk_p, b_p = self.r_out_rec(p_input, mem_t=h[6], spk_t=h[7], b_t=h[8])
 
         self.fr_p = self.fr_p + spk_p.detach().cpu().numpy().mean()
         self.fr_r = self.fr_r + spk_r.detach().cpu().numpy().mean()
@@ -224,13 +224,13 @@ class SnnNetwork(nn.Module):
             weight.new(bsz, self.hidden_dims[0]).zero_(),  # spk
             weight.new(bsz, self.hidden_dims[0]).fill_(b_j0),  # thre
             # r
-            weight.new(bsz, sum(self.hidden_dims[1][1])).uniform_(),
-            weight.new(bsz, sum(self.hidden_dims[1][1])).zero_(),
-            weight.new(bsz, sum(self.hidden_dims[1][1])).fill_(b_j0),
+            weight.new(bsz, self.hidden_dims[1][1]).uniform_(),
+            weight.new(bsz, self.hidden_dims[1][1]).zero_(),
+            weight.new(bsz, self.hidden_dims[1][1]).fill_(b_j0),
             # p
-            weight.new(bsz, sum(self.hidden_dims[1][0])).uniform_(),
-            weight.new(bsz, sum(self.hidden_dims[1][0])).zero_(),
-            weight.new(bsz, sum(self.hidden_dims[1][0])).fill_(b_j0),
+            weight.new(bsz, self.hidden_dims[1][0]).uniform_(),
+            weight.new(bsz, self.hidden_dims[1][0]).zero_(),
+            weight.new(bsz, self.hidden_dims[1][0]).fill_(b_j0),
             # layer out
             weight.new(bsz, self.out_dim).zero_(),
             # sum spike

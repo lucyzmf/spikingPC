@@ -50,7 +50,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'new_network_class_relu2scaled_bptt'
+exp_name = 'new_implementation_nodecay'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -146,7 +146,7 @@ T = 20
 K = T  # K is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
-log_interval = 50
+log_interval = 10
 lr = config.lr
 epoch = 10
 n_classes = 10
@@ -253,12 +253,12 @@ def train(train_loader, n_classes, model, named_params):
                 'total_loss': train_loss / log_interval / T,
                 'pred spiking freq': model.fr_p / T / log_interval,  # firing per time step
                 'rep spiking fr': model.fr_r / T / log_interval,
-                'r2r weights': model.rec_layer.rec4in.weight.detach().cpu().numpy(),
-                'p2r weights': model.rec_layer.out2in.weight.detach().cpu().numpy(),
-                'p2p weights': model.rec_layer.rec4out.weight.detach().cpu().numpy(),
-                'r2p weights': model.rec_layer.in2out.weight.detach().cpu().numpy(),
+                'r2r weights': model.r_in_rec.rec_w.weight.detach().cpu().numpy(),
+                'p2r weights': model.rout2rin.weight.detach().cpu().numpy(),
+                'p2p weights': model.r_out_rec.rec_w.weight.detach().cpu().numpy(),
+                'r2p weights': model.rin2rout.weight.detach().cpu().numpy(),
                 'fc weights': model.fc_layer.fc_weights.weight.detach().cpu().numpy(),
-                'i2r weights': model.rec_layer.x2in.weight.detach().cpu().numpy()
+                'i2r weights': model.fc2r_in.weight.detach().cpu().numpy()
             })
 
             train_loss = 0
@@ -278,11 +278,11 @@ def train(train_loader, n_classes, model, named_params):
 ###############################################################
 # set input and t param
 IN_dim = 784
-hidden_dim = [[256], [10 * config.num_readout, 128]]
+hidden_dim = [256, [10 * config.num_readout, 128]]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
-model = SnnNetwork([IN_dim], hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone)
+model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone)
 model.to(device)
 print(model)
 
@@ -291,7 +291,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 
 # define optimiser
-optimizer = optim.Adamax(model.parameters(), lr=lr, weight_decay=0.0001)
+optimizer = optim.Adamax(model.parameters(), lr=lr, weight_decay=0.000)
 # reduce the learning after 20 epochs by a factor of 10
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
 
