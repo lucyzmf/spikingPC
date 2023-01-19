@@ -177,7 +177,9 @@ class SnnNetwork(nn.Module):
 
         mem_r, spk_r, b_r = self.r_in_rec(r_input, mem_t=h[3], spk_t=h[4], b_t=h[5])
 
-        mem_p, spk_p, b_p = self.rec_layer(spk1, mem_t=h[6], spk_t=h[7], b_t=h[8])
+        p_input = self.rin2rout(spk_r)
+
+        mem_p, spk_p, b_p = self.rec_layer(p_input, mem_t=h[6], spk_t=h[7], b_t=h[8])
 
         self.fr_p = self.fr_p + spk_p.detach().cpu().numpy().mean()
         self.fr_r = self.fr_r + spk_r.detach().cpu().numpy().mean()
