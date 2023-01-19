@@ -220,9 +220,9 @@ class SnnNetwork(nn.Module):
         weight = next(self.parameters()).data
         return (
             # input layer
-            weight.new(bsz, self.hidden_dims[0][0]).uniform_(),  # mem
-            weight.new(bsz, self.hidden_dims[0][0]).zero_(),  # spk
-            weight.new(bsz, self.hidden_dims[0][0]).fill_(b_j0),  # thre
+            weight.new(bsz, self.hidden_dims[0]).uniform_(),  # mem
+            weight.new(bsz, self.hidden_dims[0]).zero_(),  # spk
+            weight.new(bsz, self.hidden_dims[0]).fill_(b_j0),  # thre
             # r
             weight.new(bsz, sum(self.hidden_dims[1][1])).uniform_(),
             weight.new(bsz, sum(self.hidden_dims[1][1])).zero_(),
