@@ -33,8 +33,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC", entity="lucyzmf")
-# wandb.init(mode="disabled")
+# wandb.init(project="spikingPC", entity="lucyzmf")
+wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -50,7 +50,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'new_implementation_nodecay'
+exp_name = 'noener_onetoone_control'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -208,7 +208,7 @@ def train(train_loader, n_classes, model, named_params):
                     energy = h[1].mean()  # * 0.1
                 else:
                     # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = torch.norm(h[3], p=1) / B / 784
+                    energy = (torch.norm(h[3], p=1) + torch.norm(h[6], p=1)) / B / 784
 
                 # l1 loss on rec weights 
                 # l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
@@ -278,7 +278,7 @@ def train(train_loader, n_classes, model, named_params):
 ###############################################################
 # set input and t param
 IN_dim = 784
-hidden_dim = [256, [10 * config.num_readout, 128]]
+hidden_dim = [256, [10 * config.num_readout, 784]]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
@@ -291,7 +291,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 
 # define optimiser
-optimizer = optim.Adamax(model.parameters(), lr=lr, weight_decay=0.000)
+optimizer = optim.Adamax(model.parameters(), lr=lr, weight_decay=0.0001)
 # reduce the learning after 20 epochs by a factor of 10
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
 

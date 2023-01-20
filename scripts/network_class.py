@@ -171,9 +171,13 @@ class SnnNetwork(nn.Module):
         x_t = x_t.reshape(batch_dim, input_size).float()
         x_t = self.dp(x_t)
 
-        mem1, spk1, b1 = self.fc_layer(x_t, mem_t=h[0], spk_t=h[1], b_t=h[2])
+        # mem1, spk1, b1 = self.fc_layer(x_t, mem_t=h[0], spk_t=h[1], b_t=h[2])
+        mem1 = h[0]
+        spk1 = h[1]
+        b1 = h[2]
 
-        r_input = self.fc2r_in(spk1) + self.rout2rin(h[7])
+        # r_input = self.fc2r_in(spk1) + self.rout2rin(h[7])
+        r_input = x_t + self.rout2rin(h[7])
 
         mem_r, spk_r, b_r = self.r_in_rec(r_input, mem_t=h[3], spk_t=h[4], b_t=h[5])
 
