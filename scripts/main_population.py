@@ -257,8 +257,6 @@ def train(train_loader, n_classes, model, named_params):
                 'p2r weights': model.rout2rin.weight.detach().cpu().numpy(),
                 'p2p weights': model.r_out_rec.rec_w.weight.detach().cpu().numpy(),
                 'r2p weights': model.rin2rout.weight.detach().cpu().numpy(),
-                'fc weights': model.fc_layer.fc_weights.weight.detach().cpu().numpy(),
-                'i2r weights': model.fc2r_in.weight.detach().cpu().numpy()
             })
 
             train_loss = 0
