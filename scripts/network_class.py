@@ -214,13 +214,13 @@ class SnnNetwork(nn.Module):
         weight = next(self.parameters()).data
         return (
             # r
-            weight.new(bsz, self.hidden_dims[1][1]).uniform_(),
-            weight.new(bsz, self.hidden_dims[1][1]).zero_(),
-            weight.new(bsz, self.hidden_dims[1][1]).fill_(b_j0),
+            weight.new(bsz, self.hidden_dims[1]).uniform_(),
+            weight.new(bsz, self.hidden_dims[1]).zero_(),
+            weight.new(bsz, self.hidden_dims[1]).fill_(b_j0),
             # p
-            weight.new(bsz, self.hidden_dims[1][0]).uniform_(),
-            weight.new(bsz, self.hidden_dims[1][0]).zero_(),
-            weight.new(bsz, self.hidden_dims[1][0]).fill_(b_j0),
+            weight.new(bsz, self.hidden_dims[0]).uniform_(),
+            weight.new(bsz, self.hidden_dims[0]).zero_(),
+            weight.new(bsz, self.hidden_dims[0]).fill_(b_j0),
             # layer out
             weight.new(bsz, self.out_dim).zero_(),
             # sum spike
