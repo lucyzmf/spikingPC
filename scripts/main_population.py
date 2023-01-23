@@ -278,7 +278,7 @@ def train(train_loader, n_classes, model, named_params):
 ###############################################################
 # set input and t param
 IN_dim = 784
-hidden_dim = [256, [10 * config.num_readout, 784]]
+hidden_dim = [10 * config.num_readout, 784]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
