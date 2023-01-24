@@ -88,7 +88,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Jan-20-2023/noener_onetoone_control/'
+exp_dir = '/home/lucy/spikingPC/results/Jan-24-2023/ener_onetoone/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -114,6 +114,7 @@ plt.title('r_out weights to r_in by class')
 
 # plt.show()
 plt.savefig(exp_dir + 'r_out weights to r_in by class')
+plt.close()
 
 
 # %%
@@ -148,10 +149,7 @@ def get_all_analysis_data(trained_model):
 
     test_loss /= len(test_loader.dataset)
     test_acc = 100. * correct / len(test_loader.dataset)
-    wandb.log({
-        'test_loss': test_loss,
-        'test_acc': test_acc
-    })
+
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         test_acc))
@@ -205,30 +203,33 @@ print(p_spk_all.shape)
 
 # plot example seq
 sample_no = 0
-fig, axs = plt.subplots(4, 21, figsize=(80, 20))  # p spiking, r spiking, rec drive from p, rec drive from r
-axs[0].imshow(images[sample_no, :, :])
-axs[0].set_title('class %i, prediction %i' % (target_all[sample_no], preds_all[sample_no]))
+fig, axs = plt.subplots(4, 20, figsize=(80, 20))  # p spiking, r spiking, rec drive from p, rec drive from r
+# axs[0].imshow(images[sample_no, :, :])
+# axs[0].set_title('class %i, prediction %i' % (target_all[sample_no], preds_all[sample_no]))
 for t in range(T):
     # p spiking
-    axs[0][t + 1].imshow(p_spk_all[sample_no, t, :].reshape(10, int(hidden_dim[0] / 10)))
-    axs[0][t + 1].axis('off')
+    axs[0][t].imshow(p_spk_all[sample_no, t, :].reshape(10, int(hidden_dim[0] / 10)))
+    axs[0][t].axis('off')
 
     # drive from p to r
-    pos1 = axs[1][t + 1].imshow((p2r_w @ p_spk_all[sample_no, t, :]).reshape(28, 28))
-    fig.colorbar(pos1, ax=axs[1][t + 1], shrink=0.3)
-    axs[1][t + 1].axis('off')
+    pos1 = axs[1][t].imshow((p2r_w @ p_spk_all[sample_no, t, :]).reshape(28, 28))
+    fig.colorbar(pos1, ax=axs[1][t], shrink=0.3)
+    axs[1][t].axis('off')
 
     # r spiking
-    axs[2][t + 1].imshow(r_spk_all[sample_no, t, :].reshape(28, 28))
-    axs[2][t + 1].axis('off')
+    axs[2][t].imshow(r_spk_all[sample_no, t, :].reshape(28, 28))
+    axs[2][t].axis('off')
 
     # drive from r to r
-    pos2 = axs[3][t + 1].imshow((r_rec_w @ r_spk_all[sample_no, t, :]).reshape(28, 28))
-    fig.colorbar(pos2, ax=axs[3][t + 1], shrink=0.3)
-    axs[3][t + 1].axis('off')
+    pos2 = axs[3][t].imshow((r_rec_w @ r_spk_all[sample_no, t, :]).reshape(28, 28))
+    fig.colorbar(pos2, ax=axs[3][t], shrink=0.3)
+    axs[3][t].axis('off')
 
+plt.title('example sequence p spk, p2r drive, r spk, r2r drive')
 plt.tight_layout()
-plt.show()
+# plt.show()
+plt.savefig('example sequence p spk, p2r drive, r spk, r2r drive')
+plt.close()
 
 
 # %%
