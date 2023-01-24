@@ -88,7 +88,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Jan-24-2023/ener_onetoone/'
+exp_dir = '/home/lucy/spikingPC/results/Jan-24-2023/noener_onetoone_control/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -263,10 +263,10 @@ def get_energy(hidden_, alpha=1 / 3):
         # mem potential l1 norm
         activity = (hidden_[t][1].mean() + hidden_[t][4].mean()).cpu().numpy()
         # synaptic transmission
-        synaptic_transmission = ((model.r_in_rec.rec_w.weight @ hidden_[t][1].T).mean() +
-                                 (model.rin2rout.weight @ hidden_[t][1].T).mean() +
-                                 (model.rout2rin.weight @ hidden_[t][4].T).mean() +
-                                 (model.r_out_rec.rec_w.weight @ hidden_[t][4].T).mean()).detach().cpu().numpy()
+        synaptic_transmission = ((torch.abs(model.r_in_rec.rec_w.weight) @ torch.abs(hidden_[t][1].T)).mean() +
+                                 (torch.abs(model.rin2rout.weight) @ torch.abs(hidden_[t][1].T)).mean() +
+                                 (torch.abs(model.rout2rin.weight) @ torch.abs(hidden_[t][4].T)).mean() +
+                                 (torch.abs(model.r_out_rec.rec_w.weight) @ torch.abs(hidden_[t][4].T)).mean()).detach().cpu().numpy()
         energy = alpha * activity + (1 - alpha) * synaptic_transmission
         energy_log.append(energy)
 
@@ -285,6 +285,29 @@ continuous_energy = np.concatenate((energy1, energy2))
 fig = plt.figure(figsize=(10, 3))
 plt.plot(np.arange(T * 2), continuous_energy)
 plt.title('energy consumption two continuously presented images')
-plt.show()
+# plt.show()
+plt.savefig(exp_dir + 'energy consumption two continuously presented images')
+plt.close()
 
+# %%
+# weight matrix for p2p
+
+fig = plt.figure()
+abs_max = np.max(np.abs(model.r_out_rec.rec_w.weight.detach().cpu().numpy()))
+sns.heatmap(model.r_out_rec.rec_w.weight.detach().cpu().numpy(), vmax=abs_max, vmin=-abs_max, cmap='icefire')
+plt.title('p2p weights')
+# plt.show()
+plt.savefig(exp_dir + 'p2p weights')
+plt.close()
+
+# %%
+# weight matrix for r2r
+
+fig = plt.figure()
+abs_max = np.max(np.abs(model.r_in_rec.rec_w.weight.detach().cpu().numpy()))
+sns.heatmap(model.r_in_rec.rec_w.weight.detach().cpu().numpy(), vmax=abs_max, vmin=-abs_max, cmap='icefire')
+# plt.show()
+plt.title('r2r weights')
+plt.savefig(exp_dir + 'r2r weights')
+plt.close()
 # %%
