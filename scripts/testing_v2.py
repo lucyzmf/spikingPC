@@ -248,9 +248,10 @@ with torch.no_grad():
 
 
 # compute energy consumption
-def get_energy(hidden_):
+def get_energy(hidden_, alpha=1 / 3):
     """
     given hidden list, compute energy of some seq length
+    :param alpha: scaler for mem activity vs synaptic transmission
     :param hidden_: hidden list containing mem, spk, thre
     :return: array of energy consumption during seq
     """
@@ -259,12 +260,19 @@ def get_energy(hidden_):
     energy_log = []
 
     for t in range(seq_t):
-        energy = (torch.norm(hidden_[t][0], p=1) + torch.norm(hidden_[t][3], p=1)).cpu().numpy() 
+        # mem potential l1 norm
+        activity = (torch.norm(hidden_[t][0], p=1) + torch.norm(hidden_[t][3], p=1)).cpu().numpy()
+        # synaptic transmission
+        synaptic_transmission = (model.r_in_rec.rec_w.weight @ hidden_[t][1] + model.rin2rout.weight @ hidden_[t][1] +
+                                 model.rout2rin.weight @ hidden_[t][4] + model.r_out_rec.rec_w.weight @ hidden_[t][
+                                     4]).cpu().numpy()
+        energy = alpha * activity + (1 - alpha) * synaptic_transmission
         energy_log.append(energy)
 
     energy_log = np.hstack(energy_log)
 
     return energy_log
+
 
 # %%
 
@@ -274,7 +282,7 @@ energy2 = get_energy(continuous_seq_hiddens[1])
 continuous_energy = np.concatenate((energy1, energy2))
 
 fig = plt.figure()
-plt.plot(np.arange(T*2), continuous_energy)
+plt.plot(np.arange(T * 2), continuous_energy)
 plt.title('energy consumption two continuously presented images')
 plt.show()
 
