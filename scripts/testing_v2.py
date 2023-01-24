@@ -160,8 +160,8 @@ hiddens_all, preds_all = get_all_analysis_data(model)
 
 # %%
 # get all hiddens and corresponding pred, target, and images into dict
-target_all = testdata.targets.data.numpy()
-images = testdata.data.data.numpy()
+target_all = testdata.targets.data
+images = testdata.data.data
 
 
 def get_states(hiddens_all_: list, idx: int, hidden_dim_: int, T=20):
@@ -237,12 +237,13 @@ sample_image_nos = [10, 15]
 continuous_seq_hiddens = []
 with torch.no_grad():
     model.eval()
-    hidden = model.init_hidden(images[sample_image_nos[0]].size(0))
+    hidden = model.init_hidden(images[sample_image_nos[0], :, :].size(0))
 
-    _, hidden1 = model.inference(images[sample_image_nos[0]], hidden, int(T / 2))
+    _, hidden1 = model.inference(images[sample_image_nos[0], :, :].view(-1, IN_dim).to(device), hidden, T)
     continuous_seq_hiddens.append(hidden1)
     # present second stimulus without reset
-    _, hidden2 = model.inference(images[sample_image_nos[1]], hidden1, int(T / 2))
+    hidden1[-1] = model.init_hidden(images[sample_image_nos[0], :, :].size(0))
+    _, hidden2 = model.inference(images[sample_image_nos[1], :, :].view(-1, IN_dim).to(device), hidden1[-1], T)
     continuous_seq_hiddens.append(hidden2)
 
 
@@ -258,11 +259,14 @@ def get_energy(hidden_):
     energy_log = []
 
     for t in range(seq_t):
-        energy = torch.norm(hidden_[t][0], p=1) + torch.norm(hidden_[t][3], p=1)
+        energy = (torch.norm(hidden_[t][0], p=1) + torch.norm(hidden_[t][3], p=1)).cpu().numpy() 
         energy_log.append(energy)
+
+    energy_log = np.hstack(energy_log)
 
     return energy_log
 
+# %%
 
 energy1 = get_energy(continuous_seq_hiddens[0])
 energy2 = get_energy(continuous_seq_hiddens[1])
@@ -270,6 +274,8 @@ energy2 = get_energy(continuous_seq_hiddens[1])
 continuous_energy = np.concatenate((energy1, energy2))
 
 fig = plt.figure()
-plt.plot(np.arange(T), continuous_energy)
+plt.plot(np.arange(T*2), continuous_energy)
 plt.title('energy consumption two continuously presented images')
 plt.show()
+
+# %%
