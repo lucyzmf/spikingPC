@@ -40,7 +40,7 @@ wandb.init(mode="disabled")
 config = wandb.config
 config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
 config.adap_neuron = True  # whether use adaptive neuron or not
-config.l1_lambda = 5e-3  # weighting for l1 reg
+config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
@@ -50,7 +50,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'ener_included_out_onetoone_l1reg'
+exp_name = 'ener_included_out_onetoone'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
