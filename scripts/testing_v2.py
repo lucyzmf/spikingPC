@@ -231,8 +231,45 @@ plt.tight_layout()
 plt.savefig(exp_dir + 'example sequence p spk, p2r drive, r spk, r2r drive')
 plt.close()
 
-
 # %%
+# plot energy consumption in network with two consecutive images
+sample_image_nos = [10, 15]
+continuous_seq_hiddens = []
+with torch.no_grad():
+    model.eval()
+    hidden = model.init_hidden(images[sample_image_nos[0]].size(0))
+
+    _, hidden1 = model.inference(images[sample_image_nos[0]], hidden, int(T / 2))
+    continuous_seq_hiddens.append(hidden1)
+    # present second stimulus without reset
+    _, hidden2 = model.inference(images[sample_image_nos[1]], hidden1, int(T / 2))
+    continuous_seq_hiddens.append(hidden2)
 
 
-# example sequence
+# compute energy consumption
+def get_energy(hidden_):
+    """
+    given hidden list, compute energy of some seq length
+    :param hidden_: hidden list containing mem, spk, thre
+    :return: array of energy consumption during seq
+    """
+
+    seq_t = len(hidden_)
+    energy_log = []
+
+    for t in range(seq_t):
+        energy = torch.norm(hidden_[t][0], p=1) + torch.norm(hidden_[t][3], p=1)
+        energy_log.append(energy)
+
+    return energy_log
+
+
+energy1 = get_energy(continuous_seq_hiddens[0])
+energy2 = get_energy(continuous_seq_hiddens[1])
+
+continuous_energy = np.concatenate((energy1, energy2))
+
+fig = plt.figure()
+plt.plot(np.arange(T), continuous_energy)
+plt.title('energy consumption two continuously presented images')
+plt.show()
