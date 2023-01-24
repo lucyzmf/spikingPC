@@ -237,12 +237,12 @@ sample_image_nos = [10, 15]
 continuous_seq_hiddens = []
 with torch.no_grad():
     model.eval()
-    hidden = model.init_hidden(images[sample_image_nos[0], :, :].size(0))
+    hidden = model.init_hidden(images[sample_image_nos[0], :, :].view(-1, IN_dim).size(0))
 
     _, hidden1 = model.inference(images[sample_image_nos[0], :, :].view(-1, IN_dim).to(device), hidden, T)
     continuous_seq_hiddens.append(hidden1)
     # present second stimulus without reset
-    hidden1[-1] = model.init_hidden(images[sample_image_nos[0], :, :].size(0))
+    # hidden1[-1] = model.init_hidden(images[sample_image_nos[0], :, :].view(-1, IN_dim).size(0))
     _, hidden2 = model.inference(images[sample_image_nos[1], :, :].view(-1, IN_dim).to(device), hidden1[-1], T)
     continuous_seq_hiddens.append(hidden2)
 
@@ -261,11 +261,11 @@ def get_energy(hidden_, alpha=1 / 3):
 
     for t in range(seq_t):
         # mem potential l1 norm
-        activity = (torch.norm(hidden_[t][0], p=1) + torch.norm(hidden_[t][3], p=1)).cpu().numpy()
+        activity = (hidden_[t][1].mean() + hidden_[t][4].mean()).cpu().numpy()
         # synaptic transmission
-        synaptic_transmission = (model.r_in_rec.rec_w.weight @ hidden_[t][1] + model.rin2rout.weight @ hidden_[t][1] +
-                                 model.rout2rin.weight @ hidden_[t][4] + model.r_out_rec.rec_w.weight @ hidden_[t][
-                                     4]).cpu().numpy()
+        synaptic_transmission = ((model.r_in_rec.rec_w.weight @ hidden_[t][1].T).mean() + (model.rin2rout.weight @ hidden_[t][1].T).mean() +
+                                 (model.rout2rin.weight @ hidden_[t][4].T).mean() + (model.r_out_rec.rec_w.weight @ hidden_[t][
+                                     4].T).mean()).detach().cpu().numpy()
         energy = alpha * activity + (1 - alpha) * synaptic_transmission
         energy_log.append(energy)
 
