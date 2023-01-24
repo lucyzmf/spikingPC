@@ -281,7 +281,7 @@ energy2 = get_energy(continuous_seq_hiddens[1])
 
 continuous_energy = np.concatenate((energy1, energy2))
 
-fig = plt.figure()
+fig = plt.figure(figsize=(10, 3))
 plt.plot(np.arange(T * 2), continuous_energy)
 plt.title('energy consumption two continuously presented images')
 plt.show()
