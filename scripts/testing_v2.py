@@ -263,9 +263,10 @@ def get_energy(hidden_, alpha=1 / 3):
         # mem potential l1 norm
         activity = (hidden_[t][1].mean() + hidden_[t][4].mean()).cpu().numpy()
         # synaptic transmission
-        synaptic_transmission = ((model.r_in_rec.rec_w.weight @ hidden_[t][1].T).mean() + (model.rin2rout.weight @ hidden_[t][1].T).mean() +
-                                 (model.rout2rin.weight @ hidden_[t][4].T).mean() + (model.r_out_rec.rec_w.weight @ hidden_[t][
-                                     4].T).mean()).detach().cpu().numpy()
+        synaptic_transmission = ((model.r_in_rec.rec_w.weight @ hidden_[t][1].T).mean() +
+                                 (model.rin2rout.weight @ hidden_[t][1].T).mean() +
+                                 (model.rout2rin.weight @ hidden_[t][4].T).mean() +
+                                 (model.r_out_rec.rec_w.weight @ hidden_[t][4].T).mean()).detach().cpu().numpy()
         energy = alpha * activity + (1 - alpha) * synaptic_transmission
         energy_log.append(energy)
 
