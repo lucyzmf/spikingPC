@@ -50,7 +50,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'ener_included_out_onetoone'
+exp_name = 'ener_included_out_onetoone_l1reg'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
