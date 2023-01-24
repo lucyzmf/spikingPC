@@ -228,7 +228,7 @@ for t in range(T):
 plt.title('example sequence p spk, p2r drive, r spk, r2r drive')
 plt.tight_layout()
 # plt.show()
-plt.savefig('example sequence p spk, p2r drive, r spk, r2r drive')
+plt.savefig(exp_dir + 'example sequence p spk, p2r drive, r spk, r2r drive')
 plt.close()
 
 
