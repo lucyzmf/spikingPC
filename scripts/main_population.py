@@ -40,7 +40,7 @@ wandb.init(mode="disabled")
 config = wandb.config
 config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
 config.adap_neuron = True  # whether use adaptive neuron or not
-config.l1_lambda = 0  # weighting for l1 reg
+config.l1_lambda = 5e-3  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
@@ -211,12 +211,13 @@ def train(train_loader, n_classes, model, named_params):
                     energy = (torch.norm(h[0], p=1) + torch.norm(h[4], p=1)+torch.norm(h[-1], p=1)) / B / 784
 
                 # l1 loss on rec weights 
-                # l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
+                all_params = torch.cat([x.view(-1) for x in model.parameters()])
+                l1_norm = torch.norm(all_params, 1)
 
                 # overall loss    
                 if energy_penalty:
                     loss = config.clf_alpha * clf_loss + regularizer + config.energy_alpha * energy \
-                        #    + config.l1_lambda * l1_norm
+                           + config.l1_lambda * l1_norm
                 else:
                     loss = clf_loss + regularizer
 
