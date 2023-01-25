@@ -42,7 +42,7 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 0  # - config.clf_alpha
+config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = False
 config.input_scale = 0.3
@@ -50,7 +50,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'new_implementation_nodecay'
+exp_name = 'fc_rec_ener'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -146,7 +146,7 @@ T = 20
 K = T  # K is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
-log_interval = 10
+log_interval = 50
 lr = config.lr
 epoch = 10
 n_classes = 10
@@ -291,7 +291,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 
 # define optimiser
-optimizer = optim.Adamax(model.parameters(), lr=lr, weight_decay=0.000)
+optimizer = optim.Adamax(model.parameters(), lr=lr, weight_decay=0.0001)
 # reduce the learning after 20 epochs by a factor of 10
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
 
