@@ -33,7 +33,7 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC", entity="lucyzmf")
+wandb.init(project="DeepSpikingPC", entity="lucyzmf")
 # wandb.init(mode="disabled")
 
 # add wandb.config
@@ -43,7 +43,8 @@ config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1  # - config.clf_alpha
-config.num_readout = 10
+config.num_readout1 = 10
+config.num_readout2 = 5
 config.onetoone = False
 config.input_scale = 0.3
 input_scale = config.input_scale
@@ -208,7 +209,8 @@ def train(train_loader, n_classes, model, named_params):
                     energy = h[1].mean()  # * 0.1
                 else:
                     # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = torch.norm(h[3], p=1) / B / 784
+                    energy = (torch.norm(h[3], p=1) + torch.norm(h[6], p=1) + torch.norm(h[9], p=1) +
+                              torch.norm(h[12], p=1)) / B / 784
 
                 # l1 loss on rec weights 
                 # l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
@@ -253,10 +255,10 @@ def train(train_loader, n_classes, model, named_params):
                 'total_loss': train_loss / log_interval / T,
                 'pred spiking freq': model.fr_p / T / log_interval,  # firing per time step
                 'rep spiking fr': model.fr_r / T / log_interval,
-                'r2r weights': model.r_in_rec.rec_w.weight.detach().cpu().numpy(),
-                'p2r weights': model.rout2rin.weight.detach().cpu().numpy(),
-                'p2p weights': model.r_out_rec.rec_w.weight.detach().cpu().numpy(),
-                'r2p weights': model.rin2rout.weight.detach().cpu().numpy(),
+                'r2r weights': model.r_in_rec1.rec_w.weight.detach().cpu().numpy(),
+                'p2r weights': model.rout2rin1.weight.detach().cpu().numpy(),
+                'p2p weights': model.r_out_rec1.rec_w.weight.detach().cpu().numpy(),
+                'r2p weights': model.rin2rout1.weight.detach().cpu().numpy(),
                 'fc weights': model.fc_layer.fc_weights.weight.detach().cpu().numpy(),
                 'i2r weights': model.fc2r_in.weight.detach().cpu().numpy()
             })
@@ -278,11 +280,11 @@ def train(train_loader, n_classes, model, named_params):
 ###############################################################
 # set input and t param
 IN_dim = 784
-hidden_dim = [256, [10 * config.num_readout, 128]]
+hidden_dim = [392, [10 * config.num_readout1, 128], [10 * config.num_readout2, 64]]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
-model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone)
+model = TwoLayerSnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone)
 model.to(device)
 print(model)
 
