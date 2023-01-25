@@ -51,7 +51,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'fc_rec_ener'
+exp_name = 'twolayer_rec_ener'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
