@@ -280,11 +280,11 @@ def train(train_loader, n_classes, model, named_params):
 ###############################################################
 # set input and t param
 IN_dim = 784
-hidden_dim = [392, [10 * config.num_readout1, 128], [10 * config.num_readout2, 64]]
+config.hidden_dim = [392, [10 * config.num_readout1, 128], [10 * config.num_readout2, 64]]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
-model = TwoLayerSnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone)
+model = TwoLayerSnnNetwork(IN_dim, config.hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone)
 model.to(device)
 print(model)
 
