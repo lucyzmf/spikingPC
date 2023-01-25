@@ -253,12 +253,12 @@ def train(train_loader, n_classes, model, named_params):
                 'energy_loss': total_energy_loss / log_interval / T,
                 'l1_loss': config.l1_lambda * total_l1_loss / log_interval / T,
                 'total_loss': train_loss / log_interval / T,
-                'pred spiking freq': model.fr_p / T / log_interval,  # firing per time step
-                'rep spiking fr': model.fr_r / T / log_interval,
-                'r2r weights': model.r_in_rec1.rec_w.weight.detach().cpu().numpy(),
-                'p2r weights': model.rout2rin1.weight.detach().cpu().numpy(),
-                'p2p weights': model.r_out_rec1.rec_w.weight.detach().cpu().numpy(),
-                'r2p weights': model.rin2rout1.weight.detach().cpu().numpy(),
+                'all pred spiking freq': model.fr_p / T / log_interval,  # firing per time step
+                'all rep spiking fr': model.fr_r / T / log_interval,
+                'layer 1 r2r weights': model.r_in_rec1.rec_w.weight.detach().cpu().numpy(),
+                'layer 1 p2r weights': model.rout2rin1.weight.detach().cpu().numpy(),
+                'layer 1 p2p weights': model.r_out_rec1.rec_w.weight.detach().cpu().numpy(),
+                'layer 1 r2p weights': model.rin2rout1.weight.detach().cpu().numpy(),
                 'fc weights': model.fc_layer.fc_weights.weight.detach().cpu().numpy(),
                 'i2r weights': model.fc2r_in.weight.detach().cpu().numpy()
             })
