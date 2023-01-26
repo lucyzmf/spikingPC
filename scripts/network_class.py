@@ -147,15 +147,6 @@ class TwoLayerSnnNetwork(nn.Module):
 
         self.fc_layer = SnnLayer(in_dim, hidden_dims[0], is_rec=False, is_adapt=is_adapt, one_to_one=False)
 
-        # between layer weights
-        self.fc2r_in = nn.Linear(hidden_dims[0], hidden_dims[1][1])
-        nn.init.xavier_uniform_(self.fc2r_in.weight)
-
-        self.rec12rec2 = nn.Linear(hidden_dims[1][0], hidden_dims[2][1])
-        nn.init.xavier_uniform_(self.rec12rec2.weight)
-        self.rec22rec1 = nn.Linear(hidden_dims[2][1], hidden_dims[1][0])
-        nn.init.xavier_uniform_(self.rec22rec1.weight)
-
         # r in rec
         self.r_in_rec1 = SnnLayer((hidden_dims[0] + hidden_dims[1][0]), hidden_dims[1][1], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
         self.r_in_rec2 = SnnLayer((hidden_dims[1][0] + hidden_dims[2][0]), hidden_dims[2][1], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)

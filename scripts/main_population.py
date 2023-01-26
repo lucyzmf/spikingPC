@@ -43,7 +43,7 @@ config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 0  # - config.clf_alpha
-config.num_readout1 = 10
+config.num_readout1 = 5
 config.num_readout2 = 5
 config.onetoone = False
 config.input_scale = 0.3
@@ -51,7 +51,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'twolayer_rec_noener'
+exp_name = 'twolayer_rec_noener_loewthre'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -77,7 +77,7 @@ transform = transforms.Compose(
     [transforms.ToTensor(),
      transforms.Normalize((0.5), (0.5))])
 
-batch_size = 128
+batch_size = 256
 
 traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
@@ -147,7 +147,7 @@ T = 20
 K = T  # K is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
-log_interval = 10
+log_interval = 25
 lr = config.lr
 epoch = 10
 n_classes = 10
@@ -277,7 +277,7 @@ def train(train_loader, n_classes, model, named_params):
 ###############################################################
 # set input and t param
 IN_dim = 784
-config.hidden_dim = [392, [10 * config.num_readout1, 128], [10 * 5, 100]]
+config.hidden_dim = [256, [10 * config.num_readout1, 100], [10 * config.num_readout2, 100]]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
