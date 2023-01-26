@@ -191,14 +191,14 @@ class TwoLayerSnnNetwork(nn.Module):
         r_input = torch.cat((spk1, h[7]), dim=1)
         mem_r1, spk_r1, b_r1 = self.r_in_rec1(r_input, mem_t=h[3], spk_t=h[4], b_t=h[5])
 
-        p_input = self.rin2rout1(spk_r1)
+        p_input = spk_r1
         mem_p1, spk_p1, b_p1 = self.r_out_rec1(p_input, mem_t=h[6], spk_t=h[7], b_t=h[8])
 
         # second rec layer
         r_input2 = torch.cat((spk_p1, h[13]), dim=1)
         mem_r2, spk_r2, b_r2 = self.r_in_rec2(r_input2, mem_t=h[9], spk_t=h[10], b_t=h[11])
 
-        p_input2 = self.rin2rout2(spk_r2)
+        p_input2 = spk_r2
         mem_p2, spk_p2, b_p2 = self.r_out_rec2(p_input2, mem_t=h[12], spk_t=h[13], b_t=h[14])
 
         self.fr_p1 = self.fr_p1 + spk_p1.detach().cpu().numpy().mean()
