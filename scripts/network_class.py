@@ -151,6 +151,8 @@ class TwoLayerSnnNetwork(nn.Module):
 
         self.rec12rec2 = nn.Linear(hidden_dims[1][0], hidden_dims[2][1])
         nn.init.xavier_uniform_(self.rec12rec2.weight)
+        self.rec22rec1 = nn.Linear(hidden_dims[2][1], hidden_dims[1][0])
+        nn.init.xavier_uniform_(self.rec22rec1.weight)
 
         # r in rec
         self.r_in_rec1 = SnnLayer(hidden_dims[1][1], hidden_dims[1][1], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
@@ -197,7 +199,7 @@ class TwoLayerSnnNetwork(nn.Module):
         mem_p1, spk_p1, b_p1 = self.r_out_rec1(p_input, mem_t=h[6], spk_t=h[7], b_t=h[8])
 
         # second rec layer
-        r_input2 = self.rec12rec2(spk_p1) + self.rout2rin2(h[13])
+        r_input2 = spk_p1 + self.rout2rin2(h[13])
         mem_r2, spk_r2, b_r2 = self.r_in_rec2(r_input2, mem_t=h[9], spk_t=h[10], b_t=h[11])
 
         p_input2 = self.rin2rout2(spk_r2)

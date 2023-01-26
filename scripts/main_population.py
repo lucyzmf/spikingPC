@@ -42,7 +42,7 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1  # - config.clf_alpha
+config.energy_alpha = 0  # - config.clf_alpha
 config.num_readout1 = 10
 config.num_readout2 = 5
 config.onetoone = False
@@ -51,7 +51,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'twolayer_rec_ener'
+exp_name = 'twolayer_rec_noener'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -77,7 +77,7 @@ transform = transforms.Compose(
     [transforms.ToTensor(),
      transforms.Normalize((0.5), (0.5))])
 
-batch_size = 256
+batch_size = 128
 
 traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
@@ -147,7 +147,7 @@ T = 20
 K = T  # K is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
-log_interval = 50
+log_interval = 10
 lr = config.lr
 epoch = 10
 n_classes = 10
@@ -183,10 +183,6 @@ def train(train_loader, n_classes, model, named_params):
                 h = tuple(v.detach() for v in h)
 
             o, h = model.forward(data, h)
-            # wandb.log({
-            #         'rec layer adap threshold': h[5].detach().cpu().numpy(), 
-            #         'rec layer mem potential': h[3].detach().cpu().numpy()
-            #     })
 
             # get prediction 
             if p == (T - 1):
@@ -255,13 +251,10 @@ def train(train_loader, n_classes, model, named_params):
                 'total_loss': train_loss / log_interval / T,
                 'all pred spiking freq': model.fr_p / T / log_interval,  # firing per time step
                 'all rep spiking fr': model.fr_r / T / log_interval,
-                'layer 1 r2r weights': model.r_in_rec1.rec_w.weight.detach().cpu().numpy(),
-                'layer 1 p2r weights': model.rout2rin1.weight.detach().cpu().numpy(),
-                'layer 1 p2p weights': model.r_out_rec1.rec_w.weight.detach().cpu().numpy(),
-                'layer 1 r2p weights': model.rin2rout1.weight.detach().cpu().numpy(),
-                'fc weights': model.fc_layer.fc_weights.weight.detach().cpu().numpy(),
-                'i2r weights': model.fc2r_in.weight.detach().cpu().numpy()
             })
+
+            for name, param in model.named_parameters():
+                wandb.log({name: param.detach().cpu().numpy()})
 
             train_loss = 0
             total_clf_loss = 0
@@ -280,7 +273,7 @@ def train(train_loader, n_classes, model, named_params):
 ###############################################################
 # set input and t param
 IN_dim = 784
-config.hidden_dim = [392, [10 * config.num_readout1, 128], [10 * config.num_readout2, 64]]
+config.hidden_dim = [392, [10 * config.num_readout1, 128], [10 * 5, 100]]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
@@ -293,7 +286,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 
 # define optimiser
-optimizer = optim.Adamax(model.parameters(), lr=lr, weight_decay=0.0001)
+optimizer = optim.Adamax(model.parameters(), lr=lr, weight_decay=0.000)
 # reduce the learning after 20 epochs by a factor of 10
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
 
