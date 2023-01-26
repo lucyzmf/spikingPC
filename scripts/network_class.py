@@ -160,16 +160,9 @@ class TwoLayerSnnNetwork(nn.Module):
         self.r_in_rec1 = SnnLayer((hidden_dims[0] + hidden_dims[1][0]), hidden_dims[1][1], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
         self.r_in_rec2 = SnnLayer((hidden_dims[1][0] + hidden_dims[2][0]), hidden_dims[2][1], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
 
-        # r in to r out
-        self.rin2rout1 = nn.Linear(hidden_dims[1][1], hidden_dims[1][0])
-        nn.init.xavier_uniform_(self.rin2rout1.weight)
-
-        self.rin2rout2 = nn.Linear(hidden_dims[2][1], hidden_dims[2][0])
-        nn.init.xavier_uniform_(self.rin2rout2.weight)
-
         # r out rec
-        self.r_out_rec1 = SnnLayer(hidden_dims[1][0], hidden_dims[1][0], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
-        self.r_out_rec2 = SnnLayer(hidden_dims[2][0], hidden_dims[2][0], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
+        self.r_out_rec1 = SnnLayer(hidden_dims[1][1], hidden_dims[1][0], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
+        self.r_out_rec2 = SnnLayer(hidden_dims[2][1], hidden_dims[2][0], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
 
         self.output_layer = OutputLayer(hidden_dims[2][0], out_dim, is_fc=False)
 
