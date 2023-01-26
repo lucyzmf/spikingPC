@@ -239,8 +239,8 @@ def train(train_loader, n_classes, model, named_params):
                        100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B),
                        train_loss / log_interval,
                        total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
-                       model.fr_p / T / log_interval,
-                       model.fr_r / T / log_interval))
+                       model.fr_p1 / T / log_interval,
+                       model.fr_r1 / T / log_interval))
 
             wandb.log({
                 'clf_loss': total_clf_loss / log_interval / T,
@@ -249,8 +249,10 @@ def train(train_loader, n_classes, model, named_params):
                 'energy_loss': total_energy_loss / log_interval / T,
                 'l1_loss': config.l1_lambda * total_l1_loss / log_interval / T,
                 'total_loss': train_loss / log_interval / T,
-                'all pred spiking freq': model.fr_p / T / log_interval,  # firing per time step
-                'all rep spiking fr': model.fr_r / T / log_interval,
+                'l1 pred spiking freq': model.fr_p1 / T / log_interval,  # firing per time step
+                'l1 rep spiking fr': model.fr_r1 / T / log_interval,
+                'l2 pred spiking freq': model.fr_p2 / T / log_interval,  # firing per time step
+                'l2 rep spiking fr': model.fr_r2 / T / log_interval,
             })
 
             for name, param in model.named_parameters():
@@ -263,8 +265,10 @@ def train(train_loader, n_classes, model, named_params):
             total_l1_loss = 0
             correct = 0
         # model.network.fr = 0
-        model.fr_p = 0
-        model.fr_r = 0
+        model.fr_p1 = 0
+        model.fr_r1 = 0
+        model.fr_p2 = 0
+        model.fr_r2 = 0
 
 
 # %%

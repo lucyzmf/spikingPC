@@ -179,8 +179,10 @@ class TwoLayerSnnNetwork(nn.Module):
 
         self.output_layer = OutputLayer(hidden_dims[2][0], out_dim, is_fc=False)
 
-        self.fr_p = 0
-        self.fr_r = 0
+        self.fr_p1 = 0
+        self.fr_r1 = 0
+        self.fr_p2 = 0
+        self.fr_r2 = 0
 
     def forward(self, x_t, h):
         batch_dim, input_size = x_t.shape
@@ -205,8 +207,10 @@ class TwoLayerSnnNetwork(nn.Module):
         p_input2 = self.rin2rout2(spk_r2)
         mem_p2, spk_p2, b_p2 = self.r_out_rec2(p_input2, mem_t=h[12], spk_t=h[13], b_t=h[14])
 
-        self.fr_p = self.fr_p + spk_p1.detach().cpu().numpy().mean() + spk_p2.detach().cpu().numpy().mean()
-        self.fr_r = self.fr_r + spk_r1.detach().cpu().numpy().mean() + spk_r2.detach().cpu().numpy().mean()
+        self.fr_p1 = self.fr_p1 + spk_p1.detach().cpu().numpy().mean()
+        self.fr_p2 = self.fr_p2 + spk_p2.detach().cpu().numpy().mean()
+        self.fr_r1 = self.fr_r1 + spk_r1.detach().cpu().numpy().mean()
+        self.fr_r2 = self.fr_r2 + spk_r2.detach().cpu().numpy().mean()
 
         # read out from r_out neurons
         mem_out = self.output_layer(spk_p2, h[-1])
