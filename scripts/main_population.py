@@ -50,7 +50,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'ener_included_out_onetoone'
+exp_name = 'ener_onetoone_nodp_scaledinput'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -172,6 +172,8 @@ def train(train_loader, n_classes, model, named_params):
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
 
+        # data = model.dp(data)
+
         B = target.size()[0]
 
         for p in range(T):
@@ -208,7 +210,7 @@ def train(train_loader, n_classes, model, named_params):
                     energy = h[1].mean()  # * 0.1
                 else:
                     # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = (torch.norm(h[0], p=1) + torch.norm(h[4], p=1)+torch.norm(h[-1], p=1)) / B / 784
+                    energy = (torch.norm(h[0], p=1) + torch.norm(h[4], p=1)) / B / 784
 
                 # l1 loss on rec weights 
                 all_params = torch.cat([x.view(-1) for x in model.parameters()])

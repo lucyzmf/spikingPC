@@ -166,7 +166,7 @@ class SnnNetwork(nn.Module):
         batch_dim, input_size = x_t.shape
 
         x_t = x_t.reshape(batch_dim, input_size).float()
-        x_t = self.dp(x_t)
+        # x_t = self.dp(x_t)
 
         r_input = x_t + self.rout2rin(h[4])
 
