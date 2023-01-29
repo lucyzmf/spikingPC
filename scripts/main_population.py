@@ -50,7 +50,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'ener_onetoone_nodp_scaledinput'
+exp_name = 'ener_onetoone_nodp_shiftedinout2'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -177,6 +177,7 @@ def train(train_loader, n_classes, model, named_params):
         B = target.size()[0]
 
         for p in range(T):
+            # data = shift_input(p, T, data)
 
             if p == 0:
                 h = model.init_hidden(data.size(0))

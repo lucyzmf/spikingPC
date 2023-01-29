@@ -4,6 +4,7 @@ import math
 import torch
 import torch.nn as nn
 from network import *
+from utils import *
 
 
 class SnnLayer(nn.Module):
@@ -203,6 +204,7 @@ class SnnNetwork(nn.Module):
         h_hist = []
 
         for t in range(T):
+            # x_t = shift_input(t, T, x_t)
             log_softmax, h = self.forward(x_t, h)
 
             log_softmax_hist.append(log_softmax)

@@ -88,7 +88,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Jan-24-2023/noener_onetoone_control/'
+exp_dir = '/home/lucy/spikingPC/results/Jan-28-2023/ener_onetoone_nodp_shiftedinout2/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -108,7 +108,7 @@ print(param_names)
 # plot p to r weights
 fig, axs = plt.subplots(1, 10, figsize=(35, 3))
 for i in range(10):
-    sns.heatmap(model.rout2rin.weight[:, 10 * i:(i + 1) * 10].detach().cpu().numpy().mean(axis=1).reshape(28, 28),
+    sns.heatmap(model.rout2rin.weight[:, 10 * i:(i + 1) * 10].detach().cpu().numpy().sum(axis=1).reshape(28, 28),
                 ax=axs[i])
 plt.title('r_out weights to r_in by class')
 
@@ -116,6 +116,17 @@ plt.title('r_out weights to r_in by class')
 plt.savefig(exp_dir + 'r_out weights to r_in by class')
 plt.close()
 
+# %%
+# plot p to r weights for class 0
+fig, axs = plt.subplots(1, 10, figsize=(35, 3))
+for i in range(10):
+    sns.heatmap(model.rout2rin.weight[:, i].detach().cpu().numpy().reshape(28, 28),
+                ax=axs[i])
+plt.title('r_out weights to r_in class 1')
+
+# plt.show()
+plt.savefig(exp_dir + 'r_out weights to r_in class 1')
+plt.close()
 
 # %%
 # get all hidden states
@@ -202,7 +213,7 @@ print(r_spk_all.shape)
 print(p_spk_all.shape)
 
 # plot example seq
-sample_no = 0
+sample_no = 3
 fig, axs = plt.subplots(4, 20, figsize=(80, 20))  # p spiking, r spiking, rec drive from p, rec drive from r
 # axs[0].imshow(images[sample_no, :, :])
 # axs[0].set_title('class %i, prediction %i' % (target_all[sample_no], preds_all[sample_no]))
@@ -233,7 +244,9 @@ plt.close()
 
 # %%
 # plot energy consumption in network with two consecutive images
-sample_image_nos = [10, 15]
+sample_image_nos = [3, 5]
+print(target_all[sample_image_nos[0]])
+print(target_all[sample_image_nos[1]])
 continuous_seq_hiddens = []
 with torch.no_grad():
     model.eval()
@@ -285,9 +298,9 @@ continuous_energy = np.concatenate((energy1, energy2))
 fig = plt.figure(figsize=(10, 3))
 plt.plot(np.arange(T * 2), continuous_energy)
 plt.title('energy consumption two continuously presented images')
-# plt.show()
-plt.savefig(exp_dir + 'energy consumption two continuously presented images')
-plt.close()
+plt.show()
+# plt.savefig(exp_dir + 'energy consumption two continuously presented images')
+# plt.close()
 
 # %%
 # weight matrix for p2p

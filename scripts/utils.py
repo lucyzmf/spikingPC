@@ -227,13 +227,13 @@ def normalize(tensor):
 # %%
 
 def shift_input(i, T, data):
-    if i < T / 4:
+    if i < T / 4 and i%2 == 0:
         data = torch.roll(data, i, -1)
-    elif T / 4 <= i < T / 2:
+    elif T / 4 <= i < T / 2 and i%2 == 0:
         data = torch.roll(data, int(T / 2 - i), -1)
-    elif T / 2 <= i < 3 * T / 4:
+    elif T / 2 <= i < 3 * T / 4 and i%2 == 0:
         data = torch.roll(data, -int(i - T / 2), -1)
-    else:
+    elif i%2 == 0:
         data = torch.roll(data, i - T, -1)
 
     return data
