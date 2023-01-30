@@ -37,14 +37,18 @@ class SnnLayer(nn.Module):
         self.tau_adp = nn.Parameter(torch.Tensor(hidden_dim))
         self.tau_m = nn.Parameter(torch.Tensor(hidden_dim))
 
-        nn.init.normal_(self.tau_adp, 4.6, .1)
-        nn.init.normal_(self.tau_m, 3., .1)
+        nn.init.normal_(self.tau_adp, 5.29, .1)
+        nn.init.normal_(self.tau_m, 2.97, .1)
+        # nn.init.normal_(self.tau_adp, 200., 20.)
+        # nn.init.normal_(self.tau_m, 20., .5)
 
         self.sigmoid = nn.Sigmoid()
 
     def mem_update(self, inputs, mem, spike, current, b, is_adapt, dt=1, baseline_thre=0.1, r_m=3, tau_i=5):
         alpha = self.sigmoid(self.tau_m)
         rho = self.sigmoid(self.tau_adp)
+        # alpha = torch.exp(-dt/self.tau_m)
+        # rho = torch.exp(-dt/self.tau_adp)
 
         if is_adapt:
             beta = 1.8
@@ -54,7 +58,8 @@ class SnnLayer(nn.Module):
         b = rho * b + (1 - rho) * spike  # adaptive contribution
         new_thre = baseline_thre + beta * b  # udpated threshold
 
-        current = torch.exp(-1/torch.tensor(tau_i)) * current + inputs
+        # current = torch.exp(-1/torch.tensor(tau_i)) * current + inputs
+        current = (1 - alpha) * r_m * inputs
 
         # mem = mem * alpha + (1 - alpha) * r_m * inputs - new_thre * spike
         mem = mem * alpha + current - new_thre * spike  # soft reset
@@ -82,7 +87,7 @@ class SnnLayer(nn.Module):
 
         mem_t1, spk_t1, curr_t1, _, b_t1 = self.mem_update(r_in, mem_t, spk_t, curr_t, b_t, self.is_adapt)
 
-        return mem_t1, spk_t1, b_t1
+        return mem_t1, spk_t1, curr_t1, b_t1
 
 
 class OutputLayer(nn.Module):
@@ -173,7 +178,7 @@ class SnnNetwork(nn.Module):
         x_t = x_t.reshape(batch_dim, input_size).float()
         # x_t = self.dp(x_t)
 
-        r_input = x_t + self.rout2rin(h[4])
+        r_input = x_t + self.rout2rin(h[5])
 
         mem_r, spk_r, curr_r, b_r = self.r_in_rec(r_input, mem_t=h[0], spk_t=h[1], curr_t=h[2], b_t=h[3])
 
