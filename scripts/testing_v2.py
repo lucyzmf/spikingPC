@@ -88,7 +88,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Jan-30-2023/ener_onetoone_dp_baseline_oldtaus/'
+exp_dir = '/home/lucy/spikingPC/results/Jan-30-2023/sanitycheck2_spkener_nooutputener/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -204,7 +204,7 @@ def get_states(hiddens_all_: list, idx: int, hidden_dim_: int, T=20):
 # %%
 # get spks from r and p for plotting a sequence
 r_spk_all = get_states(hiddens_all, 1, hidden_dim[1])
-p_spk_all = get_states(hiddens_all, 5, hidden_dim[0])
+p_spk_all = get_states(hiddens_all, 4, hidden_dim[0])
 # get necessary weights
 p2r_w = model.rout2rin.weight.detach().cpu().numpy()
 r_rec_w = model.r_in_rec.rec_w.weight.detach().cpu().numpy()
@@ -282,12 +282,12 @@ def get_energy(hidden_, alpha=1 ):
 
     for t in range(seq_t):
         # spk output
-        activity = (hidden_[t][1].mean() + hidden_[t][5].mean()).cpu().numpy()
+        activity = (hidden_[t][1].mean() + hidden_[t][4].mean()).cpu().numpy()
         # synaptic transmission
         synaptic_transmission = ((torch.abs(model.r_in_rec.rec_w.weight) @ torch.abs(hidden_[t][1].T)).mean() +
                                  (torch.abs(model.rin2rout.weight) @ torch.abs(hidden_[t][1].T)).mean() +
-                                 (torch.abs(model.rout2rin.weight) @ torch.abs(hidden_[t][5].T)).mean() +
-                                 (torch.abs(model.r_out_rec.rec_w.weight) @ torch.abs(hidden_[t][5].T)).mean()).detach().cpu().numpy()
+                                 (torch.abs(model.rout2rin.weight) @ torch.abs(hidden_[t][4].T)).mean() +
+                                 (torch.abs(model.r_out_rec.rec_w.weight) @ torch.abs(hidden_[t][4].T)).mean()).detach().cpu().numpy()
         energy = alpha * activity + (1 - 0) * synaptic_transmission
         energy_log.append(energy)
 
