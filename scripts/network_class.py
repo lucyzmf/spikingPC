@@ -4,7 +4,6 @@ import math
 import torch
 import torch.nn as nn
 from network import *
-from utils import *
 
 
 class SnnLayer(nn.Module):
@@ -44,7 +43,7 @@ class SnnLayer(nn.Module):
 
         self.sigmoid = nn.Sigmoid()
 
-    def mem_update(self, inputs, mem, spike, b, is_adapt, dt=1, baseline_thre=0.1, r_m=3, tau_i=5):
+    def mem_update(self, inputs, mem, spike, b, is_adapt, dt=1, baseline_thre=0.1, r_m=3):
         alpha = self.sigmoid(self.tau_m)
         rho = self.sigmoid(self.tau_adp)
         # alpha = torch.exp(-dt/self.tau_m)
@@ -148,8 +147,7 @@ class SnnNetwork(nn.Module):
 
         self.dp = nn.Dropout(dp_rate)
 
-        self.r_in_rec = SnnLayer(hidden_dims[1], hidden_dims[1], is_rec=True, is_adapt=is_adapt,
-                                 one_to_one=one_to_one)
+        self.r_in_rec = SnnLayer(hidden_dims[1], hidden_dims[1], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
 
         # r in to r out
         self.rin2rout = nn.Linear(hidden_dims[1], hidden_dims[0])
@@ -159,8 +157,7 @@ class SnnNetwork(nn.Module):
         self.rout2rin = nn.Linear(hidden_dims[0], hidden_dims[1])
         nn.init.xavier_uniform_(self.rout2rin.weight)
 
-        self.r_out_rec = SnnLayer(hidden_dims[0], hidden_dims[0], is_rec=True, is_adapt=is_adapt,
-                                  one_to_one=one_to_one)
+        self.r_out_rec = SnnLayer(hidden_dims[0], hidden_dims[0], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
 
         self.output_layer = OutputLayer(hidden_dims[0], out_dim, is_fc=False)
 
@@ -187,7 +184,8 @@ class SnnNetwork(nn.Module):
         # read out from r_out neurons
         mem_out = self.output_layer(spk_p, h[-1])
 
-        h = (mem_r, spk_r, b_r,
+        h = (#mem1, spk1, b1,
+             mem_r, spk_r, b_r,
              mem_p, spk_p, b_p,
              mem_out)
 
@@ -208,7 +206,6 @@ class SnnNetwork(nn.Module):
         h_hist = []
 
         for t in range(T):
-            # x_t = shift_input(t, T, x_t)
             log_softmax, h = self.forward(x_t, h)
 
             log_softmax_hist.append(log_softmax)
@@ -228,6 +225,8 @@ class SnnNetwork(nn.Module):
             weight.new(bsz, self.hidden_dims[0]).zero_(),
             weight.new(bsz, self.hidden_dims[0]).fill_(b_j0),
             # layer out
+            weight.new(bsz, self.out_dim).zero_(),
+            # sum spike
             weight.new(bsz, self.out_dim).zero_(),
         )
 
