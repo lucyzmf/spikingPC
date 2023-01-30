@@ -147,7 +147,8 @@ class SnnNetwork(nn.Module):
 
         self.dp = nn.Dropout(dp_rate)
 
-        self.r_in_rec = SnnLayer(hidden_dims[1], hidden_dims[1], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
+        self.r_in_rec = SnnLayer(hidden_dims[1], hidden_dims[1], is_rec=True, is_adapt=is_adapt,
+                                 one_to_one=one_to_one)
 
         # r in to r out
         self.rin2rout = nn.Linear(hidden_dims[1], hidden_dims[0])
@@ -157,7 +158,8 @@ class SnnNetwork(nn.Module):
         self.rout2rin = nn.Linear(hidden_dims[0], hidden_dims[1])
         nn.init.xavier_uniform_(self.rout2rin.weight)
 
-        self.r_out_rec = SnnLayer(hidden_dims[0], hidden_dims[0], is_rec=True, is_adapt=is_adapt, one_to_one=one_to_one)
+        self.r_out_rec = SnnLayer(hidden_dims[0], hidden_dims[0], is_rec=True, is_adapt=is_adapt,
+                                  one_to_one=one_to_one)
 
         self.output_layer = OutputLayer(hidden_dims[0], out_dim, is_fc=False)
 
@@ -184,8 +186,7 @@ class SnnNetwork(nn.Module):
         # read out from r_out neurons
         mem_out = self.output_layer(spk_p, h[-1])
 
-        h = (#mem1, spk1, b1,
-             mem_r, spk_r, b_r,
+        h = (mem_r, spk_r, b_r,
              mem_p, spk_p, b_p,
              mem_out)
 
