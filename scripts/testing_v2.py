@@ -88,7 +88,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Jan-28-2023/ener_onetoone_nodp_shiftedinout2/'
+exp_dir = '/home/lucy/spikingPC/results/Jan-30-2023/ener_onetoone_dp_baseline_oldtaus/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -122,10 +122,10 @@ fig, axs = plt.subplots(1, 10, figsize=(35, 3))
 for i in range(10):
     sns.heatmap(model.rout2rin.weight[:, i].detach().cpu().numpy().reshape(28, 28),
                 ax=axs[i])
-plt.title('r_out weights to r_in class 1')
+plt.title('r_out weights to r_in class 0')
 
 # plt.show()
-plt.savefig(exp_dir + 'r_out weights to r_in class 1')
+plt.savefig(exp_dir + 'r_out weights to r_in class 0')
 plt.close()
 
 # %%
@@ -204,7 +204,7 @@ def get_states(hiddens_all_: list, idx: int, hidden_dim_: int, T=20):
 # %%
 # get spks from r and p for plotting a sequence
 r_spk_all = get_states(hiddens_all, 1, hidden_dim[1])
-p_spk_all = get_states(hiddens_all, 4, hidden_dim[0])
+p_spk_all = get_states(hiddens_all, 5, hidden_dim[0])
 # get necessary weights
 p2r_w = model.rout2rin.weight.detach().cpu().numpy()
 r_rec_w = model.r_in_rec.rec_w.weight.detach().cpu().numpy()
@@ -252,16 +252,24 @@ with torch.no_grad():
     model.eval()
     hidden = model.init_hidden(images[sample_image_nos[0], :, :].view(-1, IN_dim).size(0))
 
-    _, hidden1 = model.inference(images[sample_image_nos[0], :, :].view(-1, IN_dim).to(device), hidden, T)
+    _, hidden1 = model.inference(images[sample_image_nos[0], :, :].view(-1, IN_dim).to(device), hidden, int(T/2))
     continuous_seq_hiddens.append(hidden1)
     # present second stimulus without reset
     # hidden1[-1] = model.init_hidden(images[sample_image_nos[0], :, :].view(-1, IN_dim).size(0))
-    _, hidden2 = model.inference(images[sample_image_nos[1], :, :].view(-1, IN_dim).to(device), hidden1[-1], T)
+    _, hidden2 = model.inference(((images[sample_image_nos[0], :, :] + images[sample_image_nos[1], :, :])/2).view(-1, IN_dim).to(device), hidden1[-1], int(T/2))
     continuous_seq_hiddens.append(hidden2)
 
+# normal sequence for comparison
+normal_seq = []
+with torch.no_grad():
+    model.eval()
+    hidden = model.init_hidden(images[sample_image_nos[0], :, :].view(-1, IN_dim).size(0))
+
+    _, hidden1 = model.inference(images[sample_image_nos[0], :, :].view(-1, IN_dim).to(device), hidden, T)
+    normal_seq.append(hidden1)
 
 # compute energy consumption
-def get_energy(hidden_, alpha=1 / 3):
+def get_energy(hidden_, alpha=1 ):
     """
     given hidden list, compute energy of some seq length
     :param alpha: scaler for mem activity vs synaptic transmission
@@ -273,14 +281,14 @@ def get_energy(hidden_, alpha=1 / 3):
     energy_log = []
 
     for t in range(seq_t):
-        # mem potential l1 norm
-        activity = (hidden_[t][1].mean() + hidden_[t][4].mean()).cpu().numpy()
+        # spk output
+        activity = (hidden_[t][1].mean() + hidden_[t][5].mean()).cpu().numpy()
         # synaptic transmission
         synaptic_transmission = ((torch.abs(model.r_in_rec.rec_w.weight) @ torch.abs(hidden_[t][1].T)).mean() +
                                  (torch.abs(model.rin2rout.weight) @ torch.abs(hidden_[t][1].T)).mean() +
-                                 (torch.abs(model.rout2rin.weight) @ torch.abs(hidden_[t][4].T)).mean() +
-                                 (torch.abs(model.r_out_rec.rec_w.weight) @ torch.abs(hidden_[t][4].T)).mean()).detach().cpu().numpy()
-        energy = alpha * activity + (1 - alpha) * synaptic_transmission
+                                 (torch.abs(model.rout2rin.weight) @ torch.abs(hidden_[t][5].T)).mean() +
+                                 (torch.abs(model.r_out_rec.rec_w.weight) @ torch.abs(hidden_[t][5].T)).mean()).detach().cpu().numpy()
+        energy = alpha * activity + (1 - 0) * synaptic_transmission
         energy_log.append(energy)
 
     energy_log = np.hstack(energy_log)
@@ -295,12 +303,16 @@ energy2 = get_energy(continuous_seq_hiddens[1])
 
 continuous_energy = np.concatenate((energy1, energy2))
 
+energy_normal_sequence = get_energy(normal_seq[0])
+
 fig = plt.figure(figsize=(10, 3))
-plt.plot(np.arange(T * 2), continuous_energy)
-plt.title('energy consumption two continuously presented images')
-plt.show()
-# plt.savefig(exp_dir + 'energy consumption two continuously presented images')
-# plt.close()
+plt.plot(np.arange(T), continuous_energy, label='continuous')
+plt.plot(np.arange(T), energy_normal_sequence, label='normal')
+plt.title('energy consumption two continuously presented images vs normal sequence')
+plt.legend()
+# plt.show()
+plt.savefig(exp_dir + 'energy consumption two continuously presented images')
+plt.close()
 
 # %%
 # weight matrix for p2p
@@ -323,4 +335,31 @@ sns.heatmap(model.r_in_rec.rec_w.weight.detach().cpu().numpy(), vmax=abs_max, vm
 plt.title('r2r weights')
 plt.savefig(exp_dir + 'r2r weights')
 plt.close()
+# %%
+
+# cluster neuron time constants 
+def get_real_constants(pseudo_constants):
+    return -1/np.log(1/(1 + np.exp(-pseudo_constants)))
+    # return pseudo_constants
+
+fig = plt.figure()
+sns.scatterplot(x=get_real_constants(model.r_in_rec.tau_adp.detach().cpu().numpy()), y=get_real_constants(model.r_in_rec.tau_m.detach().cpu().numpy()), label='r neurons')
+sns.scatterplot(x=get_real_constants(model.r_out_rec.tau_adp.detach().cpu().numpy()), y=get_real_constants(model.r_out_rec.tau_m.detach().cpu().numpy()), label='p neurons')
+plt.title('time constants scatter')
+plt.legend()
+# plt.show()
+plt.savefig(exp_dir + 'time constants scatter')
+plt.close()
+
+
+# %%
+# time constant of output neuron 
+fig = plt.figure()
+plt.plot(np.arange(10), model.output_layer.tau_m.detach().cpu().numpy())
+plt.title('output neuron time constants')
+# plt.show()
+plt.savefig(exp_dir + 'output neuron time constants')
+plt.close()
+
+
 # %%

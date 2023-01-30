@@ -37,8 +37,8 @@ class SnnLayer(nn.Module):
         self.tau_adp = nn.Parameter(torch.Tensor(hidden_dim))
         self.tau_m = nn.Parameter(torch.Tensor(hidden_dim))
 
-        nn.init.normal_(self.tau_adp, 5.29, .1)
-        nn.init.normal_(self.tau_m, 2.97, .1)
+        nn.init.normal_(self.tau_adp, 4.6, .1)
+        nn.init.normal_(self.tau_m, 3., .1)
         # nn.init.normal_(self.tau_adp, 200., 20.)
         # nn.init.normal_(self.tau_m, 20., .5)
 
