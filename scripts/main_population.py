@@ -44,7 +44,7 @@ config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
-config.onetoone = False
+config.onetoone = True
 config.input_scale = 0.3
 input_scale = config.input_scale
 config.lr = 1e-3
@@ -208,7 +208,7 @@ def train(train_loader, n_classes, model, named_params):
                     energy = h[1].mean()  # * 0.1
                 else:
                     # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = (torch.norm(h[3], p=1) + torch.norm(h[6], p=1)) / B / 784
+                    energy = (torch.norm(h[1], p=1) + torch.norm(h[4], p=1)+torch.norm(h[-1], p=1)) / B / 784
 
                 # l1 loss on rec weights 
                 # l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
@@ -276,7 +276,7 @@ def train(train_loader, n_classes, model, named_params):
 ###############################################################
 # set input and t param
 IN_dim = 784
-hidden_dim = [256, [10 * config.num_readout, 784]]
+hidden_dim = [10 * config.num_readout, 784]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
