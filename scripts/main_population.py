@@ -50,7 +50,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'noener_onetoone_control'
+exp_name = 'sanitycheck2'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -208,7 +208,7 @@ def train(train_loader, n_classes, model, named_params):
                     energy = h[1].mean()  # * 0.1
                 else:
                     # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = (torch.norm(h[3], p=1) + torch.norm(h[6], p=1)) / B / 784
+                    energy = (torch.norm(h[0], p=1) + torch.norm(h[3], p=1)) / B / 784
 
                 # l1 loss on rec weights 
                 # l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
@@ -257,8 +257,6 @@ def train(train_loader, n_classes, model, named_params):
                 'p2r weights': model.rout2rin.weight.detach().cpu().numpy(),
                 'p2p weights': model.r_out_rec.rec_w.weight.detach().cpu().numpy(),
                 'r2p weights': model.rin2rout.weight.detach().cpu().numpy(),
-                'fc weights': model.fc_layer.fc_weights.weight.detach().cpu().numpy(),
-                'i2r weights': model.fc2r_in.weight.detach().cpu().numpy()
             })
 
             train_loss = 0
@@ -278,7 +276,7 @@ def train(train_loader, n_classes, model, named_params):
 ###############################################################
 # set input and t param
 IN_dim = 784
-hidden_dim = [256, [10 * config.num_readout, 784]]
+hidden_dim = [10 * config.num_readout, 784]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
