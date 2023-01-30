@@ -44,7 +44,7 @@ class SnnLayer(nn.Module):
 
         self.sigmoid = nn.Sigmoid()
 
-    def mem_update(self, inputs, mem, spike, current, b, is_adapt, dt=1, baseline_thre=0.1, r_m=3, tau_i=5):
+    def mem_update(self, inputs, mem, spike, b, is_adapt, dt=1, baseline_thre=0.1, r_m=3, tau_i=5):
         alpha = self.sigmoid(self.tau_m)
         rho = self.sigmoid(self.tau_adp)
         # alpha = torch.exp(-dt/self.tau_m)
@@ -171,7 +171,7 @@ class SnnNetwork(nn.Module):
         batch_dim, input_size = x_t.shape
 
         x_t = x_t.reshape(batch_dim, input_size).float()
-        # x_t = self.dp(x_t)
+        x_t = self.dp(x_t)
 
         r_input = x_t + self.rout2rin(h[4])
 
