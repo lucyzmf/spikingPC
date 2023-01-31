@@ -33,8 +33,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-# wandb.init(project="spikingPC", entity="lucyzmf")
-wandb.init(mode="disabled")
+wandb.init(project="spikingPC_onelayer", entity="lucyzmf")
+# wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -50,7 +50,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'sanitycheck2_spkener_nooutputener'
+exp_name = 'spkener2'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -234,7 +234,7 @@ def train(train_loader, n_classes, model, named_params):
                 total_energy_loss += energy.item()
                 # total_l1_loss += l1_norm.item()
 
-        if batch_idx > 0 and batch_idx % log_interval == 0:
+        if batch_idx > 0 and batch_idx % log_interval == (log_interval-1):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
                 \tClf: {:.6f}\tReg: {:.6f}\tFr_p: {:.6f}\tFr_r: {:.6f}'.format(
                 epoch, batch_idx * batch_size, len(train_loader.dataset),
@@ -253,10 +253,6 @@ def train(train_loader, n_classes, model, named_params):
                 'total_loss': train_loss / log_interval / T,
                 'pred spiking freq': model.fr_p / T / log_interval,  # firing per time step
                 'rep spiking fr': model.fr_r / T / log_interval,
-                'r2r weights': model.r_in_rec.rec_w.weight.detach().cpu().numpy(),
-                'p2r weights': model.rout2rin.weight.detach().cpu().numpy(),
-                'p2p weights': model.r_out_rec.rec_w.weight.detach().cpu().numpy(),
-                'r2p weights': model.rin2rout.weight.detach().cpu().numpy(),
             })
 
             train_loss = 0
@@ -303,7 +299,7 @@ test_loss, acc1 = test(model, test_loader)
 
 # %%
 
-epochs = 30
+epochs = 20
 named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20

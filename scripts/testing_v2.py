@@ -137,9 +137,11 @@ def get_all_analysis_data(trained_model):
 
     hiddens_all_ = []
     preds_all_ = []
+    data_all_ = []  # get transformed data 
 
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
+        data_all_.append(data.data)
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
 
@@ -164,16 +166,18 @@ def get_all_analysis_data(trained_model):
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         test_acc))
-    return hiddens_all_, preds_all_
+    
+    data_all_ = torch.stack(data_all_).reshape(10000, 28, 28)
+    
+    return hiddens_all_, preds_all_, data_all_
 
 
-hiddens_all, preds_all = get_all_analysis_data(model)
+hiddens_all, preds_all, images_all = get_all_analysis_data(model)
+target_all = testdata.targets.data
+
 
 # %%
 # get all hiddens and corresponding pred, target, and images into dict
-target_all = testdata.targets.data
-images = testdata.data.data
-
 
 def get_states(hiddens_all_: list, idx: int, hidden_dim_: int, T=20):
     """
@@ -244,28 +248,28 @@ plt.close()
 
 # %%
 # plot energy consumption in network with two consecutive images
-sample_image_nos = [3, 5]
+sample_image_nos = [3, 4]
 print(target_all[sample_image_nos[0]])
 print(target_all[sample_image_nos[1]])
 continuous_seq_hiddens = []
 with torch.no_grad():
     model.eval()
-    hidden = model.init_hidden(images[sample_image_nos[0], :, :].view(-1, IN_dim).size(0))
+    hidden = model.init_hidden(images_all[sample_image_nos[0], :, :].view(-1, IN_dim).size(0))
 
-    _, hidden1 = model.inference(images[sample_image_nos[0], :, :].view(-1, IN_dim).to(device), hidden, int(T/2))
+    _, hidden1 = model.inference(images_all[sample_image_nos[0], :, :].view(-1, IN_dim).to(device), hidden, int(T/2))
     continuous_seq_hiddens.append(hidden1)
     # present second stimulus without reset
     # hidden1[-1] = model.init_hidden(images[sample_image_nos[0], :, :].view(-1, IN_dim).size(0))
-    _, hidden2 = model.inference(((images[sample_image_nos[0], :, :] + images[sample_image_nos[1], :, :])/2).view(-1, IN_dim).to(device), hidden1[-1], int(T/2))
+    _, hidden2 = model.inference((images_all[sample_image_nos[1], :, :]).view(-1, IN_dim).to(device), hidden1[-1], int(T/2))
     continuous_seq_hiddens.append(hidden2)
 
 # normal sequence for comparison
 normal_seq = []
 with torch.no_grad():
     model.eval()
-    hidden = model.init_hidden(images[sample_image_nos[0], :, :].view(-1, IN_dim).size(0))
+    hidden = model.init_hidden(images_all[sample_image_nos[0], :, :].view(-1, IN_dim).size(0))
 
-    _, hidden1 = model.inference(images[sample_image_nos[0], :, :].view(-1, IN_dim).to(device), hidden, T)
+    _, hidden1 = model.inference(images_all[sample_image_nos[0], :, :].view(-1, IN_dim).to(device), hidden, T)
     normal_seq.append(hidden1)
 
 # compute energy consumption
@@ -312,6 +316,40 @@ plt.title('energy consumption two continuously presented images vs normal sequen
 plt.legend()
 # plt.show()
 plt.savefig(exp_dir + 'energy consumption two continuously presented images')
+plt.close()
+
+# %%
+# plot continuous sequence spike pattern
+fig, axs = plt.subplots(4, 20, figsize=(80, 20))  # p spiking, r spiking, rec drive from p, rec drive from r
+# axs[0].imshow(images[sample_no, :, :])
+# axs[0].set_title('class %i, prediction %i' % (target_all[sample_no], preds_all[sample_no]))
+for t in range(T):
+    if t<10:
+        hidden = continuous_seq_hiddens[0]
+    else:
+        hidden = continuous_seq_hiddens[1]
+    # p spiking
+    axs[0][t].imshow(hidden[t%10][4][0].detach().cpu().numpy().reshape(10, int(hidden_dim[0] / 10)))
+    axs[0][t].axis('off')
+
+    # drive from p to r
+    pos1 = axs[1][t].imshow((p2r_w @ hidden[t%10][4][0].detach().cpu().numpy()).reshape(28, 28))
+    fig.colorbar(pos1, ax=axs[1][t], shrink=0.3)
+    axs[1][t].axis('off')
+
+    # r spiking
+    axs[2][t].imshow(hidden[t%10][1][0].detach().cpu().numpy().reshape(28, 28))
+    axs[2][t].axis('off')
+
+    # drive from r to r
+    pos2 = axs[3][t].imshow((r_rec_w @ hidden[t%10][1][0].detach().cpu().numpy()).reshape(28, 28))
+    fig.colorbar(pos2, ax=axs[3][t], shrink=0.3)
+    axs[3][t].axis('off')
+
+plt.title('continuous seq with change in img p spk, p2r drive, r spk, r2r drive')
+plt.tight_layout()
+# plt.show()
+plt.savefig(exp_dir + 'continuous change in image p spk, p2r drive, r spk, r2r drive')
 plt.close()
 
 # %%
