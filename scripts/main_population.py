@@ -50,7 +50,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'spkener2'
+exp_name = 'stepclfloss_withener'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -245,12 +245,12 @@ def train(train_loader, n_classes, model, named_params):
                        model.fr_r / T / log_interval))
 
             wandb.log({
-                'clf_loss': total_clf_loss / log_interval / T,
+                'clf_loss': total_clf_loss / log_interval / K,
                 'train_acc': 100 * correct / (log_interval * B),
-                'regularisation_loss': total_regularizaton_loss / log_interval / T,
-                'energy_loss': total_energy_loss / log_interval / T,
-                'l1_loss': config.l1_lambda * total_l1_loss / log_interval / T,
-                'total_loss': train_loss / log_interval / T,
+                'regularisation_loss': total_regularizaton_loss / log_interval / K,
+                'energy_loss': total_energy_loss / log_interval / K,
+                'l1_loss': config.l1_lambda * total_l1_loss / log_interval / K,
+                'total_loss': train_loss / log_interval / K,
                 'pred spiking freq': model.fr_p / T / log_interval,  # firing per time step
                 'rep spiking fr': model.fr_r / T / log_interval,
             })

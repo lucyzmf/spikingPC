@@ -88,7 +88,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Jan-30-2023/sanitycheck2_spkener_nooutputener/'
+exp_dir = '/home/lucy/spikingPC/results/Feb-01-2023/stepclfloss_withener/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -273,7 +273,7 @@ with torch.no_grad():
     normal_seq.append(hidden1)
 
 # compute energy consumption
-def get_energy(hidden_, alpha=1 ):
+def get_energy(hidden_, alpha=1/3 ):
     """
     given hidden list, compute energy of some seq length
     :param alpha: scaler for mem activity vs synaptic transmission
@@ -292,7 +292,7 @@ def get_energy(hidden_, alpha=1 ):
                                  (torch.abs(model.rin2rout.weight) @ torch.abs(hidden_[t][1].T)).mean() +
                                  (torch.abs(model.rout2rin.weight) @ torch.abs(hidden_[t][4].T)).mean() +
                                  (torch.abs(model.r_out_rec.rec_w.weight) @ torch.abs(hidden_[t][4].T)).mean()).detach().cpu().numpy()
-        energy = alpha * activity + (1 - 0) * synaptic_transmission
+        energy = alpha * activity + (1 - alpha) * synaptic_transmission
         energy_log.append(energy)
 
     energy_log = np.hstack(energy_log)
@@ -400,4 +400,50 @@ plt.savefig(exp_dir + 'output neuron time constants')
 plt.close()
 
 
+# %%
+# plot correlation between mismatch between p and r at t-1 and energy at t 
+# idea is that if previous mismatch in prediction, error corrects it after 
+# first batch
+prediction_t = p_spk_all[:200, :, :] @ p2r_w.T 
+mismatch_t = torch.norm(torch.tensor((r_spk_all[:200, 1:, :] - prediction_t[:, :19, :])), p=1, dim=2).T
+
+
+def get_energy_batch(hidden_, alpha=1 ):
+    """
+    given hidden list, compute energy of some seq length
+    :param alpha: scaler for mem activity vs synaptic transmission
+    :param hidden_: hidden list containing mem, spk, thre
+    :return: array of energy consumption during seq
+    """
+
+    seq_t = len(hidden_)
+    energy_log = []
+
+    for t in range(seq_t):
+        # spk output
+        activity = (hidden_[t][1].mean(dim=-1) + hidden_[t][4].mean(dim=-1)).cpu().numpy()
+        # synaptic transmission
+        synaptic_transmission = ((torch.abs(model.r_in_rec.rec_w.weight) @ torch.abs(hidden_[t][1].T)).mean(dim=0) +
+                                 (torch.abs(model.rin2rout.weight) @ torch.abs(hidden_[t][1].T)).mean(dim=0) +
+                                 (torch.abs(model.rout2rin.weight) @ torch.abs(hidden_[t][4].T)).mean(dim=0) +
+                                 (torch.abs(model.r_out_rec.rec_w.weight) @ torch.abs(hidden_[t][4].T)).mean(dim=0)).detach().cpu().numpy()
+        energy = alpha * activity + (1 - 0) * synaptic_transmission
+        energy_log.append(energy)
+
+    energy_log = np.vstack(energy_log)
+
+    return energy_log
+
+energy_t1 = get_energy_batch(hiddens_all[0])
+
+# %%
+fig = plt.figure()
+for i in range(50):
+    sns.scatterplot(x=F.normalize(mismatch_t[:, i], dim=0), y=F.normalize(torch.tensor(energy_t1[1:, i]), dim=0))
+plt.xlabel('mismatch t')
+plt.ylabel('energy t+1')
+plt.title('corr between mismatch in prediction and energy at next time step')
+# plt.show()
+plt.savefig(exp_dir + 'corr between mismatch in prediction and energy at next time step')
+plt.close()
 # %%
