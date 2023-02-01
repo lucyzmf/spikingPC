@@ -208,7 +208,7 @@ def train(train_loader, n_classes, model, named_params):
                     energy = h[1].mean()  # * 0.1
                 else:
                     # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = (torch.norm(h[1], p=1) + torch.norm(h[5], p=1)) / B / (784+100)
+                    energy = (torch.norm(h[1], p=1) + torch.norm(h[4], p=1)) / B / (784+100)
 
                 # l1 loss on rec weights 
                 # l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
