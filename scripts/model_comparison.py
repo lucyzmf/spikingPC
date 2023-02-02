@@ -137,6 +137,42 @@ plt.title('p to r inhibitory weight sum')
 plt.show()
 
 # %%
+# compare strength of weights from r to p per class
+ex_strength_per_class = {'class': np.concatenate((np.arange(10), np.arange(10))),
+                                 'excitation': [], 'model type': []}
+for i in range(10 * 2):
+    if i < 10:
+        model = model_baseline
+        model_type = 'baseline'
+    else:
+        model = model_lowener
+        model_type = 'low energy'
+    w = model.rin2rout.weight[num_readout * (i % 10):((i % 10) + 1) * num_readout, :].detach()
+    ex_strength_per_class['excitation'].append(((w >0) * w).sum().cpu().item())
+    ex_strength_per_class['model type'].append(model_type)
+
+ex_strength_per_class = pd.DataFrame.from_dict(ex_strength_per_class)
+
+fig = plt.figure()
+sns.barplot(ex_strength_per_class, x='class', y='excitation', hue='model type')
+plt.title('r to p excitatory weight sum')
+plt.show()
+
+# %%
+# compare time constant means of r and p of both modeles 
+time_constants = {
+    'model type': [], 
+    'neuron type': [], 
+    'measurement type': [], #tau_m or tau_adp 
+    'value': []
+}
+
+for i in range(2): 
+    time_constants['model type']
+
+
+
+# %%
 # compare acc at each time step of prediction
 acc_per_step = {
     'time step': [],
