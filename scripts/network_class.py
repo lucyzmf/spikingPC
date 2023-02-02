@@ -110,7 +110,7 @@ class OutputLayer(nn.Module):
             nn.init.xavier_uniform_(self.fc.weight)
 
         # tau_m
-        self.tau_m = nn.Parameter(torch.Tensor(out_dim))
+        self.tau_m = nn.Parameter(torch.Tensor(out_dim), requires_grad=False)
         nn.init.constant_(self.tau_m, 0.5)
 
         self.sigmoid = nn.Sigmoid()
