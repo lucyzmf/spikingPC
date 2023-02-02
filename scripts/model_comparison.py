@@ -94,14 +94,14 @@ print('total param count %i' % total_params)
 # %%
 # load different models
 exp_dir_lowener = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withenerx2_outmemconstantdecay/'
-saved_dict = model_result_dict_load(exp_dir_lowener + 'onelayer_rec_best.pth.tar')
+saved_dict1 = model_result_dict_load(exp_dir_lowener + 'onelayer_rec_best.pth.tar')
 
-model_lowener.load_state_dict(saved_dict['state_dict'])
+model_lowener.load_state_dict(saved_dict1['state_dict'])
 
 exp_dir_baseline = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withener_outmemconstantdecay/'
-saved_dict = model_result_dict_load(exp_dir_baseline + 'onelayer_rec_best.pth.tar')
+saved_dict2 = model_result_dict_load(exp_dir_baseline + 'onelayer_rec_best.pth.tar')
 
-model_baseline.load_state_dict(saved_dict['state_dict'])
+model_baseline.load_state_dict(saved_dict2['state_dict'])
 
 # %%
 # get params and put into dict
@@ -163,11 +163,11 @@ def get_predictions(preds_all, bsz, T):
 
     preds_all_by_t = torch.stack(preds_all_by_t)
 
-    return preds_all_by_t.reshape(10000, 20)
+    return preds_all_by_t
 
 
-preds_by_t_b = get_predictions(preds_b, bsz=batch_size, T=T)
-preds_by_t_l = get_predictions(preds_l, bsz=batch_size, T=T)
+preds_by_t_b = get_predictions(preds_b, bsz=batch_size, T=T).reshape(10000, 20)
+preds_by_t_l = get_predictions(preds_l, bsz=batch_size, T=T).reshape(10000, 20)
 
 # %%
 # get acc for each time step
@@ -180,7 +180,7 @@ acc_per_step['acc'] = np.concatenate((np.hstack(acc_t_b), np.hstack(acc_t_l)))
 # %%
 # change in stimulus at t=10
 
-test_loader_split = torch.utils.data.DataLoader(testdata, batch_size=10000 / 2,
+test_loader_split = torch.utils.data.DataLoader(testdata, batch_size=int(10000 / 2),
                                                 shuffle=False, num_workers=2)
 
 
@@ -213,7 +213,7 @@ def change_in_stumuli(trained_model, test_loader_, device, IN_dim, t=10):
             if i == 0:
                 hidden = trained_model.init_hidden(data.size(0))
             else:
-                hidden = tuple(v.detach() for v in hidden)
+                hidden = tuple(v.detach() for v in hidden[-1])
             log_softmax_outputs, hidden = trained_model.inference(data, hidden, t)
             hiddens_all_.append(hidden)
 
@@ -241,11 +241,15 @@ def change_in_stumuli(trained_model, test_loader_, device, IN_dim, t=10):
 _, preds_change_b, _ = change_in_stumuli(model_baseline, test_loader_split, device, IN_dim)
 _, preds_change_l, _ = change_in_stumuli(model_lowener, test_loader_split, device, IN_dim)
 
-preds_by_t_change_b = get_predictions(preds_change_b, 5000, T=10)
-preds_by_t_change_l = get_predictions(preds_change_l, 5000, T=10)
+preds_by_t_change_b = get_predictions(preds_change_b, 5000, T=10).squeeze()
+preds_by_t_change_b = torch.hstack((preds_by_t_change_b[0, :, :], preds_by_t_change_b[1, :, :]))
+preds_by_t_change_l = get_predictions(preds_change_l, 5000, T=10).squeeze()
+preds_by_t_change_l = torch.hstack((preds_by_t_change_l[0, :, :], preds_by_t_change_l[1, :, :]))
 
-acc_t_b_change = [(preds_by_t_change_b[:, t].cpu().eq(testdata.targets.data).sum().numpy()) / 10000 * 100 for t in range(T)]
-acc_t_l_change = [(preds_by_t_change_l[:, t].cpu().eq(testdata.targets.data).sum().numpy()) / 10000 * 100 for t in range(T)]
+acc_t_b_change = [(preds_by_t_change_b[:, t].cpu().eq(testdata.targets.data[:5000]).sum().numpy()) / 5000 * 100 for t in range(10)] + \
+                [(preds_by_t_change_b[:, t].cpu().eq(testdata.targets.data[5000:]).sum().numpy()) / 5000 * 100 for t in range(10, 20)]
+acc_t_l_change = [(preds_by_t_change_l[:, t].cpu().eq(testdata.targets.data[:5000]).sum().numpy()) / 5000 * 100 for t in range(10)] + \
+                [(preds_by_t_change_l[:, t].cpu().eq(testdata.targets.data[5000:]).sum().numpy()) / 5000 * 100 for t in range(10, 20)]
 
 acc_per_step['time step'] = np.concatenate((acc_per_step['time step'], np.arange(T), np.arange(T)))
 acc_per_step['acc'] = np.concatenate((acc_per_step['acc'], np.hstack(acc_t_b_change), np.hstack(acc_t_l_change)))
@@ -259,3 +263,4 @@ acc_per_step['condition'] = np.hstack((['constant'] * (T * 2), ['change'] * (T *
 fig = plt.figure()
 sns.lineplot(acc_per_step, x='time step', y='acc', hue='model type', style='condition')
 plt.show()
+# %%
