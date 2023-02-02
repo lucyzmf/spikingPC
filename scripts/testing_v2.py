@@ -135,35 +135,6 @@ target_all = testdata.targets.data
 
 
 # %%
-# get all hiddens and corresponding pred, target, and images into dict
-
-def get_states(hiddens_all_: list, idx: int, hidden_dim_: int, T=20):
-    """
-    get a particular internal state depending on index passed to hidden
-    :param hidden_dim_: the size of a state, eg. num of r or p neurons
-    :param T: total time steps
-    :param hiddens_all_: list containing hidden states of all batch and time steps during inference
-    :param idx: which index in h is taken out
-    :return: np array containing desired states
-    """
-    all_states = []
-    for batch_idx in range(len(hiddens_all_)):  # iterate over batch
-        batch_ = []
-        for t in range(T):
-            seq_ = []
-            for b in range(batch_size):
-                seq_.append(hiddens_all_[batch_idx][t][idx][b].detach().cpu().numpy())
-            seq_ = np.stack(seq_)
-            batch_.append(seq_)
-        batch_ = np.stack(batch_)
-        all_states.append(batch_)
-
-    all_states = np.stack(all_states)
-
-    return all_states.transpose(0, 2, 1, 3).reshape(10000, 20, hidden_dim_)
-
-
-# %%
 # get spks from r and p for plotting a sequence
 r_spk_all = get_states(hiddens_all, 1, hidden_dim[1])
 p_spk_all = get_states(hiddens_all, 5, hidden_dim[0])
