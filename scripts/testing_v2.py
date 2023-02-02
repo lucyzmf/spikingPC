@@ -136,7 +136,7 @@ def get_all_analysis_data(trained_model):
     correct = 0
 
     hiddens_all_ = []
-    preds_all_ = []
+    preds_all_ = []  # predictions at all timesptes
     data_all_ = []  # get transformed data 
 
     # for data, target in test_loader:
@@ -155,7 +155,7 @@ def get_all_analysis_data(trained_model):
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
 
             pred = log_softmax_outputs[-1].data.max(1, keepdim=True)[1]
-            preds_all_.append(pred)
+            preds_all_.append(log_softmax_outputs)
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()

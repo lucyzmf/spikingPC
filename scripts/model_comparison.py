@@ -25,6 +25,7 @@ from tqdm import tqdm
 from network_class import *
 from utils import *
 from FTTP import *
+from testing_v2 import get_all_analysis_data
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
@@ -133,6 +134,38 @@ inhibition_strength_df = pd.DataFrame.from_dict(inhibition_strength_per_class)
 
 fig = plt.figure()
 sns.barplot(inhibition_strength_df, x='class', y='inhibition', hue='model type')
+plt.title('p to r inhibitory weight sum')
 plt.show()
 
 # %%
+# compare acc at each time step of prediction
+acc_per_step = {
+    'time step': [],
+    'acc': [],
+    'model type': [],
+    'condition': []  # constant vs change in stimulus
+}
+
+# get all predictions for normal sequences
+hiddens_b, preds_b, images_b = get_all_analysis_data(model_baseline)
+hiddens_l, preds_l, images_l = get_all_analysis_data(model_lowener)
+
+
+# get predictions from list of logsoftmax outputs per time step
+def get_predictions(preds_all):
+    preds_all_by_t = []
+    for b in range(int(10000 / batch_size)):
+        preds_per_batch = []
+        for t in range(T):
+            preds = preds_all[b][t].data.max(1, keepdim=True)[1]
+            preds_per_batch.append(preds_per_batch)
+        preds_per_batch = torch.stack(preds_per_batch)
+        preds_all_by_t.append(preds_all_by_t)
+
+    preds_all_by_t = torch.stack(preds_all_by_t)
+
+    return preds_all_by_t.reshape(10000, 20)
+
+
+preds_by_t_b = get_predictions(preds_b)
+preds_by_t_l = get_predictions(preds_l)
