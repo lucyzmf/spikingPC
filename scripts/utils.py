@@ -237,3 +237,49 @@ def shift_input(i, T, data):
         data = torch.roll(data, i - T, -1)
 
     return data
+
+
+# %%
+# get all hidden states
+def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T):
+    trained_model.eval()
+    test_loss = 0
+    correct = 0
+
+    hiddens_all_ = []
+    preds_all_ = []  # predictions at all timesptes
+    data_all_ = []  # get transformed data 
+
+    # for data, target in test_loader:
+    for i, (data, target) in enumerate(test_loader):
+        data_all_.append(data.data)
+        data, target = data.to(device), target.to(device)
+        data = data.view(-1, IN_dim)
+
+        with torch.no_grad():
+            trained_model.eval()
+            hidden = trained_model.init_hidden(data.size(0))
+
+            log_softmax_outputs, hidden = trained_model.inference(data, hidden, T)
+            hiddens_all_.append(hidden)
+
+            test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
+
+            pred = log_softmax_outputs[-1].data.max(1, keepdim=True)[1]
+            preds_all_.append(log_softmax_outputs)
+
+        correct += pred.eq(target.data.view_as(pred)).cpu().sum()
+        torch.cuda.empty_cache()
+
+    test_loss /= len(test_loader.dataset)
+    test_acc = 100. * correct / len(test_loader.dataset)
+
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        test_acc))
+    
+    data_all_ = torch.stack(data_all_).reshape(10000, 28, 28)
+    
+    return hiddens_all_, preds_all_, data_all_
+
+# %%

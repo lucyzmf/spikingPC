@@ -25,7 +25,6 @@ from tqdm import tqdm
 from network_class import *
 from utils import *
 from FTTP import *
-from testing_v2 import get_all_analysis_data
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
@@ -147,8 +146,8 @@ acc_per_step = {
 }
 
 # get all predictions for normal sequences
-hiddens_b, preds_b, images_b = get_all_analysis_data(model_baseline)
-hiddens_l, preds_l, images_l = get_all_analysis_data(model_lowener)
+hiddens_b, preds_b, images_b = get_all_analysis_data(model_baseline, test_loader, device, IN_dim, T)
+hiddens_l, preds_l, images_l = get_all_analysis_data(model_lowener, test_loader, device, IN_dim, T)
 
 
 # get predictions from list of logsoftmax outputs per time step
@@ -158,9 +157,9 @@ def get_predictions(preds_all):
         preds_per_batch = []
         for t in range(T):
             preds = preds_all[b][t].data.max(1, keepdim=True)[1]
-            preds_per_batch.append(preds_per_batch)
-        preds_per_batch = torch.stack(preds_per_batch)
-        preds_all_by_t.append(preds_all_by_t)
+            preds_per_batch.append(preds)
+        preds_per_batch = (torch.stack(preds_per_batch)).transpose(1, 0)
+        preds_all_by_t.append(preds_per_batch)
 
     preds_all_by_t = torch.stack(preds_all_by_t)
 
@@ -169,3 +168,5 @@ def get_predictions(preds_all):
 
 preds_by_t_b = get_predictions(preds_b)
 preds_by_t_l = get_predictions(preds_l)
+
+# %%
