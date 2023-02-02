@@ -151,9 +151,9 @@ hiddens_l, preds_l, images_l = get_all_analysis_data(model_lowener, test_loader,
 
 
 # get predictions from list of logsoftmax outputs per time step
-def get_predictions(preds_all):
+def get_predictions(preds_all, bsz, T):
     preds_all_by_t = []
-    for b in range(int(10000 / batch_size)):
+    for b in range(int(10000 / bsz)):
         preds_per_batch = []
         for t in range(T):
             preds = preds_all[b][t].data.max(1, keepdim=True)[1]
@@ -166,18 +166,96 @@ def get_predictions(preds_all):
     return preds_all_by_t.reshape(10000, 20)
 
 
-preds_by_t_b = get_predictions(preds_b)
-preds_by_t_l = get_predictions(preds_l)
+preds_by_t_b = get_predictions(preds_b, bsz=batch_size, T=T)
+preds_by_t_l = get_predictions(preds_l, bsz=batch_size, T=T)
 
 # %%
 # get acc for each time step
-acc_t_b = [(preds_by_t_b[:, t].cpu().eq(testdata.targets.data).sum().numpy())/10000 * 100 for t in range(T)] 
-acc_t_l = [(preds_by_t_l[:, t].cpu().eq(testdata.targets.data).sum().numpy())/10000 * 100 for t in range(T)] 
+acc_t_b = [(preds_by_t_b[:, t].cpu().eq(testdata.targets.data).sum().numpy()) / 10000 * 100 for t in range(T)]
+acc_t_l = [(preds_by_t_l[:, t].cpu().eq(testdata.targets.data).sum().numpy()) / 10000 * 100 for t in range(T)]
 
 acc_per_step['time step'] = np.concatenate((np.arange(T), np.arange(T)))
 acc_per_step['acc'] = np.concatenate((np.hstack(acc_t_b), np.hstack(acc_t_l)))
-acc_per_step['model type'] = np.concatenate((['basline'] * T, ['low energy'] * T))
-acc_per_step['condition'] = ['constant'] * (T * 2)
+
+# %%
+# change in stimulus at t=10
+
+test_loader_split = torch.utils.data.DataLoader(testdata, batch_size=10000 / 2,
+                                                shuffle=False, num_workers=2)
+
+
+def change_in_stumuli(trained_model, test_loader_, device, IN_dim, t=10):
+    """
+    get all analysis data for change in stimuli half way
+    :param trained_model:
+    :param test_loader_: batch size is half of the data set
+    :param device:
+    :param IN_dim:
+    :param t: time step when change happens
+    :return:
+    """
+    trained_model.eval()
+    test_loss = 0
+    correct = 0
+
+    hiddens_all_ = []
+    preds_all_ = []  # predictions at all timesptes
+    data_all_ = []  # get transformed data
+
+    # for data, target in test_loader:
+    for i, (data, target) in enumerate(test_loader_):
+        data_all_.append(data.data)
+        data, target = data.to(device), target.to(device)
+        data = data.view(-1, IN_dim)
+
+        with torch.no_grad():
+            trained_model.eval()
+            if i == 0:
+                hidden = trained_model.init_hidden(data.size(0))
+            else:
+                hidden = tuple(v.detach() for v in hidden)
+            log_softmax_outputs, hidden = trained_model.inference(data, hidden, t)
+            hiddens_all_.append(hidden)
+
+            test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
+
+            pred = log_softmax_outputs[-1].data.max(1, keepdim=True)[1]
+            preds_all_.append(log_softmax_outputs)
+
+        correct += pred.eq(target.data.view_as(pred)).cpu().sum()
+        torch.cuda.empty_cache()
+
+    test_loss /= len(test_loader.dataset)
+    test_acc = 100. * correct / len(test_loader.dataset)
+
+    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        test_acc))
+
+    data_all_ = torch.stack(data_all_).reshape(10000, 28, 28)
+
+    return hiddens_all_, preds_all_, data_all_
 
 
 # %%
+_, preds_change_b, _ = change_in_stumuli(model_baseline, test_loader_split, device, IN_dim)
+_, preds_change_l, _ = change_in_stumuli(model_lowener, test_loader_split, device, IN_dim)
+
+preds_by_t_change_b = get_predictions(preds_change_b, 5000, T=10)
+preds_by_t_change_l = get_predictions(preds_change_l, 5000, T=10)
+
+acc_t_b_change = [(preds_by_t_change_b[:, t].cpu().eq(testdata.targets.data).sum().numpy()) / 10000 * 100 for t in range(T)]
+acc_t_l_change = [(preds_by_t_change_l[:, t].cpu().eq(testdata.targets.data).sum().numpy()) / 10000 * 100 for t in range(T)]
+
+acc_per_step['time step'] = np.concatenate((acc_per_step['time step'], np.arange(T), np.arange(T)))
+acc_per_step['acc'] = np.concatenate((acc_per_step['acc'], np.hstack(acc_t_b_change), np.hstack(acc_t_l_change)))
+
+# condition labelling
+acc_per_step['model type'] = np.hstack((['basline'] * T, ['low energy'] * T) * 2)
+acc_per_step['condition'] = np.hstack((['constant'] * (T * 2), ['change'] * (T * 2)))
+
+# %%
+# plot
+fig = plt.figure()
+sns.lineplot(acc_per_step, x='time step', y='acc', hue='model type', style='condition')
+plt.show()
