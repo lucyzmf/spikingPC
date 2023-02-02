@@ -88,7 +88,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Feb-01-2023/stepclfloss_withener/'
+exp_dir = '/home/lucy/spikingPC/results/Feb-01-2023/curr1530_withener_outmemconstantdecay/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -108,7 +108,7 @@ print(param_names)
 # plot p to r weights
 fig, axs = plt.subplots(1, 10, figsize=(35, 3))
 for i in range(10):
-    sns.heatmap(model.rout2rin.weight[:, 10 * i:(i + 1) * 10].detach().cpu().numpy().sum(axis=1).reshape(28, 28),
+    sns.heatmap(model.rout2rin.weight[:, num_readout * i:(i + 1) * num_readout].detach().cpu().numpy().sum(axis=1).reshape(28, 28),
                 ax=axs[i])
 plt.title('r_out weights to r_in by class')
 
@@ -208,7 +208,7 @@ def get_states(hiddens_all_: list, idx: int, hidden_dim_: int, T=20):
 # %%
 # get spks from r and p for plotting a sequence
 r_spk_all = get_states(hiddens_all, 1, hidden_dim[1])
-p_spk_all = get_states(hiddens_all, 4, hidden_dim[0])
+p_spk_all = get_states(hiddens_all, 5, hidden_dim[0])
 # get necessary weights
 p2r_w = model.rout2rin.weight.detach().cpu().numpy()
 r_rec_w = model.r_in_rec.rec_w.weight.detach().cpu().numpy()
@@ -286,12 +286,12 @@ def get_energy(hidden_, alpha=1/3 ):
 
     for t in range(seq_t):
         # spk output
-        activity = (hidden_[t][1].mean() + hidden_[t][4].mean()).cpu().numpy()
+        activity = (hidden_[t][1].mean() + hidden_[t][5].mean()).cpu().numpy()
         # synaptic transmission
         synaptic_transmission = ((torch.abs(model.r_in_rec.rec_w.weight) @ torch.abs(hidden_[t][1].T)).mean() +
                                  (torch.abs(model.rin2rout.weight) @ torch.abs(hidden_[t][1].T)).mean() +
-                                 (torch.abs(model.rout2rin.weight) @ torch.abs(hidden_[t][4].T)).mean() +
-                                 (torch.abs(model.r_out_rec.rec_w.weight) @ torch.abs(hidden_[t][4].T)).mean()).detach().cpu().numpy()
+                                 (torch.abs(model.rout2rin.weight) @ torch.abs(hidden_[t][5].T)).mean() +
+                                 (torch.abs(model.r_out_rec.rec_w.weight) @ torch.abs(hidden_[t][5].T)).mean()).detach().cpu().numpy()
         energy = alpha * activity + (1 - alpha) * synaptic_transmission
         energy_log.append(energy)
 
@@ -319,6 +319,64 @@ plt.savefig(exp_dir + 'energy consumption two continuously presented images')
 plt.close()
 
 # %%
+# decompose input signals in normal sequence 
+normalseq_hidden = normal_seq[0]
+r_from_p_ex = []
+r_from_p_inh = [] 
+p_from_r_ex = []
+p_from_r_inh = []
+p_from_p_ex = []
+p_from_p_inh = []
+r_from_r_ex = []
+r_from_r_inh = []
+r_spk_rate = []
+p_spk_rate =[]
+
+timesteps = len(normalseq_hidden)
+
+for t in np.arange(1, timesteps):
+    r_from_p_ex.append(((model.rout2rin.weight.ge(0) * model.rout2rin.weight) @ normalseq_hidden[t-1][5].T).mean().detach().cpu().numpy())
+    r_from_p_inh.append(((model.rout2rin.weight.le(0) * model.rout2rin.weight) @ normalseq_hidden[t-1][5].T).mean().detach().cpu().numpy())
+    p_from_r_ex.append(((model.rin2rout.weight.ge(0) * model.rin2rout.weight) @ normalseq_hidden[t][1].T).mean().detach().cpu().numpy())
+    p_from_r_inh.append(((model.rin2rout.weight.le(0) * model.rin2rout.weight) @ normalseq_hidden[t][1].T).mean().detach().cpu().numpy())
+    p_from_p_ex.append(((model.r_out_rec.rec_w.weight.ge(0) * model.r_out_rec.rec_w.weight) @ normalseq_hidden[t-1][5].T).mean().detach().cpu().numpy())
+    p_from_p_inh.append(((model.r_out_rec.rec_w.weight.le(0) * model.r_out_rec.rec_w.weight) @ normalseq_hidden[t-1][5].T).mean().detach().cpu().numpy())
+    r_from_r_ex.append(((model.r_in_rec.rec_w.weight.ge(0) * model.r_in_rec.rec_w.weight) @ normalseq_hidden[t-1][1].T).mean().detach().cpu().numpy())
+    r_from_r_inh.append(((model.r_in_rec.rec_w.weight.ge(0) * model.r_in_rec.rec_w.weight) @ normalseq_hidden[t-1][1].T).mean().detach().cpu().numpy())
+    r_spk_rate.append(normalseq_hidden[t][1].mean().detach().cpu().numpy())
+    p_spk_rate.append(normalseq_hidden[t][5].mean().detach().cpu().numpy())
+
+
+
+fig = plt.figure()
+x = np.arange(1, timesteps)
+# plt.plot(x, np.hstack(r_from_p_ex), label='r_from_p_ex')
+# plt.plot(x, np.hstack(r_from_p_inh), label='r_from_p_inh')
+# plt.plot(x, np.hstack(p_from_r_ex), label='p_from_r_ex')
+# plt.plot(x, np.hstack(p_from_r_inh), label='p_from_r_inh')
+# plt.plot(x, np.hstack(p_from_p_ex), label='p_from_p_ex')
+# plt.plot(x, np.hstack(p_from_p_inh), label='p_from_p_inh')
+# plt.plot(x, np.hstack(r_from_r_ex), label='r_from_r_ex')
+# plt.plot(x, np.hstack(r_from_r_inh), label='r_from_r_inh')
+plt.plot(x, (np.hstack(r_from_p_ex)+np.hstack(r_from_p_inh)), label='p2r input')
+plt.plot(x, (np.hstack(r_from_r_ex)+np.hstack(r_from_r_inh)), label='r2r input')
+plt.plot(x, np.hstack(r_spk_rate), label='r spk rate', linestyle='dashed')
+# plt.plot(x, np.hstack(p_spk_rate), label='p spk rate', linestyle='dashed')
+
+plt.legend()
+# plt.title('mean exhitatory and inhibitory signals by source and target type')
+# plt.show()
+plt.savefig(exp_dir + 'mean exhitatory and inhibitory signals by source and target type')
+plt.close()
+
+# %%
+# sns.scatterplot(x=(np.hstack(r_from_p_ex)+np.hstack(r_from_p_inh))[2:], y=np.hstack(r_spk_rate)[2:])
+# plt.show()
+
+
+
+
+# %%
 # plot continuous sequence spike pattern
 fig, axs = plt.subplots(4, 20, figsize=(80, 20))  # p spiking, r spiking, rec drive from p, rec drive from r
 # axs[0].imshow(images[sample_no, :, :])
@@ -329,11 +387,11 @@ for t in range(T):
     else:
         hidden = continuous_seq_hiddens[1]
     # p spiking
-    axs[0][t].imshow(hidden[t%10][4][0].detach().cpu().numpy().reshape(10, int(hidden_dim[0] / 10)))
+    axs[0][t].imshow(hidden[t%10][5][0].detach().cpu().numpy().reshape(10, int(hidden_dim[0] / 10)))
     axs[0][t].axis('off')
 
     # drive from p to r
-    pos1 = axs[1][t].imshow((p2r_w @ hidden[t%10][4][0].detach().cpu().numpy()).reshape(28, 28))
+    pos1 = axs[1][t].imshow((p2r_w @ hidden[t%10][5][0].detach().cpu().numpy()).reshape(28, 28))
     fig.colorbar(pos1, ax=axs[1][t], shrink=0.3)
     axs[1][t].axis('off')
 
@@ -373,6 +431,19 @@ sns.heatmap(model.r_in_rec.rec_w.weight.detach().cpu().numpy(), vmax=abs_max, vm
 plt.title('r2r weights')
 plt.savefig(exp_dir + 'r2r weights')
 plt.close()
+
+# %%
+# weight matrix for r2p
+
+fig = plt.figure()
+abs_max = np.max(np.abs(model.rin2rout.weight.detach().cpu().numpy()))
+sns.heatmap(model.rin2rout.weight.detach().cpu().numpy(), vmax=abs_max, vmin=-abs_max, cmap='icefire')
+# plt.show()
+plt.title('r2p weights')
+plt.savefig(exp_dir + 'r2p weights')
+plt.close()
+
+
 # %%
 
 # cluster neuron time constants 
@@ -421,12 +492,12 @@ def get_energy_batch(hidden_, alpha=1 ):
 
     for t in range(seq_t):
         # spk output
-        activity = (hidden_[t][1].mean(dim=-1) + hidden_[t][4].mean(dim=-1)).cpu().numpy()
+        activity = (hidden_[t][1].mean(dim=-1) + hidden_[t][5].mean(dim=-1)).cpu().numpy()
         # synaptic transmission
         synaptic_transmission = ((torch.abs(model.r_in_rec.rec_w.weight) @ torch.abs(hidden_[t][1].T)).mean(dim=0) +
                                  (torch.abs(model.rin2rout.weight) @ torch.abs(hidden_[t][1].T)).mean(dim=0) +
-                                 (torch.abs(model.rout2rin.weight) @ torch.abs(hidden_[t][4].T)).mean(dim=0) +
-                                 (torch.abs(model.r_out_rec.rec_w.weight) @ torch.abs(hidden_[t][4].T)).mean(dim=0)).detach().cpu().numpy()
+                                 (torch.abs(model.rout2rin.weight) @ torch.abs(hidden_[t][5].T)).mean(dim=0) +
+                                 (torch.abs(model.r_out_rec.rec_w.weight) @ torch.abs(hidden_[t][5].T)).mean(dim=0)).detach().cpu().numpy()
         energy = alpha * activity + (1 - 0) * synaptic_transmission
         energy_log.append(energy)
 
@@ -446,4 +517,32 @@ plt.title('corr between mismatch in prediction and energy at next time step')
 # plt.show()
 plt.savefig(exp_dir + 'corr between mismatch in prediction and energy at next time step')
 plt.close()
+# %%
+# see if can find class specific r lateral inhibition 
+r2p_w = model.rin2rout.weight 
+
+fig, axs = plt.subplots(1, 10, figsize=(35, 3))
+for i in range(10):
+    r_idx = (r2p_w[i*num_readout:(i+1)*num_readout, :]>0.06).nonzero()[:, 1].cpu().numpy()
+    sns.heatmap(model.r_in_rec.rec_w.weight.detach().cpu().numpy()[:, r_idx].sum(axis=1).reshape(28, 28), ax=axs[i])
+
+plt.title('sum recurrent r to r connectivity of r neurons that strongly contribute to one class')
+
+# plt.show()
+plt.savefig(exp_dir + 'sum recurrent r to r connectivity of r neurons that strongly contribute to one class')
+plt.close()
+
+# %%
+# 
+fig, axs = plt.subplots(1, 10, figsize=(35, 3))
+for i in range(10):
+    r_idx = (r2p_w[i*num_readout:(i+1)*num_readout, :]<-0.1).nonzero()[:, 1].cpu().numpy()
+    sns.heatmap(model.r_in_rec.rec_w.weight.detach().cpu().numpy()[:, r_idx].sum(axis=1).reshape(28, 28), ax=axs[i])
+
+plt.title('sum recurrent r to r connectivity of r neurons that inhibits p of one class')
+
+# plt.show()
+plt.savefig(exp_dir + 'sum recurrent r to r connectivity of r neurons that inhibits p of one class')
+plt.close()
+
 # %%
