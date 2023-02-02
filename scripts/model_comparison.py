@@ -167,28 +167,35 @@ time_constants = {
     'value': []
 }
 
+def get_real_constants(pseudo_constants):
+    return -1/np.log(1/(1 + np.exp(-pseudo_constants)))
+
+
 for i in range(2):
-    if i < 10:
+    if i == 0:
         model = model_baseline
         model_type = 'baseline'
     else:
         model = model_lowener
         model_type = 'low energy'
-    time_constants['model type'] += [model_type] * 4
-    time_constants['neuron type'] += (['p'] * 2 + ['r'] * 2)
-    time_constants['measurement type'] += ['tau_m', 'tau_adp'] * 2
+    time_constants['model type'] += [model_type] * (100+784) * 2
+    time_constants['neuron type'] += (['p'] * 100 *2 + ['r'] * 784 *2)
+    time_constants['measurement type'] += (['tau_m']*100 + ['tau_adp'] * 100 + ['tau_m']*784 + ['tau_adp'] * 784)
 
-    tau_m_p = model.r_out_rec.tau_m.data.mean().cpu().item()
-    tau_adp_p = model.r_out_rec.tau_adp.data.mean().cpu().item()
-    tau_m_r = model.r_in_rec.tau_m.data.mean().cpu().item()
-    tau_adp_r = model.r_in_rec.tau_adp.data.mean().cpu().item()
-    time_constants['value'] += [tau_m_p, tau_adp_p, tau_m_r, tau_adp_r]
+    tau_m_p = model.r_out_rec.tau_m.data.cpu().tolist()
+    tau_adp_p = model.r_out_rec.tau_adp.data.cpu().tolist()
+    tau_m_r = model.r_in_rec.tau_m.data.cpu().tolist()
+    tau_adp_r = model.r_in_rec.tau_adp.data.cpu().tolist()
+    time_constants['value'] += (tau_m_p + tau_adp_p + tau_m_r + tau_adp_r)
+
+time_constants_df = pd.DataFrame.from_dict(time_constants)
+time_constants_df['value'] = get_real_constants(np.array(time_constants_df['value']))
 
 fig = plt.figure()
-sns.stripplot(
-    data=time_constants, x="value", y="measurement type", hue="model type",
-    dodge=True, alpha=.25, zorder=1, legend=True
-)
+sns.catplot(
+    data=time_constants_df, x="measurement type", y="value", col="neuron type", hue='model type',
+    kind="bar")
+# plt.title('distribution of time constant by neuorn type and model')
 plt.show()
 
 
