@@ -1,3 +1,4 @@
+# %%
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -92,12 +93,12 @@ print('total param count %i' % total_params)
 
 # %%
 # load different models
-exp_dir_lowener = '/home/lucy/spikingPC/results/Feb-01-2023/curr1530_withener_outmemconstantdecay/'
+exp_dir_lowener = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withenerx2_outmemconstantdecay/'
 saved_dict = model_result_dict_load(exp_dir_lowener + 'onelayer_rec_best.pth.tar')
 
 model_lowener.load_state_dict(saved_dict['state_dict'])
 
-exp_dir_baseline = '/home/lucy/spikingPC/results/Feb-01-2023/curr1530_withener_outmemconstantdecay/'
+exp_dir_baseline = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withener_outmemconstantdecay/'
 saved_dict = model_result_dict_load(exp_dir_baseline + 'onelayer_rec_best.pth.tar')
 
 model_baseline.load_state_dict(saved_dict['state_dict'])
@@ -125,11 +126,13 @@ for i in range(10 * 2):
         model = model_lowener
         model_type = 'low energy'
     w = model.rout2rin.weight[:, num_readout * (i % 10):((i % 10) + 1) * num_readout].detach()
-    inhibition_strength_per_class['inhibition'].append((w < 0).sum().cpu().data)
+    inhibition_strength_per_class['inhibition'].append(((w < 0) * w).sum().cpu().item())
     inhibition_strength_per_class['model type'].append(model_type)
 
 inhibition_strength_df = pd.DataFrame.from_dict(inhibition_strength_per_class)
 
-fig, axs = plt.figure()
+fig = plt.figure()
 sns.barplot(inhibition_strength_df, x='class', y='inhibition', hue='model type')
 plt.show()
+
+# %%
