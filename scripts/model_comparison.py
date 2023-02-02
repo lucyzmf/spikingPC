@@ -171,11 +171,13 @@ preds_by_t_l = get_predictions(preds_l)
 
 # %%
 # get acc for each time step
-acc_t_b = [preds_by_t_b[:, t].eq(testdata.targets.data).cpu().mean().numpy() for t in range(T)]
-acc_t_l = [preds_by_t_l[:, t].eq(testdata.targets.data).cpu().mean().numpy() for t in range(T)]
+acc_t_b = [(preds_by_t_b[:, t].cpu().eq(testdata.targets.data).sum().numpy())/10000 * 100 for t in range(T)] 
+acc_t_l = [(preds_by_t_l[:, t].cpu().eq(testdata.targets.data).sum().numpy())/10000 * 100 for t in range(T)] 
 
 acc_per_step['time step'] = np.concatenate((np.arange(T), np.arange(T)))
 acc_per_step['acc'] = np.concatenate((np.hstack(acc_t_b), np.hstack(acc_t_l)))
 acc_per_step['model type'] = np.concatenate((['basline'] * T, ['low energy'] * T))
 acc_per_step['condition'] = ['constant'] * (T * 2)
 
+
+# %%
