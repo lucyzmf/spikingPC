@@ -79,35 +79,35 @@ hidden_dim = [10 * num_readout, 784]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
-model_lowener = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone)
-model_lowener.to(device)
-print(model_lowener)
+model_constant = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone)
+model_constant.to(device)
+print(model_constant)
 
 # define network
-model_baseline = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone)
-model_baseline.to(device)
+model_trainable = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone)
+model_trainable.to(device)
 
 # define new loss and optimiser
-total_params = count_parameters(model_baseline)
+total_params = count_parameters(model_trainable)
 print('total param count %i' % total_params)
 
 # %%
 # load different models
-exp_dir_lowener = '/home/lucy/spikingPC/results/Jan-31-2023/spkener_outmemconstantdecay/'
-saved_dict1 = model_result_dict_load(exp_dir_lowener + 'onelayer_rec_best.pth.tar')
+exp_dir_constant = '/home/lucy/spikingPC/results/Jan-31-2023/spkener_outmemconstantdecay/'
+saved_dict1 = model_result_dict_load(exp_dir_constant + 'onelayer_rec_best.pth.tar')
 
-model_lowener.load_state_dict(saved_dict1['state_dict'])
+model_constant.load_state_dict(saved_dict1['state_dict'])
 
-exp_dir_baseline = '/home/lucy/spikingPC/results/Jan-31-2023/spkener_outmemdecay/'
-saved_dict2 = model_result_dict_load(exp_dir_baseline + 'onelayer_rec_best.pth.tar')
+exp_dir_trainable = '/home/lucy/spikingPC/results/Jan-31-2023/spkener_outmemdecay/'
+saved_dict2 = model_result_dict_load(exp_dir_trainable + 'onelayer_rec_best.pth.tar')
 
-model_baseline.load_state_dict(saved_dict2['state_dict'])
+model_trainable.load_state_dict(saved_dict2['state_dict'])
 
 # %%
 # get params and put into dict
 param_names = []
 param_dict = {}
-for name, param in model_baseline.named_parameters():
+for name, param in model_trainable.named_parameters():
     if param.requires_grad:
         param_names.append(name)
         param_dict[name] = param.detach().cpu().numpy()
@@ -120,11 +120,11 @@ inhibition_strength_per_class = {'class': np.concatenate((np.arange(10), np.aran
                                  'inhibition': [], 'model type': []}
 for i in range(10 * 2):
     if i < 10:
-        model = model_baseline
-        model_type = 'baseline'
+        model = model_trainable
+        model_type = 'trainable'
     else:
-        model = model_lowener
-        model_type = 'low energy'
+        model = model_constant
+        model_type = 'constant'
     w = model.rout2rin.weight[:, num_readout * (i % 10):((i % 10) + 1) * num_readout].detach()
     inhibition_strength_per_class['inhibition'].append(((w < 0) * w).sum().cpu().item())
     inhibition_strength_per_class['model type'].append(model_type)
@@ -146,8 +146,8 @@ acc_per_step = {
 }
 
 # get all predictions for normal sequences
-hiddens_b, preds_b, images_b = get_all_analysis_data(model_baseline, test_loader, device, IN_dim, T)
-hiddens_l, preds_l, images_l = get_all_analysis_data(model_lowener, test_loader, device, IN_dim, T)
+hiddens_b, preds_b, images_b = get_all_analysis_data(model_trainable, test_loader, device, IN_dim, T)
+hiddens_l, preds_l, images_l = get_all_analysis_data(model_constant, test_loader, device, IN_dim, T)
 
 
 # get predictions from list of logsoftmax outputs per time step
@@ -238,8 +238,8 @@ def change_in_stumuli(trained_model, test_loader_, device, IN_dim, t=10):
 
 
 # %%
-_, preds_change_b, _ = change_in_stumuli(model_baseline, test_loader_split, device, IN_dim)
-_, preds_change_l, _ = change_in_stumuli(model_lowener, test_loader_split, device, IN_dim)
+_, preds_change_b, _ = change_in_stumuli(model_trainable, test_loader_split, device, IN_dim)
+_, preds_change_l, _ = change_in_stumuli(model_constant, test_loader_split, device, IN_dim)
 
 preds_by_t_change_b = get_predictions(preds_change_b, 5000, T=10).squeeze()
 preds_by_t_change_b = torch.hstack((preds_by_t_change_b[0, :, :], preds_by_t_change_b[1, :, :]))
@@ -255,7 +255,7 @@ acc_per_step['time step'] = np.concatenate((acc_per_step['time step'], np.arange
 acc_per_step['acc'] = np.concatenate((acc_per_step['acc'], np.hstack(acc_t_b_change), np.hstack(acc_t_l_change)))
 
 # condition labelling
-acc_per_step['model type'] = np.hstack((['basline'] * T, ['low energy'] * T) * 2)
+acc_per_step['model type'] = np.hstack((['trainable'] * T, ['constant'] * T) * 2)
 acc_per_step['condition'] = np.hstack((['constant'] * (T * 2), ['change'] * (T * 2)))
 
 # %%
