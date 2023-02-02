@@ -139,7 +139,7 @@ plt.show()
 # %%
 # compare strength of weights from r to p per class
 ex_strength_per_class = {'class': np.concatenate((np.arange(10), np.arange(10))),
-                                 'excitation': [], 'model type': []}
+                         'excitation': [], 'model type': []}
 for i in range(10 * 2):
     if i < 10:
         model = model_baseline
@@ -148,7 +148,7 @@ for i in range(10 * 2):
         model = model_lowener
         model_type = 'low energy'
     w = model.rin2rout.weight[num_readout * (i % 10):((i % 10) + 1) * num_readout, :].detach()
-    ex_strength_per_class['excitation'].append(((w >0) * w).sum().cpu().item())
+    ex_strength_per_class['excitation'].append(((w > 0) * w).sum().cpu().item())
     ex_strength_per_class['model type'].append(model_type)
 
 ex_strength_per_class = pd.DataFrame.from_dict(ex_strength_per_class)
@@ -161,15 +161,35 @@ plt.show()
 # %%
 # compare time constant means of r and p of both modeles 
 time_constants = {
-    'model type': [], 
-    'neuron type': [], 
-    'measurement type': [], #tau_m or tau_adp 
+    'model type': [],
+    'neuron type': [],
+    'measurement type': [],  # tau_m or tau_adp
     'value': []
 }
 
-for i in range(2): 
-    time_constants['model type']
+for i in range(2):
+    if i < 10:
+        model = model_baseline
+        model_type = 'baseline'
+    else:
+        model = model_lowener
+        model_type = 'low energy'
+    time_constants['model type'] += [model_type] * 4
+    time_constants['neuron type'] += (['p'] * 2 + ['r'] * 2)
+    time_constants['measurement type'] += ['tau_m', 'tau_adp'] * 2
 
+    tau_m_p = model.r_out_rec.tau_m.data.mean().cpu().item()
+    tau_adp_p = model.r_out_rec.tau_adp.data.mean().cpu().item()
+    tau_m_r = model.r_in_rec.tau_m.data.mean().cpu().item()
+    tau_adp_r = model.r_in_rec.tau_adp.data.mean().cpu().item()
+    time_constants['value'] += [tau_m_p, tau_adp_p, tau_m_r, tau_adp_r]
+
+fig = plt.figure()
+sns.stripplot(
+    data=time_constants, x="value", y="measurement type", hue="model type",
+    dodge=True, alpha=.25, zorder=1, legend=True
+)
+plt.show()
 
 
 # %%
@@ -282,10 +302,14 @@ preds_by_t_change_b = torch.hstack((preds_by_t_change_b[0, :, :], preds_by_t_cha
 preds_by_t_change_l = get_predictions(preds_change_l, 5000, T=10).squeeze()
 preds_by_t_change_l = torch.hstack((preds_by_t_change_l[0, :, :], preds_by_t_change_l[1, :, :]))
 
-acc_t_b_change = [(preds_by_t_change_b[:, t].cpu().eq(testdata.targets.data[:5000]).sum().numpy()) / 5000 * 100 for t in range(10)] + \
-                [(preds_by_t_change_b[:, t].cpu().eq(testdata.targets.data[5000:]).sum().numpy()) / 5000 * 100 for t in range(10, 20)]
-acc_t_l_change = [(preds_by_t_change_l[:, t].cpu().eq(testdata.targets.data[:5000]).sum().numpy()) / 5000 * 100 for t in range(10)] + \
-                [(preds_by_t_change_l[:, t].cpu().eq(testdata.targets.data[5000:]).sum().numpy()) / 5000 * 100 for t in range(10, 20)]
+acc_t_b_change = [(preds_by_t_change_b[:, t].cpu().eq(testdata.targets.data[:5000]).sum().numpy()) / 5000 * 100 for t in
+                  range(10)] + \
+                 [(preds_by_t_change_b[:, t].cpu().eq(testdata.targets.data[5000:]).sum().numpy()) / 5000 * 100 for t in
+                  range(10, 20)]
+acc_t_l_change = [(preds_by_t_change_l[:, t].cpu().eq(testdata.targets.data[:5000]).sum().numpy()) / 5000 * 100 for t in
+                  range(10)] + \
+                 [(preds_by_t_change_l[:, t].cpu().eq(testdata.targets.data[5000:]).sum().numpy()) / 5000 * 100 for t in
+                  range(10, 20)]
 
 acc_per_step['time step'] = np.concatenate((acc_per_step['time step'], np.arange(T), np.arange(T)))
 acc_per_step['acc'] = np.concatenate((acc_per_step['acc'], np.hstack(acc_t_b_change), np.hstack(acc_t_l_change)))
