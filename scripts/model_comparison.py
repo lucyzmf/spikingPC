@@ -93,12 +93,12 @@ print('total param count %i' % total_params)
 
 # %%
 # load different models
-exp_dir_lowener = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withenerx2_outmemconstantdecay/'
+exp_dir_lowener = '/home/lucy/spikingPC/results/Jan-31-2023/spkener_outmemconstantdecay/'
 saved_dict1 = model_result_dict_load(exp_dir_lowener + 'onelayer_rec_best.pth.tar')
 
 model_lowener.load_state_dict(saved_dict1['state_dict'])
 
-exp_dir_baseline = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withener_outmemconstantdecay/'
+exp_dir_baseline = '/home/lucy/spikingPC/results/Jan-31-2023/spkener_outmemdecay/'
 saved_dict2 = model_result_dict_load(exp_dir_baseline + 'onelayer_rec_best.pth.tar')
 
 model_baseline.load_state_dict(saved_dict2['state_dict'])
