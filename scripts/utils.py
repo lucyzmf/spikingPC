@@ -286,7 +286,7 @@ def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T):
 # %%
 # get all hiddens and corresponding pred, target, and images into dict
 
-def get_states(hiddens_all_: list, idx: int, hidden_dim_: int, T=20):
+def get_states(hiddens_all_: list, idx: int, hidden_dim_: int, batch_size, T=20):
     """
     get a particular internal state depending on index passed to hidden
     :param hidden_dim_: the size of a state, eg. num of r or p neurons
@@ -310,3 +310,4 @@ def get_states(hiddens_all_: list, idx: int, hidden_dim_: int, T=20):
     all_states = np.stack(all_states)
 
     return all_states.transpose(0, 2, 1, 3).reshape(10000, 20, hidden_dim_)
+# %%

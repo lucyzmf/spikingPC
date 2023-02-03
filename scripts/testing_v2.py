@@ -88,7 +88,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Feb-01-2023/curr1530_withener_outmemconstantdecay/'
+exp_dir = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withenerx2_outmemconstantdecay/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -136,8 +136,8 @@ target_all = testdata.targets.data
 
 # %%
 # get spks from r and p for plotting a sequence
-r_spk_all = get_states(hiddens_all, 1, hidden_dim[1])
-p_spk_all = get_states(hiddens_all, 5, hidden_dim[0])
+r_spk_all = get_states(hiddens_all, 1, hidden_dim[1], batch_size)
+p_spk_all = get_states(hiddens_all, 5, hidden_dim[0], batch_size)
 # get necessary weights
 p2r_w = model.rout2rin.weight.detach().cpu().numpy()
 r_rec_w = model.r_in_rec.rec_w.weight.detach().cpu().numpy()
@@ -174,6 +174,111 @@ plt.tight_layout()
 # plt.show()
 plt.savefig(exp_dir + 'example sequence p spk, p2r drive, r spk, r2r drive')
 plt.close()
+
+# %%
+fig, axs = plt.subplots(1, 10, figsize=(35, 3))
+for i in range(10): 
+    sns.heatmap(r_spk_all[target_all==i].mean(axis=0).mean(axis=0).reshape(28, 28), ax=axs[i])
+plt.title('mean r spk rate per per class')
+plt.show()
+
+# %%
+
+# compare r spk rate and p inhibition and mean pixel value
+r_spkmean_class_0 = r_spk_all[target_all==0].mean(axis=0).mean(axis=0)
+fig, axs = plt.subplots(1, 3, figsize=(15, 4))
+w = model.rout2rin.weight[:, :10]
+sns.heatmap(((w<0) * w).detach().cpu().numpy().sum(axis=1).reshape(28, 28),
+                ax=axs[0])
+axs[0].set_title('p to r weights')
+sns.heatmap(r_spkmean_class_0.reshape(28, 28), ax=axs[1])
+axs[1].set_title('mean r spk class 0')
+sns.heatmap(images_all[target_all==0].mean(axis=0), ax=axs[2])
+axs[2].set_title('mean pixel value')
+plt.show()
+
+
+# %%
+fig = plt.figure()
+sns.scatterplot(x=(w).detach().cpu().numpy().sum(axis=1), y=r_spkmean_class_0)
+plt.xlabel('w strength from p to r per pixel')
+plt.ylabel('r spk rate per pixel')
+plt.show()
+
+# %%
+# spk rate apart from first frame of sequence 
+r_spkrate_fromt1_class0 = r_spk_all[target_all==0].mean(axis=0)[1:, :].mean(axis=0)
+fig = plt.figure()
+sns.scatterplot(x=(w).detach().cpu().numpy().sum(axis=1), y=r_spkrate_fromt1_class0)
+plt.xlabel('w strength from p to r per pixel')
+plt.ylabel('r spk rate per pixel from first frame')
+plt.show()
+
+# %%
+# are the r spking more in later frames rather than first frame the weaker inhibited 
+spk_rate_first_frame = r_spk_all[target_all==0].mean(axis=0)[0, :]
+spk_rate_from_first_frame = r_spkrate_fromt1_class0
+
+delta_rate = spk_rate_from_first_frame - spk_rate_first_frame 
+
+# expect to see the higher the delta, the higher the inhibition 
+fig = plt.figure()
+sns.scatterplot(x=(w).detach().cpu().numpy().sum(axis=1), y=delta_rate)
+plt.xlabel('w strength from p to r per pixel')
+plt.ylabel('delta rate')
+plt.show()
+
+# %%
+# delta rate and mean pixel value 
+fig = plt.figure()
+sns.scatterplot(x=images_all[target_all==0].mean(axis=0).flatten(), y=delta_rate)
+plt.xlabel('mean pixel value')
+plt.ylabel('delta rate')
+plt.show()
+
+# %%
+# delta rate and r lateral inhibition for all classes 
+spk_rate_first_frame_allclass = r_spk_all.mean(axis=0)[0, :]
+spk_rate_from_first_frame_allclass = r_spk_all.mean(axis=0)[1:, :].mean(axis=0)
+
+delta_rate_allclass = spk_rate_from_first_frame_allclass - spk_rate_first_frame_allclass
+
+fig = plt.figure()
+sns.scatterplot(x=(r_rec_w*(r_rec_w<0)).sum(axis=1), y=delta_rate_allclass)
+plt.xlabel('r lateral inhibition')
+plt.ylabel('delta rate all class')
+plt.show()
+
+# %%
+# corr between mean pixel value and p to r inhibition
+fig = plt.figure()
+sns.scatterplot(x=((w<0) * w).detach().cpu().numpy().sum(axis=1), y=images_all[target_all==0].mean(axis=0).flatten())
+plt.xlabel('inhibitory strength from p to r per pixel')
+plt.ylabel('mean pixel value per pixel')
+plt.show()
+
+# %%
+# corr between mean pixel value and r spk rate
+fig = plt.figure()
+sns.scatterplot(x=(r_spkrate_fromt1_class0[r_spkrate_fromt1_class0>0]) , y=images_all[target_all==0].mean(axis=0).flatten()[r_spkrate_fromt1_class0>0])
+plt.xlabel('r spk rate after first frame (>0)')
+plt.ylabel('mean pixel value per pixel')
+plt.show()
+
+# %%
+# corr between r spk and r to p weights
+fig = plt.figure()
+sns.scatterplot(y=model.rin2rout.weight[:10, :].detach().cpu().numpy().sum(axis=0), x=r_spkmean_class_0)
+plt.ylabel('r to p weights class 0')
+plt.xlabel('r spk rate per pixel')
+plt.show()
+
+# %%
+# find where the pixels are inhibiting 0
+fig = plt.figure()
+sns.heatmap(((model.rin2rout.weight[:10, :]<0) * model.rin2rout.weight[:10, :]).detach().cpu().numpy().sum(axis=0).reshape(28, 28))
+plt.title('which r are inhibiting class 0 p')
+plt.show()
 
 # %%
 # plot energy consumption in network with two consecutive images
