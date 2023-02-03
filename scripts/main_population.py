@@ -50,7 +50,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 
 # experiment name 
-exp_name = 'curr1530_withener_outmemconstantdecay'
+exp_name = 'curr18_ener_outmemconstantdecay'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron

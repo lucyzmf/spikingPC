@@ -88,7 +88,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withenerx2_outmemconstantdecay/'
+exp_dir = '/home/lucy/spikingPC/results/Feb-03-2023/curr18_ener_outmemconstantdecay_bptt/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -180,7 +180,9 @@ fig, axs = plt.subplots(1, 10, figsize=(35, 3))
 for i in range(10): 
     sns.heatmap(r_spk_all[target_all==i].mean(axis=0).mean(axis=0).reshape(28, 28), ax=axs[i])
 plt.title('mean r spk rate per per class')
-plt.show()
+# plt.show()
+plt.savefig(exp_dir + 'mean r spk rate per per class')
+plt.close()
 
 # %%
 
@@ -195,7 +197,9 @@ sns.heatmap(r_spkmean_class_0.reshape(28, 28), ax=axs[1])
 axs[1].set_title('mean r spk class 0')
 sns.heatmap(images_all[target_all==0].mean(axis=0), ax=axs[2])
 axs[2].set_title('mean pixel value')
-plt.show()
+# plt.show()
+plt.savefig(exp_dir + 'compare r spk rate and p inhibition and mean pixel value')
+plt.close()
 
 
 # %%
@@ -203,7 +207,9 @@ fig = plt.figure()
 sns.scatterplot(x=(w).detach().cpu().numpy().sum(axis=1), y=r_spkmean_class_0)
 plt.xlabel('w strength from p to r per pixel')
 plt.ylabel('r spk rate per pixel')
-plt.show()
+# plt.show()
+plt.savefig(exp_dir + 'corr p2r w and r spk rate')
+plt.close()
 
 # %%
 # spk rate apart from first frame of sequence 
@@ -212,7 +218,9 @@ fig = plt.figure()
 sns.scatterplot(x=(w).detach().cpu().numpy().sum(axis=1), y=r_spkrate_fromt1_class0)
 plt.xlabel('w strength from p to r per pixel')
 plt.ylabel('r spk rate per pixel from first frame')
-plt.show()
+# plt.show()
+plt.savefig(exp_dir + 'corr p2r w and r spk rate from first frame')
+plt.close()
 
 # %%
 # are the r spking more in later frames rather than first frame the weaker inhibited 
@@ -226,7 +234,10 @@ fig = plt.figure()
 sns.scatterplot(x=(w).detach().cpu().numpy().sum(axis=1), y=delta_rate)
 plt.xlabel('w strength from p to r per pixel')
 plt.ylabel('delta rate')
-plt.show()
+# plt.show()
+plt.savefig(exp_dir + 'corr p2r w and change in spk rate from t0 - t1-19')
+plt.close()
+
 
 # %%
 # delta rate and mean pixel value 
@@ -234,7 +245,9 @@ fig = plt.figure()
 sns.scatterplot(x=images_all[target_all==0].mean(axis=0).flatten(), y=delta_rate)
 plt.xlabel('mean pixel value')
 plt.ylabel('delta rate')
-plt.show()
+# plt.show()
+plt.savefig(exp_dir + 'corr mean pixel value and change in spk rate from t0 - t1-19')
+plt.close()
 
 # %%
 # delta rate and r lateral inhibition for all classes 
@@ -247,7 +260,10 @@ fig = plt.figure()
 sns.scatterplot(x=(r_rec_w*(r_rec_w<0)).sum(axis=1), y=delta_rate_allclass)
 plt.xlabel('r lateral inhibition')
 plt.ylabel('delta rate all class')
-plt.show()
+# plt.show()
+plt.savefig(exp_dir + 'delta rate and r lateral inhibition for all classes')
+plt.close()
+
 
 # %%
 # corr between mean pixel value and p to r inhibition
@@ -255,7 +271,9 @@ fig = plt.figure()
 sns.scatterplot(x=((w<0) * w).detach().cpu().numpy().sum(axis=1), y=images_all[target_all==0].mean(axis=0).flatten())
 plt.xlabel('inhibitory strength from p to r per pixel')
 plt.ylabel('mean pixel value per pixel')
-plt.show()
+# plt.show()
+plt.savefig(exp_dir + 'corr between mean pixel value and p to r inhibition')
+plt.close()
 
 # %%
 # corr between mean pixel value and r spk rate
@@ -263,7 +281,9 @@ fig = plt.figure()
 sns.scatterplot(x=(r_spkrate_fromt1_class0[r_spkrate_fromt1_class0>0]) , y=images_all[target_all==0].mean(axis=0).flatten()[r_spkrate_fromt1_class0>0])
 plt.xlabel('r spk rate after first frame (>0)')
 plt.ylabel('mean pixel value per pixel')
-plt.show()
+# plt.show()
+plt.savefig(exp_dir + 'corr between mean pixel value and r spk rate (>0)')
+plt.close()
 
 # %%
 # corr between r spk and r to p weights
@@ -271,14 +291,56 @@ fig = plt.figure()
 sns.scatterplot(y=model.rin2rout.weight[:10, :].detach().cpu().numpy().sum(axis=0), x=r_spkmean_class_0)
 plt.ylabel('r to p weights class 0')
 plt.xlabel('r spk rate per pixel')
-plt.show()
+# plt.show()
+plt.savefig(exp_dir + 'corr between r spk and r to p weights')
+plt.close()
 
 # %%
 # find where the pixels are inhibiting 0
 fig = plt.figure()
 sns.heatmap(((model.rin2rout.weight[:10, :]<0) * model.rin2rout.weight[:10, :]).detach().cpu().numpy().sum(axis=0).reshape(28, 28))
 plt.title('which r are inhibiting class 0 p')
-plt.show()
+# plt.show()
+plt.savefig(exp_dir + 'which r are inhibiting class 0 p')
+plt.close()
+
+# %%
+# %%
+# high corr between common pixels, strong p inhibition, 
+# low spk rate after first frame, and strong lateral inhibition 
+def get_mean_split_map(data, mask): 
+    mean = (data * mask)[(data * mask)!=0].mean()
+    mean_split_map = (data > mean) * mask * 1 + (data < mean) * mask * (-1) 
+    return mean_split_map 
+
+mean_pixel_value_class0 = images_all[target_all==0].mean(axis=0).numpy().flatten()
+mask = mean_pixel_value_class0 != -1
+split_map_pixel = get_mean_split_map(mean_pixel_value_class0, mask)
+split_map_p2r_inhi = get_mean_split_map(-((p2r_w * (p2r_w<0))[:, :10].sum(axis=1)), mask)
+split_map_spkrate_aftert1 = get_mean_split_map(spk_rate_first_frame, mask)
+
+
+fig, axs = plt.subplots(1, 4, figsize=(15, 3))
+sns.heatmap(split_map_pixel.reshape(28, 28), ax=axs[0], cmap='vlag')
+axs[0].axis('off')
+axs[0].set_title('high/low mean pixel value')
+
+sns.heatmap(split_map_p2r_inhi.reshape(28, 28), ax=axs[1], cmap='vlag')
+axs[1].axis('off')
+axs[1].set_title('strong/week inhibition from p to r')
+
+sns.heatmap(split_map_spkrate_aftert1.reshape(28, 28), ax=axs[2], cmap='vlag')
+axs[2].axis('off')
+axs[2].set_title('spk rate at t0')
+
+sns.heatmap(((-delta_rate)/(spk_rate_first_frame+1e-30)).reshape(28, 28), ax=axs[3], cmap='rocket_r')
+axs[3].axis('off')
+axs[3].set_title(' % reduction in spk rate')
+
+# plt.show()
+plt.savefig(exp_dir + 'pixel value, p2r inhi, spk rate t0, spk reduction')
+plt.close()
+
 
 # %%
 # plot energy consumption in network with two consecutive images
