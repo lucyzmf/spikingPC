@@ -46,14 +46,13 @@ config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
 config.input_scale = 0.3
+config.alg = 'bptt'
+alg = config.alg
 input_scale = config.input_scale
 config.lr = 1e-3
-config.alg = 'fptt'
-alg = config.alg
-config.k_updates = 20
 
 # experiment name 
-exp_name = 'curr18_ener_outmemconstantdecay_fashion'
+exp_name = 'curr18_ener_outmemconstantdecay_bptt'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -81,10 +80,10 @@ transform = transforms.Compose(
 
 batch_size = 256
 
-traindata = torchvision.datasets.FashionMNIST(root='./data', train=True,
+traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
 
-testdata = torchvision.datasets.FashionMNIST(root='./data', train=False,
+testdata = torchvision.datasets.MNIST(root='./data', train=False,
                                       download=True, transform=transform)
 
 # data loading 
@@ -146,7 +145,7 @@ def test(model, test_loader):
 ###############################################################################################
 # training parameters
 T = 20
-K = config.k_updates  # K is num updates per sequence
+K = T  # K is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 10
@@ -171,18 +170,20 @@ def train(train_loader, n_classes, model, named_params):
     # for each batch 
     for batch_idx, (data, target) in enumerate(train_loader):
 
+        loss = 0
+
         # to device and reshape
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
 
         B = target.size()[0]
 
+        optimizer.zero_grad()
+
         for p in range(T):
 
             if p == 0:
                 h = model.init_hidden(data.size(0))
-            elif p % omega == 0:
-                h = tuple(v.detach() for v in h)
 
             o, h = model.forward(data, h)
             # wandb.log({
@@ -190,13 +191,7 @@ def train(train_loader, n_classes, model, named_params):
             #         'rec layer mem potential': h[3].detach().cpu().numpy()
             #     })
 
-            # get prediction 
-            if p == (T - 1):
-                pred = o.data.max(1, keepdim=True)[1]
-                correct += pred.eq(target.data.view_as(pred)).cpu().sum()
-
             if p % omega == 0 and p > 0:
-                optimizer.zero_grad()
 
                 # classification loss
                 clf_loss = (p + 1) / (K) * F.nll_loss(o, target)
@@ -218,24 +213,28 @@ def train(train_loader, n_classes, model, named_params):
 
                 # overall loss    
                 if energy_penalty:
-                    loss = config.clf_alpha * clf_loss + regularizer + config.energy_alpha * energy \
-                        #    + config.l1_lambda * l1_norm
+                    loss += config.clf_alpha * clf_loss + config.energy_alpha * energy 
                 else:
-                    loss = clf_loss + regularizer
+                    loss += clf_loss 
+            
+            # get prediction 
+            if p == (T - 1):
+                pred = o.data.max(1, keepdim=True)[1]
+                correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
-                loss.backward()
+        loss.backward()
 
-                if clip > 0:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
+        if clip > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
 
-                optimizer.step()
-                post_optimizer_updates(named_params)
+        optimizer.step()
+        # post_optimizer_updates(named_params)
 
-                train_loss += loss.item()
-                total_clf_loss += clf_loss.item()
-                total_regularizaton_loss += regularizer  # .item()
-                total_energy_loss += energy.item()
-                # total_l1_loss += l1_norm.item()
+        train_loss += loss.item()
+        total_clf_loss += clf_loss.item()
+        total_regularizaton_loss += regularizer  # .item()
+        total_energy_loss += energy.item()
+        # total_l1_loss += l1_norm.item()
 
         if batch_idx > 0 and batch_idx % log_interval == (log_interval-1):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
@@ -313,7 +312,7 @@ estimate_class_distribution = torch.zeros(n_classes, T, n_classes, dtype=torch.f
 for epoch in range(epochs):
     train(train_loader, n_classes, model, named_params)
 
-    reset_named_params(named_params)
+    # reset_named_params(named_params)
 
     test_loss, acc1 = test(model, test_loader)
 

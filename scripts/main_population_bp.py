@@ -48,12 +48,12 @@ config.onetoone = True
 config.input_scale = 0.3
 input_scale = config.input_scale
 config.lr = 1e-3
-config.alg = 'fptt'
+config.alg = 'bp'
 alg = config.alg
 config.k_updates = 20
 
 # experiment name 
-exp_name = 'curr18_ener_outmemconstantdecay_fashion'
+exp_name = 'curr18_ener_outmemconstantdecay_bp_20'
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -81,10 +81,10 @@ transform = transforms.Compose(
 
 batch_size = 256
 
-traindata = torchvision.datasets.FashionMNIST(root='./data', train=True,
+traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
 
-testdata = torchvision.datasets.FashionMNIST(root='./data', train=False,
+testdata = torchvision.datasets.MNIST(root='./data', train=False,
                                       download=True, transform=transform)
 
 # data loading 
@@ -218,7 +218,7 @@ def train(train_loader, n_classes, model, named_params):
 
                 # overall loss    
                 if energy_penalty:
-                    loss = config.clf_alpha * clf_loss + regularizer + config.energy_alpha * energy \
+                    loss = config.clf_alpha * clf_loss +  config.energy_alpha * energy \
                         #    + config.l1_lambda * l1_norm
                 else:
                     loss = clf_loss + regularizer
@@ -229,7 +229,7 @@ def train(train_loader, n_classes, model, named_params):
                     torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
 
                 optimizer.step()
-                post_optimizer_updates(named_params)
+                # post_optimizer_updates(named_params)
 
                 train_loss += loss.item()
                 total_clf_loss += clf_loss.item()
@@ -313,7 +313,7 @@ estimate_class_distribution = torch.zeros(n_classes, T, n_classes, dtype=torch.f
 for epoch in range(epochs):
     train(train_loader, n_classes, model, named_params)
 
-    reset_named_params(named_params)
+    # reset_named_params(named_params)
 
     test_loss, acc1 = test(model, test_loader)
 
