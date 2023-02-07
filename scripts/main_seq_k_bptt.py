@@ -167,6 +167,10 @@ def train(train_batches, train_label, n_classes, model, named_params):
         batch_idx = i
         data, target = train_batches[i, :, :, :].to(device), train_label[i, :, :].to(device)
 
+        loss = 0
+
+        optimizer.zero_grad()
+
         for p in range(T):
 
             if p == 0:
@@ -181,7 +185,6 @@ def train(train_batches, train_label, n_classes, model, named_params):
             print(target[p, 0])
 
             if p % omega == 0 and p > 0:
-                optimizer.zero_grad()
 
                 # classification loss
                 clf_loss = F.nll_loss(o, target[p, :])
@@ -189,7 +192,7 @@ def train(train_batches, train_label, n_classes, model, named_params):
                 # clf_loss = torch.mean(clf_loss)
 
                 # regularizer loss                     
-                regularizer = get_regularizer_named_params(named_params, _lambda=1.0)
+                # regularizer = get_regularizer_named_params(named_params, _lambda=1.0)
 
                 if spike_loss:
                     # energy loss: batch mean spiking * weighting param
@@ -203,24 +206,23 @@ def train(train_batches, train_label, n_classes, model, named_params):
 
                 # overall loss    
                 if energy_penalty:
-                    loss = config.clf_alpha * clf_loss + regularizer + config.energy_alpha * energy \
+                    loss = config.clf_alpha * clf_loss + config.energy_alpha * energy \
                         #    + config.l1_lambda * l1_norm
                 else:
-                    loss = clf_loss + regularizer
+                    loss = clf_loss
 
-                loss.backward()
+        loss.backward()
 
-                if clip > 0:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
+        if clip > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
 
-                optimizer.step()
-                post_optimizer_updates(named_params)
+        optimizer.step()
 
-                train_loss += loss.item()
-                total_clf_loss += clf_loss.item()
-                total_regularizaton_loss += regularizer  # .item()
-                total_energy_loss += energy.item()
-                # total_l1_loss += l1_norm.item()
+        train_loss += loss.item()
+        total_clf_loss += clf_loss.item()
+        total_regularizaton_loss += 0  # .item()
+        total_energy_loss += energy.item()
+        # total_l1_loss += l1_norm.item()
 
         if batch_idx > 0 and batch_idx % log_interval == (log_interval-1):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
