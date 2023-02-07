@@ -81,10 +81,10 @@ transform = transforms.Compose(
 
 batch_size = 256
 
-traindata = torchvision.datasets.FashionMNIST(root='./data', train=True,
+traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
 
-testdata = torchvision.datasets.FashionMNIST(root='./data', train=False,
+testdata = torchvision.datasets.MNIST(root='./data', train=False,
                                       download=True, transform=transform)
 
 # data loading 

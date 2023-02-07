@@ -51,9 +51,11 @@ config.lr = 1e-3
 config.alg = 'bp'
 alg = config.alg
 config.k_updates = 20
+config.dp = 0.5
+config.exp_name = 'curr18_ener_outmemconstantdecay_bp_20_dp05_poisson'
 
 # experiment name 
-exp_name = 'curr18_ener_outmemconstantdecay_bp_20'
+exp_name = config.exp_name
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -195,47 +197,58 @@ def train(train_loader, n_classes, model, named_params):
                 pred = o.data.max(1, keepdim=True)[1]
                 correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
-            if p % omega == 0 and p > 0:
-                optimizer.zero_grad()
+            optimizer.zero_grad(set_to_none=True)
 
-                # classification loss
-                clf_loss = (p + 1) / (K) * F.nll_loss(o, target)
-                # clf_loss = snr*F.cross_entropy(output, target,reduction='none')
-                # clf_loss = torch.mean(clf_loss)
+            # classification loss
+            clf_loss = (p + 1) / (K) * F.nll_loss(o, target)
+            # clf_loss = snr*F.cross_entropy(output, target,reduction='none')
+            # clf_loss = torch.mean(clf_loss)
 
+            # regularizer loss                     
                 # regularizer loss                     
-                regularizer = get_regularizer_named_params(named_params, _lambda=1.0)
+            # regularizer loss                     
+                # regularizer loss                     
+            # regularizer loss                     
+            # regularizer = get_regularizer_named_params(named_params, _lambda=1.0)
 
-                if spike_loss:
-                    # energy loss: batch mean spiking * weighting param
-                    energy = h[1].mean()  # * 0.1
-                else:
-                    # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = (torch.norm(h[1], p=1) + torch.norm(h[5], p=1)) / B / (784+100)
+            if spike_loss:
+                # energy loss: batch mean spiking * weighting param
+                energy = h[1].mean()  # * 0.1
+            else:
+                # mem potential loss take l1 norm / num of neurons /batch size
+                energy = (torch.norm(h[1], p=1) + torch.norm(h[5], p=1)) / B / (784+100)
 
+            # l1 loss on rec weights 
                 # l1 loss on rec weights 
-                # l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
+            # l1 loss on rec weights 
+                # l1 loss on rec weights 
+            # l1 loss on rec weights 
+            # l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
 
+            # overall loss    
                 # overall loss    
-                if energy_penalty:
-                    loss = config.clf_alpha * clf_loss +  config.energy_alpha * energy \
-                        #    + config.l1_lambda * l1_norm
-                else:
-                    loss = clf_loss + regularizer
+            # overall loss    
+                # overall loss    
+            # overall loss    
+            if energy_penalty:
+                loss = config.clf_alpha * clf_loss +  config.energy_alpha * energy \
+                    #    + config.l1_lambda * l1_norm
+            else:
+                loss = clf_loss
 
-                loss.backward()
+            loss.backward()
 
-                if clip > 0:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
+            if clip > 0:
+                torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
 
-                optimizer.step()
-                # post_optimizer_updates(named_params)
+            optimizer.step()
+            # post_optimizer_updates(named_params)
 
-                train_loss += loss.item()
-                total_clf_loss += clf_loss.item()
-                total_regularizaton_loss += regularizer  # .item()
-                total_energy_loss += energy.item()
-                # total_l1_loss += l1_norm.item()
+            train_loss += loss.item()
+            total_clf_loss += clf_loss.item()
+            # total_regularizaton_loss += regularizer  # .item()
+            total_energy_loss += energy.item()
+            # total_l1_loss += l1_norm.item()
 
         if batch_idx > 0 and batch_idx % log_interval == (log_interval-1):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
@@ -279,7 +292,7 @@ hidden_dim = [10 * config.num_readout, 784]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
-model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone)
+model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone, dp_rate=config.dp)
 model.to(device)
 print(model)
 

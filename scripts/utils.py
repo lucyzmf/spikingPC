@@ -280,7 +280,7 @@ def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T):
     
     data_all_ = torch.stack(data_all_).reshape(10000, 28, 28)
     
-    return hiddens_all_, preds_all_, data_all_
+    return hiddens_all_, preds_all_, data_all_, test_acc
 
 # %%
 # %%

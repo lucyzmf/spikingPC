@@ -209,8 +209,8 @@ acc_per_step = {
 }
 
 # get all predictions for normal sequences
-hiddens_b, preds_b, images_b = get_all_analysis_data(model_baseline, test_loader, device, IN_dim, T)
-hiddens_l, preds_l, images_l = get_all_analysis_data(model_lowener, test_loader, device, IN_dim, T)
+hiddens_b, preds_b, images_b, _ = get_all_analysis_data(model_baseline, test_loader, device, IN_dim, T)
+hiddens_l, preds_l, images_l, _ = get_all_analysis_data(model_lowener, test_loader, device, IN_dim, T)
 
 
 # get predictions from list of logsoftmax outputs per time step

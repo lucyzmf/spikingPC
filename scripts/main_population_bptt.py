@@ -50,6 +50,7 @@ config.alg = 'bptt'
 alg = config.alg
 input_scale = config.input_scale
 config.lr = 1e-3
+config.dp = 0.3
 
 # experiment name 
 exp_name = 'curr18_ener_outmemconstantdecay_bptt'
@@ -278,7 +279,7 @@ hidden_dim = [10 * config.num_readout, 784]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
-model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone)
+model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone, dp_rate=config.dp)
 model.to(device)
 print(model)
 
