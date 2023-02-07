@@ -42,7 +42,7 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1  # - config.clf_alpha
+config.energy_alpha = 0  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
 config.input_scale = 0.3
@@ -51,9 +51,11 @@ config.lr = 1e-3
 config.alg = 'fptt'
 alg = config.alg
 config.k_updates = 20
+config.dp = 0.5
+config.exp_name = 'curr18_noener_outmemconstantdecay_dp05_poisson'
 
 # experiment name 
-exp_name = 'curr18_ener_outmemconstantdecay_fashion'
+exp_name = config.exp_name
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -279,7 +281,7 @@ hidden_dim = [10 * config.num_readout, 784]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
-model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone)
+model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone, dp_rate=config.dp)
 model.to(device)
 print(model)
 

@@ -175,8 +175,6 @@ class SnnNetwork(nn.Module):
 
         x_t = x_t.reshape(batch_dim, input_size).float()
         x_t = self.dp(x_t)
-        # poisson 
-        x_t = x_t.gt(x_t.mean())
 
         r_input = x_t + self.rout2rin(h[5])
 

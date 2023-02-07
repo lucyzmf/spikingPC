@@ -72,6 +72,7 @@ n_classes = 10
 num_readout = 10
 adap_neuron = True
 onetoone = True
+dp_rate = 0.7
 
 # %%
 IN_dim = 784
@@ -79,7 +80,7 @@ hidden_dim = [10 * num_readout, 784]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
-model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone)
+model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone, dp_rate=dp_rate)
 model.to(device)
 print(model)
 
@@ -88,7 +89,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Feb-03-2023/curr18_ener_outmemconstantdecay_bptt/'
+exp_dir = '/home/lucy/spikingPC/results/Feb-07-2023/curr18_ener_outmemconstantdecay_bptt_dp05_poisson/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -130,7 +131,7 @@ plt.close()
 
 # %%
 # get all analysis data 
-hiddens_all, preds_all, images_all = get_all_analysis_data(model, test_loader, device, IN_dim, T)
+hiddens_all, preds_all, images_all, _ = get_all_analysis_data(model, test_loader, device, IN_dim, T)
 target_all = testdata.targets.data
 
 
@@ -231,20 +232,20 @@ delta_rate = spk_rate_from_first_frame - spk_rate_first_frame
 
 # expect to see the higher the delta, the higher the inhibition 
 fig = plt.figure()
-sns.scatterplot(x=(w).detach().cpu().numpy().sum(axis=1), y=delta_rate)
-plt.xlabel('w strength from p to r per pixel')
-plt.ylabel('delta rate')
+sns.scatterplot(x=(w * (w<0)).detach().cpu().numpy().sum(axis=1), y=(delta_rate / (spk_rate_first_frame + 1e-20)))
+plt.xlabel('w inhibition from p to r per pixel')
+plt.ylabel('% change in r spking')
 # plt.show()
-plt.savefig(exp_dir + 'corr p2r w and change in spk rate from t0 - t1-19')
+plt.savefig(exp_dir + 'corr p2r w inhibition and change in spk rate from t0 - t1-19')
 plt.close()
 
 
 # %%
 # delta rate and mean pixel value 
 fig = plt.figure()
-sns.scatterplot(x=images_all[target_all==0].mean(axis=0).flatten(), y=delta_rate)
+sns.scatterplot(x=images_all[target_all==0].mean(axis=0).flatten(), y=(delta_rate / (spk_rate_first_frame + 1e-20)))
 plt.xlabel('mean pixel value')
-plt.ylabel('delta rate')
+plt.ylabel('% change in r spking')
 # plt.show()
 plt.savefig(exp_dir + 'corr mean pixel value and change in spk rate from t0 - t1-19')
 plt.close()
@@ -254,14 +255,14 @@ plt.close()
 spk_rate_first_frame_allclass = r_spk_all.mean(axis=0)[0, :]
 spk_rate_from_first_frame_allclass = r_spk_all.mean(axis=0)[1:, :].mean(axis=0)
 
-delta_rate_allclass = spk_rate_from_first_frame_allclass - spk_rate_first_frame_allclass
+delta_rate_allclass = (spk_rate_from_first_frame_allclass - spk_rate_first_frame_allclass) / (spk_rate_first_frame_allclass + 1e-20)
 
 fig = plt.figure()
-sns.scatterplot(x=(r_rec_w*(r_rec_w<0)).sum(axis=1), y=delta_rate_allclass)
+sns.scatterplot(x=(r_rec_w*(r_rec_w<0)).sum(axis=1), y=spk_rate_first_frame_allclass)
 plt.xlabel('r lateral inhibition')
-plt.ylabel('delta rate all class')
+plt.ylabel('r spk rate first frame')
 # plt.show()
-plt.savefig(exp_dir + 'delta rate and r lateral inhibition for all classes')
+plt.savefig(exp_dir + 'r spk rate first frame and r lateral inhibition for all classes')
 plt.close()
 
 
@@ -278,11 +279,11 @@ plt.close()
 # %%
 # corr between mean pixel value and r spk rate
 fig = plt.figure()
-sns.scatterplot(x=(r_spkrate_fromt1_class0[r_spkrate_fromt1_class0>0]) , y=images_all[target_all==0].mean(axis=0).flatten()[r_spkrate_fromt1_class0>0])
+sns.scatterplot(x=(r_spkrate_fromt1_class0) , y=(delta_rate / (spk_rate_first_frame + 1e-20)))
 plt.xlabel('r spk rate after first frame (>0)')
-plt.ylabel('mean pixel value per pixel')
+plt.ylabel('% change in r spiking ')
 # plt.show()
-plt.savefig(exp_dir + 'corr between mean pixel value and r spk rate (>0)')
+plt.savefig(exp_dir + 'corr between % change in r spiking and r spk rate (t>0)')
 plt.close()
 
 # %%
@@ -331,11 +332,11 @@ axs[1].set_title('strong/week inhibition from p to r')
 
 sns.heatmap(split_map_spkrate_aftert1.reshape(28, 28), ax=axs[2], cmap='vlag')
 axs[2].axis('off')
-axs[2].set_title('spk rate at t0')
+axs[2].set_title('high/low spk rate at t0')
 
-sns.heatmap(((-delta_rate)/(spk_rate_first_frame+1e-30)).reshape(28, 28), ax=axs[3], cmap='rocket_r')
+sns.heatmap(get_mean_split_map(((-delta_rate)/(spk_rate_first_frame+1e-30)), mask).reshape(28, 28), ax=axs[3], cmap='vlag')
 axs[3].axis('off')
-axs[3].set_title(' % reduction in spk rate')
+axs[3].set_title(' high/low % reduction in spk rate')
 
 # plt.show()
 plt.savefig(exp_dir + 'pixel value, p2r inhi, spk rate t0, spk reduction')

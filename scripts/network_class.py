@@ -139,7 +139,7 @@ class SnnNetwork(nn.Module):
             out_dim: int,
             is_adapt: bool,
             one_to_one: bool,
-            dp_rate=0.3
+            dp_rate: float
     ):
         super(SnnNetwork, self).__init__()
 
@@ -175,6 +175,8 @@ class SnnNetwork(nn.Module):
 
         x_t = x_t.reshape(batch_dim, input_size).float()
         x_t = self.dp(x_t)
+        # poisson 
+        x_t = x_t.gt(x_t.mean())
 
         r_input = x_t + self.rout2rin(h[5])
 
