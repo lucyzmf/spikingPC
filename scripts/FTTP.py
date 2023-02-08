@@ -9,7 +9,7 @@ import torch
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
-alpha = .5
+alpha = .1
 beta = .5
 rho = 0.
 # %%
