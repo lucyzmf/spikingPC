@@ -72,6 +72,7 @@ n_classes = 10
 num_readout = 10
 adap_neuron = True
 onetoone = True
+dp = 0.5
 
 # %%
 IN_dim = 784
@@ -79,35 +80,35 @@ hidden_dim = [10 * num_readout, 784]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
-model_lowener = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone)
-model_lowener.to(device)
-print(model_lowener)
+model_fptt = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone, dp_rate=dp)
+model_fptt.to(device)
+print(model_fptt)
 
 # define network
-model_baseline = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone)
-model_baseline.to(device)
+model_bp = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone, dp_rate=dp)
+model_bp.to(device)
 
 # define new loss and optimiser
-total_params = count_parameters(model_baseline)
+total_params = count_parameters(model_bp)
 print('total param count %i' % total_params)
 
 # %%
 # load different models
-exp_dir_lowener = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withenerx2_outmemconstantdecay/'
-saved_dict1 = model_result_dict_load(exp_dir_lowener + 'onelayer_rec_best.pth.tar')
+exp_dir_fptt = '/home/lucy/spikingPC/results/Feb-08-2023/fptt_ener_dp05_poisson05thre_01alpha/'
+saved_dict1 = model_result_dict_load(exp_dir_fptt + 'onelayer_rec_best.pth.tar')
 
-model_lowener.load_state_dict(saved_dict1['state_dict'])
+model_fptt.load_state_dict(saved_dict1['state_dict'])
 
-exp_dir_baseline = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withener_outmemconstantdecay/'
-saved_dict2 = model_result_dict_load(exp_dir_baseline + 'onelayer_rec_best.pth.tar')
+exp_dir_bp = '/home/lucy/spikingPC/results/Feb-08-2023/bp_ener_dp05_poissonthre_01alpha/'
+saved_dict2 = model_result_dict_load(exp_dir_bp + 'onelayer_rec_best.pth.tar')
 
-model_baseline.load_state_dict(saved_dict2['state_dict'])
+model_bp.load_state_dict(saved_dict2['state_dict'])
 
 # %%
 # get params and put into dict
 param_names = []
 param_dict = {}
-for name, param in model_baseline.named_parameters():
+for name, param in model_bp.named_parameters():
     if param.requires_grad:
         param_names.append(name)
         param_dict[name] = param.detach().cpu().numpy()
@@ -120,11 +121,11 @@ inhibition_strength_per_class = {'class': np.concatenate((np.arange(10), np.aran
                                  'inhibition': [], 'model type': []}
 for i in range(10 * 2):
     if i < 10:
-        model = model_baseline
-        model_type = 'baseline'
+        model = model_bp
+        model_type = 'bp'
     else:
-        model = model_lowener
-        model_type = 'low energy'
+        model = model_fptt
+        model_type = 'fptt'
     w = model.rout2rin.weight[:, num_readout * (i % 10):((i % 10) + 1) * num_readout].detach()
     inhibition_strength_per_class['inhibition'].append(((w < 0) * w).sum().cpu().item())
     inhibition_strength_per_class['model type'].append(model_type)
@@ -142,11 +143,11 @@ ex_strength_per_class = {'class': np.concatenate((np.arange(10), np.arange(10)))
                          'excitation': [], 'model type': []}
 for i in range(10 * 2):
     if i < 10:
-        model = model_baseline
-        model_type = 'baseline'
+        model = model_bp
+        model_type = 'bp'
     else:
-        model = model_lowener
-        model_type = 'low energy'
+        model = model_fptt
+        model_type = 'fptt'
     w = model.rin2rout.weight[num_readout * (i % 10):((i % 10) + 1) * num_readout, :].detach()
     ex_strength_per_class['excitation'].append(((w > 0) * w).sum().cpu().item())
     ex_strength_per_class['model type'].append(model_type)
@@ -173,11 +174,11 @@ def get_real_constants(pseudo_constants):
 
 for i in range(2):
     if i == 0:
-        model = model_baseline
-        model_type = 'baseline'
+        model = model_bp
+        model_type = 'bp'
     else:
-        model = model_lowener
-        model_type = 'low energy'
+        model = model_fptt
+        model_type = 'fptt'
     time_constants['model type'] += [model_type] * (100+784) * 2
     time_constants['neuron type'] += (['p'] * 100 *2 + ['r'] * 784 *2)
     time_constants['measurement type'] += (['tau_m']*100 + ['tau_adp'] * 100 + ['tau_m']*784 + ['tau_adp'] * 784)
@@ -209,8 +210,8 @@ acc_per_step = {
 }
 
 # get all predictions for normal sequences
-hiddens_b, preds_b, images_b, _ = get_all_analysis_data(model_baseline, test_loader, device, IN_dim, T)
-hiddens_l, preds_l, images_l, _ = get_all_analysis_data(model_lowener, test_loader, device, IN_dim, T)
+hiddens_b, preds_b, images_b, _ = get_all_analysis_data(model_bp, test_loader, device, IN_dim, T)
+hiddens_l, preds_l, images_l, _ = get_all_analysis_data(model_fptt, test_loader, device, IN_dim, T)
 
 
 # get predictions from list of logsoftmax outputs per time step
@@ -301,8 +302,8 @@ def change_in_stumuli(trained_model, test_loader_, device, IN_dim, t=10):
 
 
 # %%
-_, preds_change_b, _ = change_in_stumuli(model_baseline, test_loader_split, device, IN_dim)
-_, preds_change_l, _ = change_in_stumuli(model_lowener, test_loader_split, device, IN_dim)
+_, preds_change_b, _ = change_in_stumuli(model_bp, test_loader_split, device, IN_dim)
+_, preds_change_l, _ = change_in_stumuli(model_fptt, test_loader_split, device, IN_dim)
 
 preds_by_t_change_b = get_predictions(preds_change_b, 5000, T=10).squeeze()
 preds_by_t_change_b = torch.hstack((preds_by_t_change_b[0, :, :], preds_by_t_change_b[1, :, :]))
@@ -322,7 +323,7 @@ acc_per_step['time step'] = np.concatenate((acc_per_step['time step'], np.arange
 acc_per_step['acc'] = np.concatenate((acc_per_step['acc'], np.hstack(acc_t_b_change), np.hstack(acc_t_l_change)))
 
 # condition labelling
-acc_per_step['model type'] = np.hstack((['basline'] * T, ['low energy'] * T) * 2)
+acc_per_step['model type'] = np.hstack((['bp'] * T, ['fptt'] * T) * 2)
 acc_per_step['condition'] = np.hstack((['constant'] * (T * 2), ['change'] * (T * 2)))
 
 # %%
