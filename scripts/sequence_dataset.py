@@ -55,11 +55,30 @@ class SequenceDataset(Dataset):
         
         image_idx_byclass = []
         for i in range(len(torch.unique(labels))):
-            image_idx_byclass.append(torch.arange(n_samples)[labels==i])
+            image_idx_byclass.append(torch.randperm(torch.arange(n_samples)[labels==i]))
         
         # find indices by class 
         max_num_sequences = int(n_samples / num_switch) 
         sequence_indices = torch.zeros((max_num_sequences, num_switch+1))  # empty tensor containing indices of images for sequence construction
+        
+        randomised_indices = np.arange(n_samples)
+
+        sequence_indices = randomised_indices[:(max_num_sequences*(num_switch+1))].reshape(max_num_sequences, num_switch+1)
+        selected_labels = labels[randomised_indices].reshape(max_num_sequences, num_switch+1)
+        
+        for i in range(max_num_sequences):
+            repeat = 0
+            while len(np.unique(selected_labels[i, :])) <= num_switch:  # there are repeats in the sequence
+                idx_keep = np.unique(selected_labels[i, :], return_index=True)[1] 
+                idx_change = np.setdiff1d(np.arange(num_switch+1), idx_keep) 
+                new_sample_idx = randomised_indices[(max_num_sequences*(num_switch+1)+repeat):]
+                # update 
+                sequence_indices[i, idx_change] = new_sample_idx
+                selected_labels[i, idx_change] = labels[sequence_indices[i, ]]
+                repeat += 1
+        
+        
+
 
         
 
