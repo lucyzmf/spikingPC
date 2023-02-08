@@ -248,7 +248,7 @@ def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T):
 
     hiddens_all_ = []
     preds_all_ = []  # predictions at all timesptes
-    data_all_ = []  # get transformed data
+    data_all_ = []  # get transformed data 
 
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
@@ -277,9 +277,37 @@ def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T):
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         test_acc))
-
+    
     data_all_ = torch.stack(data_all_).reshape(10000, 28, 28)
+    
+    return hiddens_all_, preds_all_, data_all_, test_acc
 
-    return hiddens_all_, preds_all_, data_all_
+# %%
+# %%
+# get all hiddens and corresponding pred, target, and images into dict
 
+def get_states(hiddens_all_: list, idx: int, hidden_dim_: int, batch_size, T=20):
+    """
+    get a particular internal state depending on index passed to hidden
+    :param hidden_dim_: the size of a state, eg. num of r or p neurons
+    :param T: total time steps
+    :param hiddens_all_: list containing hidden states of all batch and time steps during inference
+    :param idx: which index in h is taken out
+    :return: np array containing desired states
+    """
+    all_states = []
+    for batch_idx in range(len(hiddens_all_)):  # iterate over batch
+        batch_ = []
+        for t in range(T):
+            seq_ = []
+            for b in range(batch_size):
+                seq_.append(hiddens_all_[batch_idx][t][idx][b].detach().cpu().numpy())
+            seq_ = np.stack(seq_)
+            batch_.append(seq_)
+        batch_ = np.stack(batch_)
+        all_states.append(batch_)
+
+    all_states = np.stack(all_states)
+
+    return all_states.transpose(0, 2, 1, 3).reshape(10000, 20, hidden_dim_)
 # %%

@@ -79,35 +79,35 @@ hidden_dim = [10 * num_readout, 784]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
-model_constant = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone)
-model_constant.to(device)
-print(model_constant)
+model_lowener = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone)
+model_lowener.to(device)
+print(model_lowener)
 
 # define network
-model_trainable = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone)
-model_trainable.to(device)
+model_baseline = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone)
+model_baseline.to(device)
 
 # define new loss and optimiser
-total_params = count_parameters(model_trainable)
+total_params = count_parameters(model_baseline)
 print('total param count %i' % total_params)
 
 # %%
 # load different models
-exp_dir_constant = '/home/lucy/spikingPC/results/Jan-31-2023/spkener_outmemconstantdecay/'
-saved_dict1 = model_result_dict_load(exp_dir_constant + 'onelayer_rec_best.pth.tar')
+exp_dir_lowener = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withenerx2_outmemconstantdecay/'
+saved_dict1 = model_result_dict_load(exp_dir_lowener + 'onelayer_rec_best.pth.tar')
 
-model_constant.load_state_dict(saved_dict1['state_dict'])
+model_lowener.load_state_dict(saved_dict1['state_dict'])
 
-exp_dir_trainable = '/home/lucy/spikingPC/results/Jan-31-2023/spkener_outmemdecay/'
-saved_dict2 = model_result_dict_load(exp_dir_trainable + 'onelayer_rec_best.pth.tar')
+exp_dir_baseline = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withener_outmemconstantdecay/'
+saved_dict2 = model_result_dict_load(exp_dir_baseline + 'onelayer_rec_best.pth.tar')
 
-model_trainable.load_state_dict(saved_dict2['state_dict'])
+model_baseline.load_state_dict(saved_dict2['state_dict'])
 
 # %%
 # get params and put into dict
 param_names = []
 param_dict = {}
-for name, param in model_trainable.named_parameters():
+for name, param in model_baseline.named_parameters():
     if param.requires_grad:
         param_names.append(name)
         param_dict[name] = param.detach().cpu().numpy()
@@ -120,11 +120,11 @@ inhibition_strength_per_class = {'class': np.concatenate((np.arange(10), np.aran
                                  'inhibition': [], 'model type': []}
 for i in range(10 * 2):
     if i < 10:
-        model = model_trainable
-        model_type = 'trainable'
+        model = model_baseline
+        model_type = 'baseline'
     else:
-        model = model_constant
-        model_type = 'constant'
+        model = model_lowener
+        model_type = 'low energy'
     w = model.rout2rin.weight[:, num_readout * (i % 10):((i % 10) + 1) * num_readout].detach()
     inhibition_strength_per_class['inhibition'].append(((w < 0) * w).sum().cpu().item())
     inhibition_strength_per_class['model type'].append(model_type)
@@ -137,6 +137,69 @@ plt.title('p to r inhibitory weight sum')
 plt.show()
 
 # %%
+# compare strength of weights from r to p per class
+ex_strength_per_class = {'class': np.concatenate((np.arange(10), np.arange(10))),
+                         'excitation': [], 'model type': []}
+for i in range(10 * 2):
+    if i < 10:
+        model = model_baseline
+        model_type = 'baseline'
+    else:
+        model = model_lowener
+        model_type = 'low energy'
+    w = model.rin2rout.weight[num_readout * (i % 10):((i % 10) + 1) * num_readout, :].detach()
+    ex_strength_per_class['excitation'].append(((w > 0) * w).sum().cpu().item())
+    ex_strength_per_class['model type'].append(model_type)
+
+ex_strength_per_class = pd.DataFrame.from_dict(ex_strength_per_class)
+
+fig = plt.figure()
+sns.barplot(ex_strength_per_class, x='class', y='excitation', hue='model type')
+plt.title('r to p excitatory weight sum')
+plt.show()
+
+# %%
+# compare time constant means of r and p of both modeles 
+time_constants = {
+    'model type': [],
+    'neuron type': [],
+    'measurement type': [],  # tau_m or tau_adp
+    'value': []
+}
+
+def get_real_constants(pseudo_constants):
+    return -1/np.log(1/(1 + np.exp(-pseudo_constants)))
+
+
+for i in range(2):
+    if i == 0:
+        model = model_baseline
+        model_type = 'baseline'
+    else:
+        model = model_lowener
+        model_type = 'low energy'
+    time_constants['model type'] += [model_type] * (100+784) * 2
+    time_constants['neuron type'] += (['p'] * 100 *2 + ['r'] * 784 *2)
+    time_constants['measurement type'] += (['tau_m']*100 + ['tau_adp'] * 100 + ['tau_m']*784 + ['tau_adp'] * 784)
+
+    tau_m_p = model.r_out_rec.tau_m.data.cpu().tolist()
+    tau_adp_p = model.r_out_rec.tau_adp.data.cpu().tolist()
+    tau_m_r = model.r_in_rec.tau_m.data.cpu().tolist()
+    tau_adp_r = model.r_in_rec.tau_adp.data.cpu().tolist()
+    time_constants['value'] += (tau_m_p + tau_adp_p + tau_m_r + tau_adp_r)
+
+time_constants_df = pd.DataFrame.from_dict(time_constants)
+time_constants_df['value'] = get_real_constants(np.array(time_constants_df['value']))
+
+fig = plt.figure()
+sns.catplot(
+    data=time_constants_df, x="measurement type", y="value", col="neuron type", hue='model type',
+    kind="bar")
+# plt.title('distribution of time constant by neuorn type and model')
+plt.show()
+
+
+# %%
 # compare acc at each time step of prediction
 acc_per_step = {
     'time step': [],
@@ -146,8 +209,8 @@ acc_per_step = {
 }
 
 # get all predictions for normal sequences
-hiddens_b, preds_b, images_b = get_all_analysis_data(model_trainable, test_loader, device, IN_dim, T)
-hiddens_l, preds_l, images_l = get_all_analysis_data(model_constant, test_loader, device, IN_dim, T)
+hiddens_b, preds_b, images_b, _ = get_all_analysis_data(model_baseline, test_loader, device, IN_dim, T)
+hiddens_l, preds_l, images_l, _ = get_all_analysis_data(model_lowener, test_loader, device, IN_dim, T)
 
 
 # get predictions from list of logsoftmax outputs per time step
@@ -238,24 +301,28 @@ def change_in_stumuli(trained_model, test_loader_, device, IN_dim, t=10):
 
 
 # %%
-_, preds_change_b, _ = change_in_stumuli(model_trainable, test_loader_split, device, IN_dim)
-_, preds_change_l, _ = change_in_stumuli(model_constant, test_loader_split, device, IN_dim)
+_, preds_change_b, _ = change_in_stumuli(model_baseline, test_loader_split, device, IN_dim)
+_, preds_change_l, _ = change_in_stumuli(model_lowener, test_loader_split, device, IN_dim)
 
 preds_by_t_change_b = get_predictions(preds_change_b, 5000, T=10).squeeze()
 preds_by_t_change_b = torch.hstack((preds_by_t_change_b[0, :, :], preds_by_t_change_b[1, :, :]))
 preds_by_t_change_l = get_predictions(preds_change_l, 5000, T=10).squeeze()
 preds_by_t_change_l = torch.hstack((preds_by_t_change_l[0, :, :], preds_by_t_change_l[1, :, :]))
 
-acc_t_b_change = [(preds_by_t_change_b[:, t].cpu().eq(testdata.targets.data[:5000]).sum().numpy()) / 5000 * 100 for t in range(10)] + \
-                [(preds_by_t_change_b[:, t].cpu().eq(testdata.targets.data[5000:]).sum().numpy()) / 5000 * 100 for t in range(10, 20)]
-acc_t_l_change = [(preds_by_t_change_l[:, t].cpu().eq(testdata.targets.data[:5000]).sum().numpy()) / 5000 * 100 for t in range(10)] + \
-                [(preds_by_t_change_l[:, t].cpu().eq(testdata.targets.data[5000:]).sum().numpy()) / 5000 * 100 for t in range(10, 20)]
+acc_t_b_change = [(preds_by_t_change_b[:, t].cpu().eq(testdata.targets.data[:5000]).sum().numpy()) / 5000 * 100 for t in
+                  range(10)] + \
+                 [(preds_by_t_change_b[:, t].cpu().eq(testdata.targets.data[5000:]).sum().numpy()) / 5000 * 100 for t in
+                  range(10, 20)]
+acc_t_l_change = [(preds_by_t_change_l[:, t].cpu().eq(testdata.targets.data[:5000]).sum().numpy()) / 5000 * 100 for t in
+                  range(10)] + \
+                 [(preds_by_t_change_l[:, t].cpu().eq(testdata.targets.data[5000:]).sum().numpy()) / 5000 * 100 for t in
+                  range(10, 20)]
 
 acc_per_step['time step'] = np.concatenate((acc_per_step['time step'], np.arange(T), np.arange(T)))
 acc_per_step['acc'] = np.concatenate((acc_per_step['acc'], np.hstack(acc_t_b_change), np.hstack(acc_t_l_change)))
 
 # condition labelling
-acc_per_step['model type'] = np.hstack((['trainable'] * T, ['constant'] * T) * 2)
+acc_per_step['model type'] = np.hstack((['basline'] * T, ['low energy'] * T) * 2)
 acc_per_step['condition'] = np.hstack((['constant'] * (T * 2), ['change'] * (T * 2)))
 
 # %%

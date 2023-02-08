@@ -48,9 +48,14 @@ config.onetoone = True
 config.input_scale = 0.3
 input_scale = config.input_scale
 config.lr = 1e-3
+config.alg = 'fptt'
+alg = config.alg
+config.k_updates = 20
+config.dp = 0.5
+config.exp_name = config.alg + '_ener_dp05_poisson05thre_01alpha'
 
 # experiment name 
-exp_name = 'stepclfloss_withener'
+exp_name = config.exp_name
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -143,7 +148,7 @@ def test(model, test_loader):
 ###############################################################################################
 # training parameters
 T = 20
-K = T  # K is num updates per sequence
+K = config.k_updates  # K is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 10
@@ -208,7 +213,7 @@ def train(train_loader, n_classes, model, named_params):
                     energy = h[1].mean()  # * 0.1
                 else:
                     # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = (torch.norm(h[1], p=1) + torch.norm(h[4], p=1)) / B / (784+100)
+                    energy = (torch.norm(h[1], p=1) + torch.norm(h[5], p=1)) / B / (784+100)
 
                 # l1 loss on rec weights 
                 # l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
@@ -276,7 +281,7 @@ hidden_dim = [10 * config.num_readout, 784]
 T = 20  # sequence length, reading from the same image T times
 
 # define network
-model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone)
+model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone, dp_rate=config.dp)
 model.to(device)
 print(model)
 
