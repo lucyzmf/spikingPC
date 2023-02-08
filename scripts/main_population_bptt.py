@@ -51,9 +51,10 @@ alg = config.alg
 input_scale = config.input_scale
 config.lr = 1e-3
 config.dp = 0.5
+config.exp_name = config.alg + '_ener_dp05_poissonthre_01alpha'
 
 # experiment name 
-exp_name = 'curr18_ener_outmemconstantdecay_bptt_dp05_poisson'
+exp_name = config.exp_name
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron

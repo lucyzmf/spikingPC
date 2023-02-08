@@ -42,7 +42,7 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 0  # - config.clf_alpha
+config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
 config.input_scale = 0.3
@@ -52,7 +52,7 @@ config.alg = 'fptt'
 alg = config.alg
 config.k_updates = 20
 config.dp = 0.5
-config.exp_name = 'curr18_noener_outmemconstantdecay_dp05_poisson'
+config.exp_name = config.alg + '_ener_dp05_poisson05thre_01alpha'
 
 # experiment name 
 exp_name = config.exp_name

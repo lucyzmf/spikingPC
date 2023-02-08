@@ -45,18 +45,18 @@ config = wandb.config
 config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
-config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 0  # - config.clf_alpha
+config.clf_alpha = 0  # proportion of clf loss
+config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
 config.input_scale = 0.3
 input_scale = config.input_scale
 config.lr = 1e-3
-config.alg = 'fptt'
+config.alg = 'bptt'
 alg = config.alg
 config.k_updates = 10
-config.dp = 0.2
-config.exp_name = 'curr18_noener_outmemconstantdecay_dp02_kietz'
+config.dp = 0
+config.exp_name = 'curr18_noclf_outmemconstantdecay_dp00_kietz_bptt'
 
 # experiment name 
 exp_name = config.exp_name
@@ -182,7 +182,6 @@ def train(train_batches, train_label, n_classes, model, named_params):
 
             pred = o.data.max(-1, keepdim=True)[1]
             correct += pred.eq(target[p, :].data.view_as(pred)).cpu().sum()
-            print(target[p, 0])
 
             if p % omega == 0 and p > 0:
 
@@ -289,7 +288,7 @@ test_loss, acc1 = test(model, test_batches, test_labels)
 
 # %%
 
-epochs = 20
+epochs = 50
 named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20
