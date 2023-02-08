@@ -1,7 +1,3 @@
-"""
-version stamp: this is for future sanity check
-"""
-
 # %%
 import torch
 import torch.nn as nn
@@ -24,7 +20,7 @@ import IPython.display as ipd
 
 from tqdm import tqdm
 
-from network_populationcode import *
+from network_class import *
 from utils import *
 from FTTP import *
 
@@ -37,7 +33,7 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC", entity="lucyzmf")
+wandb.init(project="spikingPC_onelayer", entity="lucyzmf")
 # wandb.init(mode="disabled")
 
 # add wandb.config
@@ -51,9 +47,15 @@ config.num_readout = 10
 config.onetoone = True
 config.input_scale = 0.3
 input_scale = config.input_scale
+config.lr = 1e-3
+config.alg = 'fptt'
+alg = config.alg
+config.k_updates = 20
+config.dp = 0.5
+config.exp_name = config.alg + '_ener_dp05_poisson05thre_01alpha'
 
 # experiment name 
-exp_name = 'fc_relu_rec_10readout'
+exp_name = config.exp_name
 energy_penalty = True
 spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
@@ -79,7 +81,7 @@ transform = transforms.Compose(
     [transforms.ToTensor(),
      transforms.Normalize((0.5), (0.5))])
 
-batch_size = 128
+batch_size = 256
 
 traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
@@ -97,61 +99,6 @@ test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
 for batch_idx, (data, target) in enumerate(train_loader):
     print(data.shape)
     break
-# %%
-###############train feature extractor 
-feature_extractor = FeatureExtractor(784, 256, 10)
-lr = 1e-3
-
-feature_extractor.to(device)
-print(feature_extractor)
-
-# define optimiser
-optimizer = optim.Adamax(feature_extractor.parameters(), lr=lr, weight_decay=0.0001)
-# reduce the learning after 20 epochs by a factor of 10
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
-
-for i in range(10):
-    scheduler.step()
-
-    correct = 0
-
-    for b, (data, target) in enumerate(train_loader):
-        # to device and reshape
-        data, target = data.to(device), target.to(device)
-        data = data.view(-1, 784)
-
-        optimizer.zero_grad()
-
-        o = feature_extractor(data)
-        loss = F.nll_loss(F.log_softmax(o, dim=1), target)
-
-        loss.backward()
-
-        optimizer.step()
-
-        pred = o.data.max(1, keepdim=True)[1]
-        correct += pred.eq(target.data.view_as(pred)).cpu().sum()
-
-    print('acc %.4f' % (correct / len(traindata)))
-
-feature_extractor.eval()
-feature_w = feature_extractor.linear_layer.weight.data.cpu()
-# save feature weights
-torch.save(feature_w, prefix + 'feature_extractor_weights.pt')
-
-print(feature_w.size())
-relu = nn.ReLU()
-
-# %%
-pad_size = 2
-# pad input
-p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-pad_const = -1
-
-# set input and t param
-IN_dim = 256
-hidden_dim = 256 + 10 * config.num_readout
-T = 20  # sequence length, reading from the same image T times
 
 
 # if apply first layer drop out, creates sth similar to poisson encoding
@@ -168,13 +115,6 @@ def test(model, test_loader):
 
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
-        # pad input
-        # p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        # data = F.pad(data, p2d, 'constant', -1)
-
-        data = data.view(-1, 784) @ feature_w.T
-        data = relu(data)
-
         data, target = data.to(device), target.to(device)
         data = data.view(-1, IN_dim)
 
@@ -182,13 +122,11 @@ def test(model, test_loader):
             model.eval()
             hidden = model.init_hidden(data.size(0))
 
-            prob_outputs, log_softmax_outputs, hidden = model(data, hidden, T)
+            log_softmax_outputs, hidden = model.inference(data, hidden, T)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
-            # pred = prob_outputs[-1].data.max(1, keepdim=True)[1]
 
-            # if use line below, prob output here computed from sum of spikes over entire seq
-            pred = prob_outputs.data.max(1, keepdim=True)[1]
+            pred = log_softmax_outputs[-1].data.max(1, keepdim=True)[1]
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -209,11 +147,12 @@ def test(model, test_loader):
 ##########################          Train function             ###############################
 ###############################################################################################
 # training parameters
-K = T  # K is num updates per sequence
+T = 20
+K = config.k_updates  # K is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
-log_interval = 100
-lr = 1e-3
+log_interval = 10
+lr = config.lr
 epoch = 10
 n_classes = 10
 
@@ -233,12 +172,6 @@ def train(train_loader, n_classes, model, named_params):
 
     # for each batch 
     for batch_idx, (data, target) in enumerate(train_loader):
-        # pad input
-        # p2d = (0, 0, pad_size, 0)  # pad last dim by (1, 1) and 2nd to last by (2, 2)
-        # data = F.pad(data, p2d, 'constant', -1)
-
-        data = data.view(-1, 784) @ feature_w.T
-        data = relu(data)
 
         # to device and reshape
         data, target = data.to(device), target.to(device)
@@ -253,24 +186,22 @@ def train(train_loader, n_classes, model, named_params):
             elif p % omega == 0:
                 h = tuple(v.detach() for v in h)
 
-            o, h = model.network.forward(data, h)
-
-            #  read out for population code
-            output_spikes = h[1][:, :config.num_readout * 10].view(-1, 10,
-                                                                   config.num_readout)  # take the first 40 neurons for read out
-            output_spikes_sum = output_spikes.sum(dim=2)  # sum firing of neurons for each class
-            output = F.log_softmax(output_spikes_sum, dim=1)
+            o, h = model.forward(data, h)
+            # wandb.log({
+            #         'rec layer adap threshold': h[5].detach().cpu().numpy(), 
+            #         'rec layer mem potential': h[3].detach().cpu().numpy()
+            #     })
 
             # get prediction 
             if p == (T - 1):
-                pred = output.data.max(1, keepdim=True)[1]
+                pred = o.data.max(1, keepdim=True)[1]
                 correct += pred.eq(target.data.view_as(pred)).cpu().sum()
 
             if p % omega == 0 and p > 0:
                 optimizer.zero_grad()
 
                 # classification loss
-                clf_loss = (p + 1) / (K) * F.nll_loss(output, target)
+                clf_loss = (p + 1) / (K) * F.nll_loss(o, target)
                 # clf_loss = snr*F.cross_entropy(output, target,reduction='none')
                 # clf_loss = torch.mean(clf_loss)
 
@@ -282,15 +213,15 @@ def train(train_loader, n_classes, model, named_params):
                     energy = h[1].mean()  # * 0.1
                 else:
                     # mem potential loss take l1 norm / num of neurons /batch size
-                    energy = torch.norm(h[0], p=1) / B / 784
+                    energy = (torch.norm(h[1], p=1) + torch.norm(h[5], p=1)) / B / (784+100)
 
                 # l1 loss on rec weights 
-                l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
+                # l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
 
                 # overall loss    
                 if energy_penalty:
                     loss = config.clf_alpha * clf_loss + regularizer + config.energy_alpha * energy \
-                           + config.l1_lambda * l1_norm
+                        #    + config.l1_lambda * l1_norm
                 else:
                     loss = clf_loss + regularizer
 
@@ -306,26 +237,27 @@ def train(train_loader, n_classes, model, named_params):
                 total_clf_loss += clf_loss.item()
                 total_regularizaton_loss += regularizer  # .item()
                 total_energy_loss += energy.item()
-                total_l1_loss += l1_norm.item()
+                # total_l1_loss += l1_norm.item()
 
-        if batch_idx > 0 and batch_idx % log_interval == 0:
+        if batch_idx > 0 and batch_idx % log_interval == (log_interval-1):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
-                \tClf: {:.6f}\tReg: {:.6f}\tFr: {:.6f}'.format(
-                    epoch, batch_idx * batch_size, len(train_loader.dataset),
-                    100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B),
-                    train_loss / log_interval,
-                    total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
-                    model.network.fr / T / log_interval))
+                \tClf: {:.6f}\tReg: {:.6f}\tFr_p: {:.6f}\tFr_r: {:.6f}'.format(
+                epoch, batch_idx * batch_size, len(train_loader.dataset),
+                       100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B),
+                       train_loss / log_interval,
+                       total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
+                       model.fr_p / T / log_interval,
+                       model.fr_r / T / log_interval))
 
             wandb.log({
-                'clf_loss': total_clf_loss / log_interval,
+                'clf_loss': total_clf_loss / log_interval / K,
                 'train_acc': 100 * correct / (log_interval * B),
-                'regularisation_loss': total_regularizaton_loss / log_interval,
-                'energy_loss': total_energy_loss / log_interval,
-                'l1_loss': config.l1_lambda * total_l1_loss / log_interval,
-                'total_loss': train_loss / log_interval,
-                'network spiking freq': model.network.fr / T / log_interval,  # firing per time step 
-                'weights': model.network.snn_layer.layer1_x.weight.detach().cpu().numpy()
+                'regularisation_loss': total_regularizaton_loss / log_interval / K,
+                'energy_loss': total_energy_loss / log_interval / K,
+                'l1_loss': config.l1_lambda * total_l1_loss / log_interval / K,
+                'total_loss': train_loss / log_interval / K,
+                'pred spiking freq': model.fr_p / T / log_interval,  # firing per time step
+                'rep spiking fr': model.fr_r / T / log_interval,
             })
 
             train_loss = 0
@@ -334,18 +266,22 @@ def train(train_loader, n_classes, model, named_params):
             total_energy_loss = 0
             total_l1_loss = 0
             correct = 0
-        model.network.fr = 0
+        # model.network.fr = 0
+        model.fr_p = 0
+        model.fr_r = 0
 
 
 # %%
 ###############################################################
 # DEFINE NETWORK
 ###############################################################
-
+# set input and t param
+IN_dim = 784
+hidden_dim = [10 * config.num_readout, 784]
+T = 20  # sequence length, reading from the same image T times
 
 # define network
-model = OneLayerSeqModelPop(IN_dim, hidden_dim, n_classes, is_rec=True, is_LTC=False,
-                            is_adapt=adap_neuron, one_to_one=config.onetoone)
+model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone, dp_rate=config.dp)
 model.to(device)
 print(model)
 
@@ -356,7 +292,7 @@ print('total param count %i' % total_params)
 # define optimiser
 optimizer = optim.Adamax(model.parameters(), lr=lr, weight_decay=0.0001)
 # reduce the learning after 20 epochs by a factor of 10
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
 
 # %%
 ###############################################################################################
@@ -368,19 +304,12 @@ test_loss, acc1 = test(model, test_loader)
 
 # %%
 
-epochs = 10
+epochs = 20
 named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20
 
 wandb.watch(model, log_freq=100)
-
-wandb.config = {
-    'learning_rate': lr,
-    'sequence_len': T,
-    'epochs': epochs,
-    'update_freq': omega,
-}
 
 estimate_class_distribution = torch.zeros(n_classes, T, n_classes, dtype=torch.float)
 for epoch in range(epochs):
@@ -407,6 +336,5 @@ for epoch in range(epochs):
         }, is_best, prefix=prefix, filename=check_fn)
 
     all_test_losses.append(test_loss)
-
 
 # %%
