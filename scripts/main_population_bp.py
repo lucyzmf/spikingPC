@@ -23,6 +23,7 @@ from tqdm import tqdm
 from network_class import *
 from utils import *
 from FTTP import *
+from test_function import test
 
 # %%
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -102,45 +103,6 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 
 # if apply first layer drop out, creates sth similar to poisson encoding
-
-# %%
-###############################################################################################
-##########################          Test function             ###############################
-###############################################################################################
-# test function
-def test(model, test_loader):
-    model.eval()
-    test_loss = 0
-    correct = 0
-
-    # for data, target in test_loader:
-    for i, (data, target) in enumerate(test_loader):
-        data, target = data.to(device), target.to(device)
-        data = data.view(-1, IN_dim)
-
-        with torch.no_grad():
-            model.eval()
-            hidden = model.init_hidden(data.size(0))
-
-            log_softmax_outputs, hidden = model.inference(data, hidden, T)
-
-            test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
-
-            pred = log_softmax_outputs[-1].data.max(1, keepdim=True)[1]
-
-        correct += pred.eq(target.data.view_as(pred)).cpu().sum()
-        torch.cuda.empty_cache()
-
-    test_loss /= len(test_loader.dataset)
-    test_acc = 100. * correct / len(test_loader.dataset)
-    wandb.log({
-        'test_loss': test_loss,
-        'test_acc': test_acc
-    })
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        test_acc))
-    return test_loss, 100. * correct / len(test_loader.dataset)
 
 
 ###############################################################################################
@@ -311,7 +273,7 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
 ###############################################################################################
 
 # untrained network
-test_loss, acc1 = test(model, test_loader)
+test_loss, acc1 = test(model, test_loader, T)
 
 # %%
 
@@ -328,7 +290,7 @@ for epoch in range(epochs):
 
     # reset_named_params(named_params)
 
-    test_loss, acc1 = test(model, test_loader)
+    test_loss, acc1 = test(model, test_loader, T)
 
     scheduler.step()
 
