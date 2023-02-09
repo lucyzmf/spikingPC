@@ -51,8 +51,8 @@ config.alg = 'bptt'
 alg = config.alg
 input_scale = config.input_scale
 config.lr = 1e-3
-config.dp = 0.5
-config.exp_name = config.alg + '_ener_dp05_poissonthre_01alpha'
+config.dp = 0.4
+config.exp_name = config.alg + '_ener_dp04_psum'
 
 # experiment name 
 exp_name = config.exp_name

@@ -52,8 +52,8 @@ config.lr = 1e-3
 config.alg = 'bp'
 alg = config.alg
 config.k_updates = 20
-config.dp = 0.5
-config.exp_name = config.alg + '_ener_dp05_poissonthre_01alpha'
+config.dp = 0.4
+config.exp_name = config.alg + '_ener_dp04_psum'
 
 # experiment name 
 exp_name = config.exp_name

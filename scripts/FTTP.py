@@ -10,7 +10,7 @@ import wandb
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-alpha = .1
+alpha = .5
 beta = .5
 rho = 0.
 

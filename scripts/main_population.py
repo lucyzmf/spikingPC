@@ -47,7 +47,7 @@ config.lr = 1e-3
 config.alg = 'fptt'
 alg = config.alg
 config.k_updates = 20
-config.dp = 0.5
+config.dp = 0.4
 
 # training parameters
 T = 20
@@ -58,7 +58,7 @@ log_interval = 10
 epoch = 10
 n_classes = 10
 
-config.exp_name = config.alg + '_ener_dp05_poisson05thre_01alpha'
+config.exp_name = config.alg + '_ener_dp04_psum'
 
 # experiment name 
 exp_name = config.exp_name
