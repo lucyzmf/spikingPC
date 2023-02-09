@@ -39,15 +39,12 @@ wandb.init(project="spikingPC_onelayer", entity="lucyzmf")
 
 # add wandb.config
 config = wandb.config
-config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
 config.adap_neuron = True  # whether use adaptive neuron or not
-config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
-config.input_scale = 0.3
-input_scale = config.input_scale
+
 config.lr = 1e-3
 config.alg = 'bp'
 alg = config.alg
@@ -57,8 +54,6 @@ config.exp_name = config.alg + '_ener_dp04_psum'
 
 # experiment name 
 exp_name = config.exp_name
-energy_penalty = True
-spike_loss = config.spike_loss
 adap_neuron = config.adap_neuron
 # checkpoint file name
 check_fn = 'onelayer_rec_best.pth.tar'
@@ -101,7 +96,6 @@ for batch_idx, (data, target) in enumerate(train_loader):
     print(data.shape)
     break
 
-
 # if apply first layer drop out, creates sth similar to poisson encoding
 
 
@@ -120,15 +114,11 @@ n_classes = 10
 
 
 # train function for one epoch
-def train(train_loader, n_classes, model, named_params):
-    global steps
-    global estimate_class_distribution
-
+def train_bp(train_loader, model):
     train_loss = 0
     total_clf_loss = 0
     total_regularizaton_loss = 0
     total_energy_loss = 0
-    total_l1_loss = 0
     correct = 0
     model.train()
 
@@ -149,10 +139,6 @@ def train(train_loader, n_classes, model, named_params):
                 h = tuple(v.detach() for v in h)
 
             o, h = model.forward(data, h)
-            # wandb.log({
-            #         'rec layer adap threshold': h[5].detach().cpu().numpy(), 
-            #         'rec layer mem potential': h[3].detach().cpu().numpy()
-            #     })
 
             # get prediction 
             if p == (T - 1):
@@ -166,37 +152,11 @@ def train(train_loader, n_classes, model, named_params):
             # clf_loss = snr*F.cross_entropy(output, target,reduction='none')
             # clf_loss = torch.mean(clf_loss)
 
-            # regularizer loss                     
-                # regularizer loss                     
-            # regularizer loss                     
-                # regularizer loss                     
-            # regularizer loss                     
-            # regularizer = get_regularizer_named_params(named_params, _lambda=1.0)
-
-            if spike_loss:
-                # energy loss: batch mean spiking * weighting param
-                energy = h[1].mean()  # * 0.1
-            else:
-                # mem potential loss take l1 norm / num of neurons /batch size
-                energy = (torch.norm(h[1], p=1) + torch.norm(h[5], p=1)) / B / (784+100)
-
-            # l1 loss on rec weights 
-                # l1 loss on rec weights 
-            # l1 loss on rec weights 
-                # l1 loss on rec weights 
-            # l1 loss on rec weights 
-            # l1_norm = torch.linalg.norm(model.network.snn_layer.layer1_x.weight)
+            # mem potential loss take l1 norm / num of neurons /batch size
+            energy = (torch.norm(h[1], p=1) + torch.norm(h[5], p=1)) / B / (784 + 100)
 
             # overall loss    
-                # overall loss    
-            # overall loss    
-                # overall loss    
-            # overall loss    
-            if energy_penalty:
-                loss = config.clf_alpha * clf_loss +  config.energy_alpha * energy \
-                    #    + config.l1_lambda * l1_norm
-            else:
-                loss = clf_loss
+            loss = config.clf_alpha * clf_loss + config.energy_alpha * energy
 
             loss.backward()
 
@@ -204,15 +164,12 @@ def train(train_loader, n_classes, model, named_params):
                 torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
 
             optimizer.step()
-            # post_optimizer_updates(named_params)
 
             train_loss += loss.item()
             total_clf_loss += clf_loss.item()
-            # total_regularizaton_loss += regularizer  # .item()
             total_energy_loss += energy.item()
-            # total_l1_loss += l1_norm.item()
 
-        if batch_idx > 0 and batch_idx % log_interval == (log_interval-1):
+        if batch_idx > 0 and batch_idx % log_interval == (log_interval - 1):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
                 \tClf: {:.6f}\tReg: {:.6f}\tFr_p: {:.6f}\tFr_r: {:.6f}'.format(
                 epoch, batch_idx * batch_size, len(train_loader.dataset),
@@ -227,7 +184,6 @@ def train(train_loader, n_classes, model, named_params):
                 'train_acc': 100 * correct / (log_interval * B),
                 'regularisation_loss': total_regularizaton_loss / log_interval / K,
                 'energy_loss': total_energy_loss / log_interval / K,
-                'l1_loss': config.l1_lambda * total_l1_loss / log_interval / K,
                 'total_loss': train_loss / log_interval / K,
                 'pred spiking freq': model.fr_p / T / log_interval,  # firing per time step
                 'rep spiking fr': model.fr_r / T / log_interval,
@@ -235,11 +191,9 @@ def train(train_loader, n_classes, model, named_params):
 
             train_loss = 0
             total_clf_loss = 0
-            total_regularizaton_loss = 0
             total_energy_loss = 0
-            total_l1_loss = 0
             correct = 0
-        # model.network.fr = 0
+
         model.fr_p = 0
         model.fr_r = 0
 
@@ -286,9 +240,7 @@ wandb.watch(model, log_freq=100)
 
 estimate_class_distribution = torch.zeros(n_classes, T, n_classes, dtype=torch.float)
 for epoch in range(epochs):
-    train(train_loader, n_classes, model, named_params)
-
-    # reset_named_params(named_params)
+    train_bp(train_loader, model)
 
     test_loss, acc1 = test(model, test_loader, T)
 
