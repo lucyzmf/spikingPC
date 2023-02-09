@@ -126,13 +126,13 @@ def compute_energy_consumption(all_spikes, weights, alpha=1 / 3):
     of network
 
     Args:
-        all_spikes (np.array): np array containing spike records batch*neuron num*T
+        all_spikes (np.array): np array containing spike records batch*neuron num*time_steps
         weights (np.array): recurrent weights 
         alpha (float, optional): weighting between spike and synaptic 
             transmition in energy computation. Defaults to 1/3.
 
     Returns:
-        e: energy consumption, np array shaped batch*T, each value is mean energy per sample per time step
+        e: energy consumption, np array shaped batch*time_steps, each value is mean energy per sample per time step
     """
 
     # take mean along dim 1 to avg over all neurons 
@@ -152,7 +152,7 @@ def get_internal_drive(spikes, weights):
     """get internal drive per neuron for 2d visualisation 
 
     Args:
-        spikes (np.array): spiking record, neuron*T
+        spikes (np.array): spiking record, neuron*time_steps
         weights (np.array): weight matrix 
 
     Returns:
@@ -172,7 +172,7 @@ def get_internal_drive_fc(spikes, weights):
     spiking projection back to image domain
 
     Args:
-        spikes (np.array): spiking record, neuron*T
+        spikes (np.array): spiking record, neuron*time_steps
         weights (np.array): weight matrix of layer1, contains rec and fc weights
 
     Returns:
