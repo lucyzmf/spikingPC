@@ -134,7 +134,7 @@ IN_dim = 784
 hidden_dim = [10 * config.num_readout, 784]
 
 # define network
-model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=config.adap_neuron, one_to_one=config.onetoone,
+model = SnnNetworkSeq(IN_dim, hidden_dim, n_classes, is_adapt=config.adap_neuron, one_to_one=config.onetoone,
                    dp_rate=config.dp)
 model.to(device)
 print(model)
