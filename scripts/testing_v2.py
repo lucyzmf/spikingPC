@@ -62,7 +62,7 @@ test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
 ###############################################################
 # training parameters
 T = 20
-K = T  # K is num updates per sequence
+K = T  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 100
@@ -77,7 +77,7 @@ dp_rate = 0.7
 # %%
 IN_dim = 784
 hidden_dim = [10 * num_readout, 784]
-T = 20  # sequence length, reading from the same image T times
+T = 20  # sequence length, reading from the same image time_steps times
 
 # define network
 model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone, dp_rate=dp_rate)
