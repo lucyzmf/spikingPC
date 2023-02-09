@@ -57,7 +57,7 @@ class SnnLayer(nn.Module):
         b = rho * b + (1 - rho) * spike  # adaptive contribution
         new_thre = baseline_thre + beta * b  # udpated threshold
 
-        current = torch.exp(-1/torch.tensor(tau_i)) * current + inputs
+        current = torch.exp(-1 / torch.tensor(tau_i)) * current + inputs
 
         # mem = mem * alpha + (1 - alpha) * r_m * inputs - new_thre * spike
         mem = mem * alpha + current - new_thre * spike  # soft reset
@@ -239,4 +239,44 @@ class SnnNetwork(nn.Module):
             weight.new(bsz, self.out_dim).zero_(),
         )
 
+
 # %%
+class SnnNetworkSeq(SnnNetwork):
+    def __init__(
+            self,
+            in_dim: int,
+            hidden_dims: list,  # [r out, r in]
+            out_dim: int,
+            is_adapt: bool,
+            one_to_one: bool,
+            dp_rate: float
+    ):
+        super().__init__(in_dim, hidden_dims, out_dim, is_adapt, one_to_one, dp_rate)
+
+    # override inference function
+    def inference(self, x_t, h, time_steps):
+        """
+        only called during inference
+        :param x_t: input, contains all data for one sequence
+        :param h: hidden states
+        :param time_steps: sequence length
+        :return:
+        """
+
+        log_softmax_hist = []
+        h_hist = []
+        pred_hist = []  # log predictions at each time step for evaluation
+
+        for t in range(time_steps):
+            # iterate through each seq per time step
+            log_softmax, h = self.forward(x_t[:, t, :], h)
+
+            log_softmax_hist.append(log_softmax)
+            pred = log_softmax.data.max(1, keepdim=True)[1]
+
+            pred_hist.append(pred)
+            h_hist.append(h)
+
+        pred_hist = torch.concatenate(pred_hist)
+
+        return log_softmax_hist, h_hist, pred_hist
