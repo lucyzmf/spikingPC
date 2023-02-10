@@ -10,19 +10,27 @@ class SequenceDataset(Dataset):
                  random_switch: bool,
                  switch_time: list,
                  num_switch: int):
+        """
+        create sequence dataset from image data
+        :param images: images used to create sequences
+        :param labels: corresponding labels
+        :param sequence_len: length of sequence created
+        :param random_switch: whether the change in stimulus happens randomly or at fixed time
+        :param switch_time: if not random switch, provide switch time
+        :param num_switch: total number of switch times in the sequence
+        """
 
         self.image_data = images
         self.label_data = labels
         self.seq_len = sequence_len
         self.random_switch = random_switch
         self.switch_time = switch_time
-        self.num_switch = num_switch 
-        
+        self.num_switch = num_switch
+
         self.seq_idx = create_sequences(labels, num_switch)
         self.num_samples = len(self.seq_idx)
 
         print('num of sequences created: %i' % self.num_samples)
-
 
     def __getitem__(self, idx):
         if self.random_switch:
@@ -30,7 +38,7 @@ class SequenceDataset(Dataset):
             t_switch = np.random.choice(np.arange(1, self.sequence_len), size=self.num_switch, replace=False).tolist()
         else:
             t_switch = self.switch_time
-            
+
         # get img index used in a sequence
         img_idx = self.seq_idx[idx].tolist()
         image_seq = sample_to_seq(self.image_data[img_idx], self.seq_len, t_switch)
@@ -50,7 +58,6 @@ def create_sequences(
         labels (torch.Tensor): corresponding labels
         num_switch (int): number of switches in the whole sequence
     """
-    
 
     n_samples = len(labels)
 
@@ -62,13 +69,13 @@ def create_sequences(
     mask = []  # selected index
 
     for s in range(max_num_sequences):
-        if s%1000 == 0:
+        if s % 1000 == 0:
             print(str(s) + 'sequences sampled')
         available_idx = np.setdiff1d(randomised_indices, mask, assume_unique=True)
 
         # check towards end of sampling if the remaining targets 
-        if (max_num_sequences-s) < 100 and len(np.unique(labels[available_idx]))==1: 
-            sequence_indices = sequence_indices[:(s-1), :]
+        if (max_num_sequences - s) < 100 and len(np.unique(labels[available_idx])) == 1:
+            sequence_indices = sequence_indices[:(s - 1), :]
             break
 
         selected_idx = np.random.choice(available_idx, size=(num_switch + 1), replace=False)
@@ -79,7 +86,7 @@ def create_sequences(
         mask = np.concatenate((mask, selected_idx))
         sequence_indices[s, :] = torch.tensor(selected_idx)
 
-    return sequence_indices 
+    return sequence_indices
 
 
 def sample_to_seq(sample: torch.Tensor, seq_len: int, switch_t: list):
@@ -94,7 +101,7 @@ def sample_to_seq(sample: torch.Tensor, seq_len: int, switch_t: list):
     sequence = []
     for i in range(len(ts) - 1):  # iterate through switch_t elements
         # check whether samples are images or targets
-        if len(sample[0].size())>1: 
+        if len(sample[0].size()) > 1:
             sequence.append(sample[i].repeat(int(ts[i + 1] - ts[i]), 1, 1))
         else:
             sequence.append(sample[i].repeat(int(ts[i + 1] - ts[i]), 1))
