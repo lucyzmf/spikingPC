@@ -77,7 +77,7 @@ print('total param count %i' % total_params)
 
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Feb-08-2023/fptt_ener_dp05_poisson05thre_01alpha/'
+exp_dir = '/home/lucy/spikingPC/results/Feb-10-2023/fptt_ener_seq_newloss2_outmemtrainable_fpttalpha02_currinit-1_t40/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -104,3 +104,49 @@ plt.title('r_out weights to r_in by class')
 # plt.show()
 plt.savefig(exp_dir + 'r_out weights to r_in by class')
 plt.close()
+
+# %% 
+# plot p to r exci vs inhi
+fig = plt.figure()
+x = ['exci', 'inhi']
+p2r_w = model.rout2rin.weight
+y = [(p2r_w*(p2r_w>0)).detach().cpu().numpy().sum(), -(p2r_w*(p2r_w<0)).detach().cpu().numpy().sum()]
+sns.barplot(x=x, y=y)
+plt.title('p to r exci vs inhi')
+plt.show()
+# %%
+# weight matrix for p2p
+
+fig = plt.figure()
+abs_max = np.max(np.abs(model.r_out_rec.rec_w.weight.detach().cpu().numpy()))
+sns.heatmap(model.r_out_rec.rec_w.weight.detach().cpu().numpy(), vmax=abs_max, vmin=-abs_max, cmap='icefire')
+plt.title('p2p weights')
+# plt.show()
+plt.savefig(exp_dir + 'p2p weights')
+plt.close()
+# %%
+# plot output tau 
+fig = plt.figure()
+plt.plot(np.arange(10), model.output_layer.tau_m.detach().cpu().numpy())
+plt.show()
+# %%
+# weight matrix for r2r
+
+fig = plt.figure()
+abs_max = np.max(np.abs(model.r_in_rec.rec_w.weight.detach().cpu().numpy()))
+sns.heatmap(model.r_in_rec.rec_w.weight.detach().cpu().numpy(), vmax=abs_max, vmin=-abs_max, cmap='icefire')
+plt.title('r2r weights')
+plt.show()
+# plt.savefig(exp_dir + 'r2r weights')
+# plt.close()
+# %%
+# weight matrix for r2p
+
+fig = plt.figure()
+abs_max = np.max(np.abs(model.rin2rout.weight.detach().cpu().numpy()))
+sns.heatmap(model.rin2rout.weight.detach().cpu().numpy(), vmax=abs_max, vmin=-abs_max, cmap='icefire')
+plt.title('r2p weights')
+plt.show()
+# plt.savefig(exp_dir + 'r2p weights')
+# plt.close()
+# %%

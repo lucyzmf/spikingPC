@@ -14,9 +14,9 @@ class SnnLayer(nn.Module):
             is_rec: bool,
             is_adapt: bool,
             one_to_one: bool,
-            tau_m_init: float, 
-            tau_adap_init: float, 
-            tau_i_init: float
+            tau_m_init=3., 
+            tau_adap_init=4.6, 
+            tau_i_init=-1.
     ):
         super(SnnLayer, self).__init__()
 
@@ -158,7 +158,7 @@ class SnnNetwork(nn.Module):
         self.dp = nn.Dropout(dp_rate)
 
         self.r_in_rec = SnnLayer(hidden_dims[1], hidden_dims[1], is_rec=True, is_adapt=is_adapt,
-                                 one_to_one=one_to_one, tau_m_init=2., tau_adap_init=3.6, tau_i_init=-0.5)
+                                 one_to_one=one_to_one)
 
         # r in to r out
         self.rin2rout = nn.Linear(hidden_dims[1], hidden_dims[0])
@@ -169,7 +169,7 @@ class SnnNetwork(nn.Module):
         nn.init.xavier_uniform_(self.rout2rin.weight)
 
         self.r_out_rec = SnnLayer(hidden_dims[0], hidden_dims[0], is_rec=True, is_adapt=is_adapt,
-                                  one_to_one=one_to_one, tau_m_init=3., tau_adap_init=4.6, tau_i_init=-0.25)
+                                  one_to_one=one_to_one)
 
         self.output_layer = OutputLayer(hidden_dims[0], out_dim, is_fc=False)
 
