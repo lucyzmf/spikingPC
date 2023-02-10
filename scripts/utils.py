@@ -227,13 +227,13 @@ def normalize(tensor):
 # %%
 
 def shift_input(i, T, data):
-    if i < T / 4 and i%2 == 0:
+    if i < T / 4 and i % 2 == 0:
         data = torch.roll(data, i, -1)
-    elif T / 4 <= i < T / 2 and i%2 == 0:
+    elif T / 4 <= i < T / 2 and i % 2 == 0:
         data = torch.roll(data, int(T / 2 - i), -1)
-    elif T / 2 <= i < 3 * T / 4 and i%2 == 0:
+    elif T / 2 <= i < 3 * T / 4 and i % 2 == 0:
         data = torch.roll(data, -int(i - T / 2), -1)
-    elif i%2 == 0:
+    elif i % 2 == 0:
         data = torch.roll(data, i - T, -1)
 
     return data
@@ -277,10 +277,11 @@ def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T):
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         test_acc))
-    
+
     data_all_ = torch.stack(data_all_).reshape(10000, 28, 28)
-    
+
     return hiddens_all_, preds_all_, data_all_, test_acc
+
 
 # %%
 # %%
@@ -310,4 +311,32 @@ def get_states(hiddens_all_: list, idx: int, hidden_dim_: int, batch_size, T=20)
     all_states = np.stack(all_states)
 
     return all_states.transpose(0, 2, 1, 3).reshape(10000, 20, hidden_dim_)
+
+
 # %%
+# log seq spiking pattern during training
+def plot_spiking_sequence(hidden, target, sample_no=0):
+    """
+    given t*batch hidden, data, and target, plot one sequence of spiking for logging in wandb during test function call
+    :param sample_no: which sample to take in batch
+    :param hidden: list containing batch hiddens
+    :param target: b*t target for image
+    :return: fig object for logging in wandb
+    """
+    fig, axes = plt.subplots(2, len(hidden))
+    for t in range(len(hidden)):  # num of time steps
+        r_spks = hidden[t][1][sample_no].detach().cpu().numpy()
+        p_spks = hidden[t][5][sample_no].detach().cpu().numpy()
+
+        # plot p spiking
+        axes[0][t].imshow(p_spks.reshape(10, int(p_spks.size / 10)))
+        axes[0][t].axis('off')
+        axes[0][t].set_title('target: %i' % target[sample_no, t].item())
+
+        # plot r spiking
+        axes[1][t].imshow(r_spks.reshape(28, 28))
+        axes[1][t].axis('off')
+
+    return fig
+
+
