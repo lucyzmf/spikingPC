@@ -72,7 +72,7 @@ def test_seq(model, test_loader, time_steps):
         correct += pred_hist.T.eq(target.data).cpu().sum()
         torch.cuda.empty_cache()
 
-        wandb.log({'spike sequence': plot_spiking_sequence(hidden, target)})
+    wandb.log({'spike sequence': plot_spiking_sequence(hidden, target)})
 
     test_loss /= len(test_loader.dataset)  # per t loss
     test_acc = 100. * correct / len(test_loader.dataset) / time_steps

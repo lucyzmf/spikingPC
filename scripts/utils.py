@@ -323,7 +323,7 @@ def plot_spiking_sequence(hidden, target, sample_no=0):
     :param target: b*t target for image
     :return: fig object for logging in wandb
     """
-    fig, axes = plt.subplots(2, len(hidden))
+    fig, axes = plt.subplots(2, len(hidden), figsize=(40, 3))
     for t in range(len(hidden)):  # num of time steps
         r_spks = hidden[t][1][sample_no].detach().cpu().numpy()
         p_spks = hidden[t][5][sample_no].detach().cpu().numpy()
@@ -336,7 +336,11 @@ def plot_spiking_sequence(hidden, target, sample_no=0):
         # plot r spiking
         axes[1][t].imshow(r_spks.reshape(28, 28))
         axes[1][t].axis('off')
+    
+    plt.tight_layout()
 
     return fig
 
 
+
+# %%
