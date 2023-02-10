@@ -53,6 +53,7 @@ def test_seq(model, test_loader, time_steps):
     model.eval()
     test_loss = 0
     correct = 0
+    correct_end_of_seq = 0
 
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
@@ -70,15 +71,20 @@ def test_seq(model, test_loader, time_steps):
                 test_loss += F.nll_loss(log_softmax_outputs[t], target[:, t], reduction='sum').data.item()
 
         correct += pred_hist.T.eq(target.data).cpu().sum()
+        # only check end of sequence acc 
+        correct_end_of_seq += pred_hist.T[:, int(time_steps/2)-1].eq(target[:, int(time_steps/2)-1].data).cpu().sum() 
+        correct_end_of_seq += pred_hist.T[:, time_steps-1].eq(target[:, time_steps-1].data).cpu().sum()
         torch.cuda.empty_cache()
 
     wandb.log({'spike sequence': plot_spiking_sequence(hidden, target)})
 
     test_loss /= len(test_loader.dataset)  # per t loss
     test_acc = 100. * correct / len(test_loader.dataset) / time_steps
+    test_acc_endofseq = 100 * correct_end_of_seq / len(test_loader.dataset) / 2
     wandb.log({
         'test_loss': test_loss,
-        'test_acc': test_acc
+        'test_acc': test_acc, 
+        'test_acc endofseq': test_acc_endofseq
     })
 
     print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(

@@ -14,6 +14,9 @@ class SnnLayer(nn.Module):
             is_rec: bool,
             is_adapt: bool,
             one_to_one: bool,
+            tau_m_init: float, 
+            tau_adap_init: float, 
+            tau_i_init: float
     ):
         super(SnnLayer, self).__init__()
 
@@ -35,17 +38,20 @@ class SnnLayer(nn.Module):
         # define param for time constants
         self.tau_adp = nn.Parameter(torch.Tensor(hidden_dim))
         self.tau_m = nn.Parameter(torch.Tensor(hidden_dim))
+        self.tau_i = nn.Parameter(torch.Tensor(hidden_dim))
 
-        nn.init.normal_(self.tau_adp, 4.6, .1)
-        nn.init.normal_(self.tau_m, 3., .1)
+        nn.init.normal_(self.tau_adp, tau_adap_init, .1)
+        nn.init.normal_(self.tau_m, tau_m_init, .1)
+        nn.init.normal_(self.tau_i, tau_i_init, 0.1)
         # nn.init.normal_(self.tau_adp, 200., 20.)
         # nn.init.normal_(self.tau_m, 20., .5)
 
         self.sigmoid = nn.Sigmoid()
 
-    def mem_update(self, inputs, mem, spike, current, b, is_adapt, dt=1, baseline_thre=0.1, r_m=3, tau_i=1.8):
+    def mem_update(self, inputs, mem, spike, current, b, is_adapt, dt=1, baseline_thre=0.1, r_m=3):
         alpha = self.sigmoid(self.tau_m)
         rho = self.sigmoid(self.tau_adp)
+        eta = self.sigmoid(self.tau_i)
         # alpha = torch.exp(-dt/self.tau_m)
         # rho = torch.exp(-dt/self.tau_adp)
 
@@ -57,7 +63,7 @@ class SnnLayer(nn.Module):
         b = rho * b + (1 - rho) * spike  # adaptive contribution
         new_thre = baseline_thre + beta * b  # udpated threshold
 
-        current = torch.exp(-1 / torch.tensor(tau_i)) * current + inputs
+        current = eta * current + inputs
 
         # mem = mem * alpha + (1 - alpha) * r_m * inputs - new_thre * spike
         mem = mem * alpha + current - new_thre * spike  # soft reset
@@ -110,7 +116,7 @@ class OutputLayer(nn.Module):
             nn.init.xavier_uniform_(self.fc.weight)
 
         # tau_m
-        self.tau_m = nn.Parameter(torch.Tensor(out_dim), requires_grad=False)
+        self.tau_m = nn.Parameter(torch.Tensor(out_dim))
         nn.init.constant_(self.tau_m, 0.5)
 
         self.sigmoid = nn.Sigmoid()
@@ -152,7 +158,7 @@ class SnnNetwork(nn.Module):
         self.dp = nn.Dropout(dp_rate)
 
         self.r_in_rec = SnnLayer(hidden_dims[1], hidden_dims[1], is_rec=True, is_adapt=is_adapt,
-                                 one_to_one=one_to_one)
+                                 one_to_one=one_to_one, tau_m_init=2., tau_adap_init=3.6, tau_i_init=-0.5)
 
         # r in to r out
         self.rin2rout = nn.Linear(hidden_dims[1], hidden_dims[0])
@@ -163,7 +169,7 @@ class SnnNetwork(nn.Module):
         nn.init.xavier_uniform_(self.rout2rin.weight)
 
         self.r_out_rec = SnnLayer(hidden_dims[0], hidden_dims[0], is_rec=True, is_adapt=is_adapt,
-                                  one_to_one=one_to_one)
+                                  one_to_one=one_to_one, tau_m_init=3., tau_adap_init=4.6, tau_i_init=-0.25)
 
         self.output_layer = OutputLayer(hidden_dims[0], out_dim, is_fc=False)
 
