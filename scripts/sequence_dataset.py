@@ -10,19 +10,31 @@ class SequenceDataset(Dataset):
                  random_switch: bool,
                  switch_time: list,
                  num_switch: int):
-        image_seq, label_seq = create_sequences(images, labels, sequence_len, random_switch, switch_time, num_switch)
-        self.image_data = image_seq
-        self.label_data = label_seq
-        self.img_datasize = image_seq.size()
-        self.label_size = label_seq.size()
+        # image_seq, label_seq = create_sequences(images, labels, sequence_len, random_switch, switch_time, num_switch)
+        self.image_data = images
+        self.label_data = labels
+        self.seq_len = sequence_len
+        self.random_switch = random_switch
+        self.switch_time = switch_time
+        self.num_switch = num_switch
+        
+        self.seq_idx = create_sequences(images, labels, sequence_len, random_switch, switch_time, num_switch)
 
     def __getitem__(self, idx):
-        image_seq = self.image_data[idx, :, :, :]
-        label_seq = self.label_data[idx, :, :]
+        if self.random_switch:
+            # randomly select switch time from t=1 on
+            t_switch = np.random.choice(np.arange(1, self.sequence_len), size=self.num_switch, replace=False).tolist()
+        else:
+            t_switch = self.switch_time
+            
+        # get img index used in a sequence
+        img_idx = self.seq_idx[idx].tolist()
+        image_seq = sample_to_seq(self.image_data[img_idx], self.seq_len, t_switch)
+        label_seq = sample_to_seq(self.label_data[img_idx], self.seq_len, t_switch)
         return image_seq, label_seq
 
     def __len__(self):
-        return len(self.label_data)
+        return len(self.seq_idx)
 
 
 def create_sequences(
@@ -42,11 +54,7 @@ def create_sequences(
         switch_time (list): provided switch time (can be list of len 1)
         num_switch (int): number of switches in the whole sequence
     """
-    if random_switch:
-        # randomly select switch time from t=1 on
-        t_switch = np.random.choice(np.arange(1, sequence_len), size=num_switch, replace=False).tolist()
-    else:
-        t_switch = switch_time
+    
 
     n_samples = len(labels)
     img_dim = tuple(images[0].size())
@@ -63,22 +71,25 @@ def create_sequences(
     label_sequences = torch.zeros((max_num_sequences, sequence_len))
 
     for s in range(max_num_sequences):
-        selected_idx = np.random.choice(np.setdiff1d(randomised_indices, mask), size=(num_switch + 1))
+        if s%1000 == 0:
+            print(str(s) + 'sequences sampled')
+        available_idx = np.setdiff1d(randomised_indices, mask, assume_unique=True)
+        selected_idx = np.random.choice(available_idx, size=(num_switch + 1), replace=False)
         # if there's repeat resample
         while len(np.unique(labels[selected_idx])) < (num_switch + 1):
-            selected_idx = np.random.choice(np.setdiff1d(randomised_indices, mask), size=(num_switch + 1))
+            selected_idx = np.random.choice(available_idx, size=(num_switch + 1), replace=False)
         # update indices that have been selected
         mask = np.concatenate((mask, selected_idx))
         sequence_indices[s, :] = torch.tensor(selected_idx)
 
         # create sequences
-        sequence_img_sample = sample_to_seq(images[selected_idx], sequence_len, t_switch)
-        sequence_label_sample = sample_to_seq(labels[selected_idx], sequence_len, t_switch)
+        # sequence_img_sample = sample_to_seq(images[selected_idx], sequence_len, t_switch)
+        # sequence_label_sample = sample_to_seq(labels[selected_idx], sequence_len, t_switch)
 
-        image_sequences[s, :, :, :] = sequence_img_sample
-        label_sequences[s, :] = sequence_label_sample
+        # image_sequences[s, :, :, :] = sequence_img_sample
+        # label_sequences[s, :] = sequence_label_sample
 
-    return image_sequences, label_sequences
+    return sequence_indices # image_sequences, label_sequences
 
 
 def sample_to_seq(sample: torch.Tensor, seq_len: int, switch_t: list):
@@ -89,15 +100,14 @@ def sample_to_seq(sample: torch.Tensor, seq_len: int, switch_t: list):
     :param switch_t: when to change stimulus
     :return: one sample sequence, tensor by shape seq_len*h*w or if targets seq_len
     """
-    # check whether samples are images or targets
-    if len(sample[0].size()) > 1:
-        dims = tuple(sample[0].size())
-    else:
-        dims = (1,)
     ts = [0] + switch_t + [seq_len]
     sequence = []
     for i in range(len(ts) - 1):  # iterate through switch_t elements
-        sequence.append(sample[i].repeat((ts[i + 1] - ts[i],) + dims))
+        # check whether samples are images or targets
+        if len(sample[0].size())>1: 
+            sequence.append(sample[i].repeat(int(ts[i + 1] - ts[i]), 1, 1))
+        else:
+            sequence.append(sample[i].repeat(int(ts[i + 1] - ts[i]), 1))
 
     sequence = torch.vstack(sequence)
 

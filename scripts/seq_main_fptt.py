@@ -18,7 +18,6 @@ import os
 
 import matplotlib.pyplot as plt
 import IPython.display as ipd
-
 from tqdm import tqdm
 
 from network_class import *
@@ -50,7 +49,7 @@ config.num_readout = 10
 
 # loss hypers
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1  # - config.clf_alpha
+config.energy_alpha = 0  # - config.clf_alpha
 
 # training alg hypers
 config.lr = 1e-3
@@ -75,7 +74,7 @@ log_interval = 10
 epoch = 10
 n_classes = 10
 
-config.exp_name = config.alg + '_ener_dp05_poisson05thre_01alpha'
+config.exp_name = config.alg + '_noener_seq_newloss'
 
 # experiment name 
 exp_name = config.exp_name
@@ -116,18 +115,22 @@ seq_train = SequenceDataset(traindata.data, traindata.targets, config.seq_len, c
 seq_test = SequenceDataset(testdata.data, testdata.targets, config.seq_len, config.random_switch,
                            config.switch_time, config.num_switch)
 
-print('image sequence data shape: ' + seq_train.img_datasize)
-print('label sequence data shape: ' + seq_train.label_size)
-
-train_loader = torch.utils.data.Dataloader(seq_train, batch_size=batch_size,
-                                           shuffle=True, num_workers=2)
-test_loader = torch.utils.data.DataLoader(seq_test, batch_size=batch_size,
-                                          shuffle=True, num_workers=2)
 
 # %%
-###############################################################
+train_loader = torch.utils.data.DataLoader(seq_train, batch_size=batch_size,
+                                           shuffle=False, num_workers=3)
+test_loader = torch.utils.data.DataLoader(seq_test, batch_size=batch_size,
+                                          shuffle=False, num_workers=3)
+
+for batch_idx, (data, target) in enumerate(train_loader):
+    print(data.shape)
+    print(target.shape)
+    break
+
+# %%
+# ##############################################################
 # DEFINE NETWORK
-###############################################################
+# ##############################################################
 
 # set input and t param
 IN_dim = 784
@@ -158,7 +161,7 @@ test_loss, acc1 = test_seq(model, test_loader, T)
 
 # %%
 
-epochs = 20
+epochs = 40
 named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20

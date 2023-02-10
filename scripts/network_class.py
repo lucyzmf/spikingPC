@@ -124,7 +124,7 @@ class OutputLayer(nn.Module):
         if self.is_fc:
             x_t = self.fc(x_t)
         else:
-            x_t = x_t.view(-1, 10, int(self.in_dim / 10)).sum(dim=2)  # sum up population spike
+            x_t = x_t.view(-1, 10, int(self.in_dim / 10)).mean(dim=2)  # sum up population spike
 
         # d_mem = -mem_t + x_t
         mem = (mem_t + x_t) * self.tau_m
@@ -277,6 +277,6 @@ class SnnNetworkSeq(SnnNetwork):
             pred_hist.append(pred)
             h_hist.append(h)
 
-        pred_hist = torch.concatenate(pred_hist)
+        pred_hist = torch.stack(pred_hist).squeeze()
 
         return log_softmax_hist, h_hist, pred_hist

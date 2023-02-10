@@ -163,7 +163,7 @@ def train_fptt_seq(epoch, batch_size, log_interval,
 
         # to device and reshape
         data, target = data.to(device), target.to(device)
-        data = data.view(-1, model.in_dim)
+        data = data.view(-1, time_steps, model.in_dim)
 
         B = target.size()[0]
 
@@ -183,7 +183,7 @@ def train_fptt_seq(epoch, batch_size, log_interval,
                 optimizer.zero_grad()
 
                 # classification loss
-                clf_loss = (t + 1) / k_updates * F.nll_loss(o, target)
+                clf_loss = F.nll_loss(o, target[:, t])
                 # clf_loss = snr*F.cross_entropy(output, target,reduction='none')
                 # clf_loss = torch.mean(clf_loss)
 
