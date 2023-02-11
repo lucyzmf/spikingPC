@@ -59,6 +59,7 @@ config.k_updates = 20
 # seq data set config
 config.seq_data = True  # whether applies sequence data
 seq_data = config.seq_data
+config.seq_type = 'pred'  # whether change in digit is predictable (eg acending order) or unpredictable
 config.seq_len = 20  # sequence length
 config.random_switch = False  # predictable or random switch time
 config.switch_time = [config.seq_len / 2]  # if not random switch, provide switch time
@@ -109,10 +110,16 @@ testdata = torchvision.datasets.MNIST(root='./data', train=False,
                                       download=True, transform=transform)
 
 # generate sequence dataset
-seq_train = SequenceDataset(traindata.data, traindata.targets, config.seq_len, config.random_switch,
-                            config.switch_time, config.num_switch)
-seq_test = SequenceDataset(testdata.data, testdata.targets, config.seq_len, config.random_switch,
-                           config.switch_time, config.num_switch)
+if config.seq_type == 'pred':
+    seq_train = SequenceDatasetPredictable(traindata.data, traindata.targets, config.seq_len, config.random_switch,
+                                           config.switch_time, config.num_switch)
+    seq_test = SequenceDatasetPredictable(testdata.data, testdata.targets, config.seq_len, config.random_switch,
+                                          config.switch_time, config.num_switch)
+else:
+    seq_train = SequenceDataset(traindata.data, traindata.targets, config.seq_len, config.random_switch,
+                                config.switch_time, config.num_switch)
+    seq_test = SequenceDataset(testdata.data, testdata.targets, config.seq_len, config.random_switch,
+                               config.switch_time, config.num_switch)
 
 # %%
 train_loader = torch.utils.data.DataLoader(seq_train, batch_size=batch_size,
