@@ -154,10 +154,10 @@ class SequenceDatasetPredictable(Dataset):
         # find index of the second stimulus in sequence
         if first_label != 9:
             second_label_indices = torch.nonzero(self.label_data == (first_label+1)).squeeze()
-            second_label_idx = second_label_indices[np.random.randint(len(second_label_indices))]
+            second_label_idx = second_label_indices[np.random.randint(len(second_label_indices))].item()
         else:
             second_label_indices = torch.nonzero(self.label_data == 0).squeeze()
-            second_label_idx = second_label_indices[np.random.randint(len(second_label_indices))]
+            second_label_idx = second_label_indices[np.random.randint(len(second_label_indices))].item()
         seq_indices = [first_label_idx, second_label_idx]
         image_seq = sample_to_seq(self.image_data[seq_indices], self.seq_len, t_switch)
         label_seq = sample_to_seq(self.label_data[seq_indices], self.seq_len, t_switch)
