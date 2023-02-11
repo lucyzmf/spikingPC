@@ -35,7 +35,7 @@ class SequenceDataset(Dataset):
     def __getitem__(self, idx):
         if self.random_switch:
             # randomly select switch time from t=1 on
-            t_switch = np.random.choice(np.arange(1, self.sequence_len), size=self.num_switch, replace=False).tolist()
+            t_switch = np.random.choice(np.arange(1, self.seq_len), size=self.num_switch, replace=False).tolist()
         else:
             t_switch = self.switch_time
 
