@@ -81,6 +81,7 @@ exp_dir = '/home/lucy/spikingPC/results/Feb-10-2023/fptt_ener_seq_newloss2_outme
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
+model.eval()
 
 # %%
 # get params and put into dict
@@ -97,8 +98,10 @@ print(param_names)
 # plot p to r weights
 fig, axs = plt.subplots(1, 10, figsize=(35, 3))
 for i in range(10):
-    sns.heatmap(model.rout2rin.weight[:, num_readout * i:(i + 1) * num_readout].detach().cpu().numpy().sum(axis=1).reshape(28, 28),
-                ax=axs[i])
+    sns.heatmap(
+        model.rout2rin.weight[:, num_readout * i:(i + 1) * num_readout].detach().cpu().numpy().sum(axis=1).reshape(28,
+                                                                                                                   28),
+        ax=axs[i])
 plt.title('r_out weights to r_in by class')
 
 # plt.show()
@@ -110,7 +113,7 @@ plt.close()
 fig = plt.figure()
 x = ['exci', 'inhi']
 p2r_w = model.rout2rin.weight
-y = [(p2r_w*(p2r_w>0)).detach().cpu().numpy().sum(), -(p2r_w*(p2r_w<0)).detach().cpu().numpy().sum()]
+y = [(p2r_w * (p2r_w > 0)).detach().cpu().numpy().sum(), -(p2r_w * (p2r_w < 0)).detach().cpu().numpy().sum()]
 sns.barplot(x=x, y=y)
 plt.title('p to r exci vs inhi')
 plt.show()
@@ -150,11 +153,13 @@ plt.show()
 # plt.savefig(exp_dir + 'r2p weights')
 # plt.close()
 # %%
-#  get_analysisdata_seq
-model.eval()
+#  get all analysis data in sequence condition
 test_loss = 0
 correct = 0
 correct_end_of_seq = 0
+
+hiddens_all = []
+predictions_all = []
 
 # for data, target in test_loader:
 for i, (data, target) in enumerate(test_loader):
@@ -166,6 +171,8 @@ for i, (data, target) in enumerate(test_loader):
         hidden = model.init_hidden(data.size(0))
 
         log_softmax_outputs, hidden, pred_hist = model.inference(data, hidden, seq_len)
+        hiddens_all.append(hidden)
+        predictions_all.append(pred_hist)
 
         # compute loss at each time step
         for t in range(seq_len):
@@ -173,16 +180,68 @@ for i, (data, target) in enumerate(test_loader):
 
     correct += pred_hist.T.eq(target.data).cpu().sum()
     # only check end of sequence acc 
-    correct_end_of_seq += pred_hist.T[:, int(seq_len/2)-1].eq(target[:, int(seq_len/2)-1].data).cpu().sum() 
-    correct_end_of_seq += pred_hist.T[:, seq_len-1].eq(target[:, seq_len-1].data).cpu().sum()
+    correct_end_of_seq += pred_hist.T[:, int(seq_len / 2) - 1].eq(target[:, int(seq_len / 2) - 1].data).cpu().sum()
+    correct_end_of_seq += pred_hist.T[:, seq_len - 1].eq(target[:, seq_len - 1].data).cpu().sum()
     torch.cuda.empty_cache()
-
 
 test_loss /= len(test_loader.dataset)  # per t loss
 test_acc = 100. * correct / len(test_loader.dataset) / seq_len
 test_acc_endofseq = 100 * correct_end_of_seq / len(test_loader.dataset) / 2
 
-print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%), End of seq acc: {.2f}%\n'.format(
     test_loss, int(correct / seq_len), len(test_loader.dataset),
-    test_acc))
+    test_acc, test_acc_endofseq))
 
+predictions_all = torch.stack(predictions_all).reshape(seq_test.num_samples, seq_test.seq_len)
+
+# %%
+# decompose input signals in normal sequence
+seq_hidden_batch = hiddens_all[0]
+r_from_p_ex = []
+r_from_p_inh = []
+p_from_r_ex = []
+p_from_r_inh = []
+p_from_p_ex = []
+p_from_p_inh = []
+r_from_r_ex = []
+r_from_r_inh = []
+r_spk_rate = []
+p_spk_rate =[]
+
+timesteps = len(seq_hidden_batch)
+
+# only take one sample for the computation
+for t in np.arange(1, timesteps):
+    r_from_p_ex.append(((model.rout2rin.weight.ge(0) * model.rout2rin.weight) @ seq_hidden_batch[t - 1][5][0].T).mean().detach().cpu().numpy())
+    r_from_p_inh.append(((model.rout2rin.weight.le(0) * model.rout2rin.weight) @ seq_hidden_batch[t - 1][5][0].T).mean().detach().cpu().numpy())
+    # p_from_r_ex.append(((model.rin2rout.weight.ge(0) * model.rin2rout.weight) @ seq_hidden_batch[t][1][0].T).mean().detach().cpu().numpy())
+    # p_from_r_inh.append(((model.rin2rout.weight.le(0) * model.rin2rout.weight) @ seq_hidden_batch[t][1][0].T).mean().detach().cpu().numpy())
+    # p_from_p_ex.append(((model.r_out_rec.rec_w.weight.ge(0) * model.r_out_rec.rec_w.weight) @ seq_hidden_batch[t - 1][5][0].T).mean().detach().cpu().numpy())
+    # p_from_p_inh.append(((model.r_out_rec.rec_w.weight.le(0) * model.r_out_rec.rec_w.weight) @ seq_hidden_batch[t - 1][5][0].T).mean().detach().cpu().numpy())
+    r_from_r_ex.append(((model.r_in_rec.rec_w.weight.ge(0) * model.r_in_rec.rec_w.weight) @ seq_hidden_batch[t - 1][1][0].T).mean().detach().cpu().numpy())
+    r_from_r_inh.append(((model.r_in_rec.rec_w.weight.ge(0) * model.r_in_rec.rec_w.weight) @ seq_hidden_batch[t - 1][1][0].T).mean().detach().cpu().numpy())
+    r_spk_rate.append(seq_hidden_batch[t][1][0].mean().detach().cpu().numpy())
+    # p_spk_rate.append(seq_hidden_batch[t][5][0].mean().detach().cpu().numpy())
+
+
+
+fig = plt.figure()
+x = np.arange(1, timesteps)
+plt.plot(x, np.hstack(r_from_p_ex), label='r_from_p_ex')
+plt.plot(x, np.hstack(r_from_p_inh), label='r_from_p_inh')
+# plt.plot(x, np.hstack(p_from_r_ex), label='p_from_r_ex')
+# plt.plot(x, np.hstack(p_from_r_inh), label='p_from_r_inh')
+# plt.plot(x, np.hstack(p_from_p_ex), label='p_from_p_ex')
+# plt.plot(x, np.hstack(p_from_p_inh), label='p_from_p_inh')
+plt.plot(x, np.hstack(r_from_r_ex), label='r_from_r_ex')
+plt.plot(x, np.hstack(r_from_r_inh), label='r_from_r_inh')
+plt.plot(x, (np.hstack(r_from_p_ex)+np.hstack(r_from_p_inh)), label='p2r input')
+plt.plot(x, (np.hstack(r_from_r_ex)+np.hstack(r_from_r_inh)), label='r2r input')
+plt.plot(x, np.hstack(r_spk_rate), label='r spk rate', linestyle='dashed')
+# plt.plot(x, np.hstack(p_spk_rate), label='p spk rate', linestyle='dashed')
+
+plt.legend()
+plt.title('mean exhitatory and inhibitory signals by source and target type')
+plt.show()
+# plt.savefig(exp_dir + 'mean exhitatory and inhibitory signals by source and target type')
+# plt.close()
