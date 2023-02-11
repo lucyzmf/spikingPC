@@ -111,3 +111,57 @@ def sample_to_seq(sample: torch.Tensor, seq_len: int, switch_t: list):
     assert len(sequence) == seq_len
 
     return sequence.squeeze()
+
+
+class SequenceDatasetPredictable(Dataset):
+    def __init__(self, images: torch.Tensor,
+                 labels: torch.Tensor,
+                 sequence_len: int,
+                 random_switch: bool,
+                 switch_time: list,
+                 num_switch: int):
+        """
+        create sequence dataset from image data
+        :param images: images used to create sequences
+        :param labels: corresponding labels
+        :param sequence_len: length of sequence created
+        :param random_switch: whether the change in stimulus happens randomly or at fixed time
+        :param switch_time: if not random switch, provide switch time
+        :param num_switch: total number of switch times in the sequence
+        """
+
+        self.image_data = images
+        self.label_data = labels
+        self.seq_len = sequence_len
+        self.random_switch = random_switch
+        self.switch_time = switch_time
+        self.num_switch = num_switch
+
+        self.num_samples = len(self.label_data)
+
+        print('num of sequences created: %i' % self.num_samples)
+
+    def __getitem__(self, idx):
+        if self.random_switch:
+            # randomly select switch time from t=1 on
+            t_switch = np.random.choice(np.arange(1, self.seq_len), size=self.num_switch, replace=False).tolist()
+        else:
+            t_switch = self.switch_time
+
+        # get img_idx which is a list containing appropriate indices
+        first_label_idx = idx
+        first_label = self.label_data[first_label_idx]
+        # find index of the second stimulus in sequence
+        if first_label != 9:
+            second_label_indices = torch.nonzero(self.label_data == (first_label+1)).squeeze()
+            second_label_idx = second_label_indices[np.random.randint(len(second_label_indices))]
+        else:
+            second_label_indices = torch.nonzero(self.label_data == 0).squeeze()
+            second_label_idx = second_label_indices[np.random.randint(len(second_label_indices))]
+        seq_indices = [first_label_idx, second_label_idx]
+        image_seq = sample_to_seq(self.image_data[seq_indices], self.seq_len, t_switch)
+        label_seq = sample_to_seq(self.label_data[seq_indices], self.seq_len, t_switch)
+        return image_seq, label_seq
+
+    def __len__(self):
+        return len(self.label_data)
