@@ -54,12 +54,12 @@ config.energy_alpha = 0  # - config.clf_alpha
 config.lr = 1e-3
 config.alg = 'bp'
 alg = config.alg
-config.k_updates = 20
+config.k_updates = 40
 
 # seq data set config
 config.seq_data = True  # whether applies sequence data
 seq_data = config.seq_data
-config.seq_len = 20  # sequence length
+config.seq_len = 40  # sequence length
 config.random_switch = False  # predictable or random switch time
 config.switch_time = [config.seq_len / 2]  # if not random switch, provide switch time
 config.num_switch = 1  # used when random switch=T
@@ -69,11 +69,11 @@ T = config.seq_len
 K = config.k_updates  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
-log_interval = 10
+log_interval = 20
 epoch = 10
 n_classes = 10
 
-config.exp_name = config.alg + '_noener_seq_newloss'
+config.exp_name = config.alg + '_noener_seq_bp_nocurr_scaleinput02'
 
 # experiment name 
 exp_name = config.exp_name

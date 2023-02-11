@@ -43,7 +43,7 @@ config = wandb.config
 
 # network hypers
 config.adap_neuron = True  # whether use adaptive neuron or not
-config.dp = 0.5
+config.dp = 0.2
 config.onetoone = True
 config.num_readout = 10
 
@@ -60,7 +60,7 @@ config.k_updates = 20
 # seq data set config
 config.seq_data = True  # whether applies sequence data
 seq_data = config.seq_data
-config.seq_len = 20  # sequence length
+config.seq_len = 40  # sequence length
 config.random_switch = False  # predictable or random switch time
 config.switch_time = [config.seq_len / 2]  # if not random switch, provide switch time
 config.num_switch = 1  # used when random switch=T
@@ -74,7 +74,7 @@ log_interval = 10
 epoch = 10
 n_classes = 10
 
-config.exp_name = config.alg + '_noener_seq_newloss'
+config.exp_name = config.alg + '_noener_fpttalpha02_nocurr_scale02'
 
 # experiment name 
 exp_name = config.exp_name
@@ -161,7 +161,7 @@ test_loss, acc1 = test_seq(model, test_loader, T)
 
 # %%
 
-epochs = 40
+epochs = 30
 named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20
