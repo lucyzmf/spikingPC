@@ -247,7 +247,7 @@ test_loss, acc1 = test_seq(model, test_loader, T)
 
 # %%
 
-epochs = 40
+epochs = 30
 all_test_losses = []
 best_acc1 = 20
 
