@@ -98,7 +98,7 @@ else:
 ###############################################################
 
 transform = transforms.Compose(
-    [transforms.ToTensor(),
+    [#transforms.ToTensor(),
      transforms.Normalize((0.5), (0.5))])
 
 batch_size = 256
@@ -111,14 +111,14 @@ testdata = torchvision.datasets.MNIST(root='./data', train=False,
 
 # generate sequence dataset
 if config.seq_type == 'pred':
-    seq_train = SequenceDatasetPredictable(traindata.data, traindata.targets, config.seq_len, config.random_switch,
+    seq_train = SequenceDatasetPredictable(traindata.data.float(), traindata.targets, config.seq_len, config.random_switch,
                                            config.switch_time, config.num_switch, transform)
-    seq_test = SequenceDatasetPredictable(testdata.data, testdata.targets, config.seq_len, config.random_switch,
+    seq_test = SequenceDatasetPredictable(testdata.data.float(), testdata.targets, config.seq_len, config.random_switch,
                                           config.switch_time, config.num_switch, transform)
 else:
-    seq_train = SequenceDataset(traindata.data, traindata.targets, config.seq_len, config.random_switch,
+    seq_train = SequenceDataset(traindata.data.float(), traindata.targets, config.seq_len, config.random_switch,
                                 config.switch_time, config.num_switch, transform)
-    seq_test = SequenceDataset(testdata.data, testdata.targets, config.seq_len, config.random_switch,
+    seq_test = SequenceDataset(testdata.data.float(), testdata.targets, config.seq_len, config.random_switch,
                                config.switch_time, config.num_switch, transform)
 
 # %%
