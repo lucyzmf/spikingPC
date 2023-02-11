@@ -16,7 +16,7 @@ class SnnLayer(nn.Module):
             one_to_one: bool,
             tau_m_init=3., 
             tau_adap_init=4.6, 
-            tau_i_init=-1.
+            tau_i_init=-2.
     ):
         super(SnnLayer, self).__init__()
 

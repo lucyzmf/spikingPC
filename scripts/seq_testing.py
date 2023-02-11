@@ -150,3 +150,39 @@ plt.show()
 # plt.savefig(exp_dir + 'r2p weights')
 # plt.close()
 # %%
+#  get_analysisdata_seq
+model.eval()
+test_loss = 0
+correct = 0
+correct_end_of_seq = 0
+
+# for data, target in test_loader:
+for i, (data, target) in enumerate(test_loader):
+    data, target = data.to(device), target.to(device)
+    data = data.view(-1, seq_len, model.in_dim)
+
+    with torch.no_grad():
+        model.eval()
+        hidden = model.init_hidden(data.size(0))
+
+        log_softmax_outputs, hidden, pred_hist = model.inference(data, hidden, seq_len)
+
+        # compute loss at each time step
+        for t in range(seq_len):
+            test_loss += F.nll_loss(log_softmax_outputs[t], target[:, t], reduction='sum').data.item()
+
+    correct += pred_hist.T.eq(target.data).cpu().sum()
+    # only check end of sequence acc 
+    correct_end_of_seq += pred_hist.T[:, int(seq_len/2)-1].eq(target[:, int(seq_len/2)-1].data).cpu().sum() 
+    correct_end_of_seq += pred_hist.T[:, seq_len-1].eq(target[:, seq_len-1].data).cpu().sum()
+    torch.cuda.empty_cache()
+
+
+test_loss /= len(test_loader.dataset)  # per t loss
+test_acc = 100. * correct / len(test_loader.dataset) / seq_len
+test_acc_endofseq = 100 * correct_end_of_seq / len(test_loader.dataset) / 2
+
+print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    test_loss, int(correct / seq_len), len(test_loader.dataset),
+    test_acc))
+
