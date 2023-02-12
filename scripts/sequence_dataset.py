@@ -164,7 +164,13 @@ class SequenceDatasetPredictable(Dataset):
             second_label_indices = torch.nonzero(self.label_data == 0).squeeze()
             second_label_idx = second_label_indices[np.random.randint(len(second_label_indices))].item()
         seq_indices = [first_label_idx, second_label_idx]
-        image_data_trans = self.transform(self.image_data[seq_indices]).squeeze()
+
+        # transform
+        selected_img = self.image_data[seq_indices]
+        image_data_trans = []
+        for i in range(len(seq_indices)):
+            image_data_trans.append(self.transform(selected_img[i]).squeeze())
+        image_data_trans = torch.stack(image_data_trans)
         image_seq = sample_to_seq(image_data_trans, self.seq_len, t_switch)
         label_seq = sample_to_seq(self.label_data[seq_indices], self.seq_len, t_switch)
         return image_seq, label_seq
