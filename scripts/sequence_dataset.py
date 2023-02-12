@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-
+import torchvision.transforms.functional as F
 
 class SequenceDataset(Dataset):
     def __init__(self, images: torch.Tensor,
@@ -166,11 +166,7 @@ class SequenceDatasetPredictable(Dataset):
         seq_indices = [first_label_idx, second_label_idx]
 
         # transform
-        selected_img = self.image_data[seq_indices]
-        image_data_trans = []
-        for i in range(len(seq_indices)):
-            image_data_trans.append(self.transform(selected_img[i]).squeeze())
-        image_data_trans = torch.stack(image_data_trans)
+        image_data_trans = F.normalize(self.image_data[seq_indices], [0.5], [0.5]).squeeze()
         image_seq = sample_to_seq(image_data_trans, self.seq_len, t_switch)
         label_seq = sample_to_seq(self.label_data[seq_indices], self.seq_len, t_switch)
         return image_seq, label_seq
