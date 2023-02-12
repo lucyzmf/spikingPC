@@ -135,6 +135,7 @@ class SequenceDatasetPredictable(Dataset):
         """
 
         self.image_data = torch.unsqueeze(images, dim=1)
+        self.image_data_trans = self.transform(self.image_data)
         self.label_data = labels
         self.seq_len = sequence_len
         self.random_switch = random_switch
@@ -166,7 +167,7 @@ class SequenceDatasetPredictable(Dataset):
         seq_indices = [first_label_idx, second_label_idx]
 
         # transform
-        image_data_trans = F.normalize(self.image_data[seq_indices], [0.5], [0.5]).squeeze()
+        image_data_trans = self.image_data_trans[seq_indices].squeeze()
         image_seq = sample_to_seq(image_data_trans, self.seq_len, t_switch)
         label_seq = sample_to_seq(self.label_data[seq_indices], self.seq_len, t_switch)
         return image_seq, label_seq
