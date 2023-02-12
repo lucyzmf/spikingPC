@@ -21,7 +21,7 @@ class SequenceDataset(Dataset):
         :param num_switch: total number of switch times in the sequence
         """
 
-        self.image_data = images
+        self.image_data = torch.unsqueeze(images, dim=1)  # unsqueeze for transform
         self.label_data = labels
         self.seq_len = sequence_len
         self.random_switch = random_switch
@@ -43,7 +43,7 @@ class SequenceDataset(Dataset):
 
         # get img index used in a sequence
         img_idx = self.seq_idx[idx].tolist()
-        image_data_transformed = self.transform(self.image_data[img_idx])
+        image_data_transformed = self.transform(self.image_data[img_idx]).squeeze()  # get rid of channel dim here
         image_seq = sample_to_seq(image_data_transformed, self.seq_len, t_switch)
         label_seq = sample_to_seq(self.label_data[img_idx], self.seq_len, t_switch)
         return image_seq, label_seq
@@ -134,7 +134,7 @@ class SequenceDatasetPredictable(Dataset):
         :param num_switch: total number of switch times in the sequence
         """
 
-        self.image_data = images
+        self.image_data = torch.unsqueeze(images, dim=1)
         self.label_data = labels
         self.seq_len = sequence_len
         self.random_switch = random_switch
@@ -164,7 +164,7 @@ class SequenceDatasetPredictable(Dataset):
             second_label_indices = torch.nonzero(self.label_data == 0).squeeze()
             second_label_idx = second_label_indices[np.random.randint(len(second_label_indices))].item()
         seq_indices = [first_label_idx, second_label_idx]
-        image_data_trans = self.transform(self.image_data[seq_indices])
+        image_data_trans = self.transform(self.image_data[seq_indices]).squeeze()
         image_seq = sample_to_seq(image_data_trans, self.seq_len, t_switch)
         label_seq = sample_to_seq(self.label_data[seq_indices], self.seq_len, t_switch)
         return image_seq, label_seq
