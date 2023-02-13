@@ -310,7 +310,7 @@ def get_states(hiddens_all_: list, idx: int, hidden_dim_: int, batch_size, T=20)
 
     all_states = np.stack(all_states)
 
-    return all_states.transpose(0, 2, 1, 3).reshape(10000, 20, hidden_dim_)
+    return all_states.transpose(0, 2, 1, 3).reshape(10000, T, hidden_dim_)
 
 
 # %%

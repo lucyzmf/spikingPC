@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from network import *
 
+b_j0 = 0.1  # neural threshold baseline
 
 class SnnLayer(nn.Module):
     def __init__(
@@ -16,7 +17,7 @@ class SnnLayer(nn.Module):
             one_to_one: bool,
             tau_m_init=3., 
             tau_adap_init=4.6, 
-            tau_i_init=-2.
+            tau_i_init=0.
     ):
         super(SnnLayer, self).__init__()
 
@@ -48,7 +49,7 @@ class SnnLayer(nn.Module):
 
         self.sigmoid = nn.Sigmoid()
 
-    def mem_update(self, inputs, mem, spike, current, b, is_adapt, dt=1, baseline_thre=0.1, r_m=3):
+    def mem_update(self, inputs, mem, spike, current, b, is_adapt, dt=1, baseline_thre=b_j0, r_m=3):
         alpha = self.sigmoid(self.tau_m)
         rho = self.sigmoid(self.tau_adp)
         eta = self.sigmoid(self.tau_i)
@@ -63,7 +64,7 @@ class SnnLayer(nn.Module):
         b = rho * b + (1 - rho) * spike  # adaptive contribution
         new_thre = baseline_thre + beta * b  # udpated threshold
 
-        current = eta * current + inputs
+        current = eta * current + (1-eta) * inputs
 
         # mem = mem * alpha + (1 - alpha) * r_m * inputs - new_thre * spike
         mem = mem * alpha + current - new_thre * spike  # soft reset

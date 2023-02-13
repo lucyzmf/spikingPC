@@ -75,7 +75,7 @@ log_interval = 10
 epoch = 10
 n_classes = 10
 
-config.exp_name = config.alg + '_noener_fpttalpha02_nocurr_scale02'
+config.exp_name = config.alg + '_noener_fpttalpha02_curr0'
 
 # experiment name 
 exp_name = config.exp_name
@@ -99,7 +99,7 @@ else:
 ###############################################################
 
 transform = transforms.Compose(
-    [#transforms.ToTensor(),
+    [transforms.ToTensor(),
      transforms.Normalize((0.5), (0.5))])
 
 batch_size = 256
@@ -112,17 +112,16 @@ testdata = torchvision.datasets.MNIST(root='./data', train=False,
 
 # generate sequence dataset
 if config.seq_type == 'pred':
-    seq_train = SequenceDatasetPredictable(traindata.data.float(), traindata.targets, config.seq_len, config.random_switch,
-                                           config.switch_time, config.num_switch, transform)
-    seq_test = SequenceDatasetPredictable(testdata.data.float(), testdata.targets, config.seq_len, config.random_switch,
-                                          config.switch_time, config.num_switch, transform)
+    seq_train = SequenceDatasetPredictable(traindata, traindata.targets, config.seq_len, config.random_switch,
+                                           config.switch_time, config.num_switch)
+    seq_test = SequenceDatasetPredictable(testdata, testdata.targets, config.seq_len, config.random_switch,
+                                          config.switch_time, config.num_switch)
 else:
-    seq_train = SequenceDataset(traindata.data.float(), traindata.targets, config.seq_len, config.random_switch,
-                                config.switch_time, config.num_switch, transform)
-    seq_test = SequenceDataset(testdata.data.float(), testdata.targets, config.seq_len, config.random_switch,
-                               config.switch_time, config.num_switch, transform)
+    seq_train = SequenceDataset(traindata, traindata.targets, config.seq_len, config.random_switch,
+                                config.switch_time, config.num_switch)
+    seq_test = SequenceDataset(testdata, testdata.targets, config.seq_len, config.random_switch,
+                               config.switch_time, config.num_switch)
 
-seq_train[0]
 # %%
 train_loader = torch.utils.data.DataLoader(seq_train, batch_size=batch_size,
                                            shuffle=False, num_workers=3)
