@@ -48,7 +48,7 @@ config.num_readout = 10
 
 # loss hypers
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 0  # - config.clf_alpha
+config.energy_alpha = 1  # - config.clf_alpha
 
 # training alg hypers
 config.lr = 1e-3
@@ -74,7 +74,7 @@ log_interval = 20
 epoch = 10
 n_classes = 10
 
-config.exp_name = config.alg + '_noener_seq_bp_nocurr_scaleinput02'
+config.exp_name = config.alg + '_ener_fpttalpha02_curr0'
 
 # experiment name 
 exp_name = config.exp_name
@@ -98,7 +98,7 @@ else:
 ###############################################################
 
 transform = transforms.Compose(
-    [#transforms.ToTensor(),
+    [transforms.ToTensor(),
      transforms.Normalize((0.5), (0.5))])
 
 batch_size = 256
@@ -111,15 +111,15 @@ testdata = torchvision.datasets.MNIST(root='./data', train=False,
 
 # generate sequence dataset
 if config.seq_type == 'pred':
-    seq_train = SequenceDatasetPredictable(traindata.data.float(), traindata.targets, config.seq_len, config.random_switch,
-                                           config.switch_time, config.num_switch, transform)
-    seq_test = SequenceDatasetPredictable(testdata.data.float(), testdata.targets, config.seq_len, config.random_switch,
-                                          config.switch_time, config.num_switch, transform)
+    seq_train = SequenceDatasetPredictable(traindata, traindata.targets, config.seq_len, config.random_switch,
+                                           config.switch_time, config.num_switch)
+    seq_test = SequenceDatasetPredictable(testdata, testdata.targets, config.seq_len, config.random_switch,
+                                          config.switch_time, config.num_switch)
 else:
-    seq_train = SequenceDataset(traindata.data.float(), traindata.targets, config.seq_len, config.random_switch,
-                                config.switch_time, config.num_switch, transform)
-    seq_test = SequenceDataset(testdata.data.float(), testdata.targets, config.seq_len, config.random_switch,
-                               config.switch_time, config.num_switch, transform)
+    seq_train = SequenceDataset(traindata, traindata.targets, config.seq_len, config.random_switch,
+                                config.switch_time, config.num_switch)
+    seq_test = SequenceDataset(testdata, testdata.targets, config.seq_len, config.random_switch,
+                               config.switch_time, config.num_switch)
 
 # %%
 train_loader = torch.utils.data.DataLoader(seq_train, batch_size=batch_size,
@@ -254,7 +254,7 @@ test_loss, acc1 = test_seq(model, test_loader, T)
 
 # %%
 
-epochs = 30
+epochs = 20
 all_test_losses = []
 best_acc1 = 20
 

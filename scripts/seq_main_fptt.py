@@ -35,8 +35,8 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-# wandb.init(project="spikingPC_onelayer", entity="lucyzmf")
-wandb.init(mode="disabled")
+wandb.init(project="spikingPC_onelayer", entity="lucyzmf")
+# wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -49,7 +49,7 @@ config.num_readout = 10
 
 # loss hypers
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 0  # - config.clf_alpha
+config.energy_alpha = 1  # - config.clf_alpha
 
 # training alg hypers
 config.lr = 1e-3
@@ -75,7 +75,7 @@ log_interval = 10
 epoch = 10
 n_classes = 10
 
-config.exp_name = config.alg + '_noener_fpttalpha02_curr0'
+config.exp_name = config.alg + '_ener_fpttalpha02_curr0'
 
 # experiment name 
 exp_name = config.exp_name
@@ -167,7 +167,7 @@ test_loss, acc1 = test_seq(model, test_loader, T)
 
 # %%
 
-epochs = 30
+epochs = 20
 named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20

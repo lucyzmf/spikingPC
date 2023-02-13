@@ -1,7 +1,6 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
-import torchvision.transforms.functional as F
 import torchvision
 
 class SequenceDataset(Dataset):
