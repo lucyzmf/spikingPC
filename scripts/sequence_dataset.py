@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 import torchvision.transforms.functional as F
+import torchvision
 
 class SequenceDataset(Dataset):
     def __init__(self, images: torch.Tensor,
@@ -117,7 +118,7 @@ def sample_to_seq(sample: torch.Tensor, seq_len: int, switch_t: list):
 
 
 class SequenceDatasetPredictable(Dataset):
-    def __init__(self, images: torch.Tensor,
+    def __init__(self, images: torchvision.datasets.mnist.MNIST,
                  labels: torch.Tensor,
                  sequence_len: int,
                  random_switch: bool,
@@ -126,7 +127,7 @@ class SequenceDatasetPredictable(Dataset):
                  transform=None):
         """
         create sequence dataset from image data
-        :param images: images used to create sequences
+        :param images: images used to create sequences (mnist object)
         :param labels: corresponding labels
         :param sequence_len: length of sequence created
         :param random_switch: whether the change in stimulus happens randomly or at fixed time
@@ -134,8 +135,7 @@ class SequenceDatasetPredictable(Dataset):
         :param num_switch: total number of switch times in the sequence
         """
 
-        self.image_data = torch.unsqueeze(images, dim=1)
-        self.image_data_trans = self.transform(self.image_data)
+        self.image_data = images
         self.label_data = labels
         self.seq_len = sequence_len
         self.random_switch = random_switch
@@ -167,7 +167,11 @@ class SequenceDatasetPredictable(Dataset):
         seq_indices = [first_label_idx, second_label_idx]
 
         # transform
-        image_data_trans = self.image_data_trans[seq_indices].squeeze()
+        image_data_trans = []
+        for idx in seq_indices:
+            image, _ = self.image_data[idx]
+            image_data_trans.append(image.squeeze())
+        image_data_trans = torch.stack(image_data_trans)
         image_seq = sample_to_seq(image_data_trans, self.seq_len, t_switch)
         label_seq = sample_to_seq(self.label_data[seq_indices], self.seq_len, t_switch)
         return image_seq, label_seq
