@@ -10,8 +10,7 @@ class SequenceDataset(Dataset):
                  sequence_len: int,
                  random_switch: bool,
                  switch_time: list,
-                 num_switch: int,
-                 transform=None):
+                 num_switch: int):
         """
         create sequence dataset from image data
         :param images: images used to create sequences
@@ -28,7 +27,6 @@ class SequenceDataset(Dataset):
         self.random_switch = random_switch
         self.switch_time = switch_time
         self.num_switch = num_switch
-        self.transform = transform
 
         self.seq_idx = create_sequences(labels, num_switch)
         self.num_samples = len(self.seq_idx)
@@ -44,8 +42,11 @@ class SequenceDataset(Dataset):
 
         # get img index used in a sequence
         img_idx = self.seq_idx[idx].tolist()
-        image_data_transformed = self.transform(self.image_data[img_idx]).squeeze()  # get rid of channel dim here
-        image_seq = sample_to_seq(image_data_transformed, self.seq_len, t_switch)
+        for idx in img_idx:
+            image, _ = self.image_data[idx]
+            image_data_trans.append(image.squeeze())
+        image_data_trans = torch.stack(image_data_trans)
+        image_seq = sample_to_seq(image_data_trans, self.seq_len, t_switch)
         label_seq = sample_to_seq(self.label_data[img_idx], self.seq_len, t_switch)
         return image_seq, label_seq
 
@@ -123,8 +124,7 @@ class SequenceDatasetPredictable(Dataset):
                  sequence_len: int,
                  random_switch: bool,
                  switch_time: list,
-                 num_switch: int,
-                 transform=None):
+                 num_switch: int):
         """
         create sequence dataset from image data
         :param images: images used to create sequences (mnist object)
@@ -141,7 +141,6 @@ class SequenceDatasetPredictable(Dataset):
         self.random_switch = random_switch
         self.switch_time = switch_time
         self.num_switch = num_switch
-        self.transform = transform
 
         self.num_samples = len(self.label_data)
 
