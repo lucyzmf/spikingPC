@@ -20,7 +20,7 @@ class SequenceDataset(Dataset):
         :param num_switch: total number of switch times in the sequence
         """
 
-        self.image_data = torch.unsqueeze(images, dim=1)  # unsqueeze for transform
+        self.image_data = images
         self.label_data = labels
         self.seq_len = sequence_len
         self.random_switch = random_switch
@@ -41,8 +41,9 @@ class SequenceDataset(Dataset):
 
         # get img index used in a sequence
         img_idx = self.seq_idx[idx].tolist()
+        image_data_trans = []
         for idx in img_idx:
-            image, _ = self.image_data[idx]
+            image, _ = self.image_data[int(idx)]
             image_data_trans.append(image.squeeze())
         image_data_trans = torch.stack(image_data_trans)
         image_seq = sample_to_seq(image_data_trans, self.seq_len, t_switch)
