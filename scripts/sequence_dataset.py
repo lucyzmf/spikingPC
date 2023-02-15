@@ -122,7 +122,7 @@ class SequenceDatasetPredictable(Dataset):
     def __init__(self, images: torchvision.datasets.mnist.MNIST,
                  labels: torch.Tensor,
                  sequence_len: int,
-                 random_switch: bool,
+                 random_switch: float,
                  switch_time: list,
                  num_switch: int):
         """
@@ -130,7 +130,7 @@ class SequenceDatasetPredictable(Dataset):
         :param images: images used to create sequences (mnist object)
         :param labels: corresponding labels
         :param sequence_len: length of sequence created
-        :param random_switch: whether the change in stimulus happens randomly or at fixed time
+        :param random_switch: probability of switch happening randomly (=0 if change at fixed time)
         :param switch_time: if not random switch, provide switch time
         :param num_switch: total number of switch times in the sequence
         """
@@ -147,7 +147,8 @@ class SequenceDatasetPredictable(Dataset):
         print('num of sequences created: %i' % self.num_samples)
 
     def __getitem__(self, idx):
-        if self.random_switch:
+        v = np.random.random(1)  # for sampling
+        if v < self.random_switch:
             # randomly select switch time from t=1 on
             t_switch = np.random.choice(np.arange(1, self.seq_len), size=self.num_switch, replace=False).tolist()
         else:

@@ -62,7 +62,7 @@ config.seq_data = True  # whether applies sequence data
 seq_data = config.seq_data
 config.seq_type = 'pred'  # whether change in digit is predictable (eg acending order) or unpredictable
 config.seq_len = 40  # sequence length
-config.random_switch = False  # predictable or random switch time
+config.random_switch = 0.1  # probability of random switch time
 config.switch_time = [config.seq_len / 2]  # if not random switch, provide switch time
 config.num_switch = 1  # used when random switch=T
 
