@@ -48,13 +48,13 @@ config.num_readout = 10
 
 # loss hypers
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1  # - config.clf_alpha
+config.energy_alpha = 0  # - config.clf_alpha
 
 # training alg hypers
 config.lr = 1e-3
 config.alg = 'bptt'
 alg = config.alg
-config.k_updates = 40
+config.k_updates = 1
 
 # seq data set config
 config.seq_data = True  # whether applies sequence data
@@ -68,13 +68,13 @@ config.num_switch = 1  # used when random switch=T
 # training parameters
 T = config.seq_len
 K = config.k_updates  # k_updates is num updates per sequence
-omega = int(T / K)  # update frequency
+omega = int(T / K)-1  # update frequency
 clip = 1.
 log_interval = 20
 epoch = 10
 n_classes = 10
 
-config.exp_name = config.alg + '_ener_fpttalpha02_curr0'
+config.exp_name = config.alg + '_noener_curr0'
 
 # experiment name 
 exp_name = config.exp_name
@@ -169,7 +169,7 @@ def train_bptt_seq(epoch, batch_size, log_interval,
             optimizer.zero_grad()
 
             # classification loss
-            clf_loss = (t % int(k_updates / 2) + 1) / (int(k_updates / 2)) * F.nll_loss(o, target[:, t])
+            clf_loss = (t % 20) / (20+1e-3) * F.nll_loss(o, target[:, t])
             # clf_loss = snr*F.cross_entropy(output, target,reduction='none')
             # clf_loss = torch.mean(clf_loss)
 

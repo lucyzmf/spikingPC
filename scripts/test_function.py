@@ -72,8 +72,8 @@ def test_seq(model, test_loader, time_steps):
 
         correct += pred_hist.T.eq(target.data).cpu().sum()
         # only check end of sequence acc 
-        correct_end_of_seq += pred_hist.T[:, int(time_steps/2)-1].eq(target[:, int(time_steps/2)-1].data).cpu().sum() 
-        correct_end_of_seq += pred_hist.T[:, time_steps-1].eq(target[:, time_steps-1].data).cpu().sum()
+        # correct_end_of_seq += pred_hist.T[:, int(time_steps/2)-1].eq(target[:, int(time_steps/2)-1].data).cpu().sum() 
+        # correct_end_of_seq += pred_hist.T[:, time_steps-1].eq(target[:, time_steps-1].data).cpu().sum()
         torch.cuda.empty_cache()
 
     wandb.log({'spike sequence': plot_spiking_sequence(hidden, target)})

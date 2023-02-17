@@ -183,7 +183,8 @@ def train_fptt_seq(epoch, batch_size, log_interval,
                 optimizer.zero_grad()
 
                 # classification loss
-                clf_loss = (t % int(k_updates/2) + 1) / (int(k_updates/2)) *F.nll_loss(o, target[:, t])
+                clf_loss = F.nll_loss(o, target[:, t])
+                # clf_loss = (t % int(k_updates/2) + 1) / (int(k_updates/2)) *F.nll_loss(o, target[:, t])
                 # clf_loss = snr*F.cross_entropy(output, target,reduction='none')
                 # clf_loss = torch.mean(clf_loss)
 

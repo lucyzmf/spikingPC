@@ -62,7 +62,7 @@ config.seq_data = True  # whether applies sequence data
 seq_data = config.seq_data
 config.seq_type = 'pred'  # whether change in digit is predictable (eg acending order) or unpredictable
 config.seq_len = 40  # sequence length
-config.random_switch = 0.1  # probability of random switch time
+config.random_switch = 1.  # probability of random switch time
 config.switch_time = [config.seq_len / 2]  # if not random switch, provide switch time
 config.num_switch = 1  # used when random switch=T
 
@@ -75,7 +75,7 @@ log_interval = 10
 epoch = 10
 n_classes = 10
 
-config.exp_name = config.alg + '_ener_fpttalpha02_curr0'
+config.exp_name = config.alg + '_ener_fpttalpha02_randswitchp' + str(config.random_switch)
 
 # experiment name 
 exp_name = config.exp_name

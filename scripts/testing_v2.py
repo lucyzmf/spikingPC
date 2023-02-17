@@ -89,7 +89,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Feb-08-2023/fptt_ener_dp05_poisson05thre_01alpha/'
+exp_dir = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withener_outmemconstantdecay/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -643,3 +643,6 @@ plt.savefig(exp_dir + 'sum recurrent r to r connectivity of r neurons that inhib
 plt.close()
 
 # %%
+# quantify r class specificity to any given class and connectivity to p 
+# for each pixel location if p in one class / p for all rest of class, if high then high class specificity
+images_all
