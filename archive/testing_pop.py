@@ -62,7 +62,7 @@ test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
 ###############################################################
 # training parameters
 T = 20
-K = T  # K is num updates per sequence
+K = T  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 100
@@ -76,7 +76,7 @@ onetoone = True
 # set input and t param
 IN_dim = 256
 hidden_dim = 256 + 10 * num_readout
-T = 20  # sequence length, reading from the same image T times
+T = 20  # sequence length, reading from the same image time_steps times
 
 # define network
 # define network
@@ -324,7 +324,7 @@ plt.close()
 # mean_spike_seq, mean_internal_drive_seq, energy_seq = compute_energy_consumption(spikes_all, rec_layer_weight)
 
 # # plot
-# t = np.arange(T)
+# t = np.arange(time_steps)
 # plt.plot(t, energy_seq)
 # plt.title('energy by t')
 # plt.show()
@@ -341,7 +341,7 @@ plt.close()
 # ################################
 # # elongated sequence testing 
 # ################################ 
-# # run inferece on two images continuously for T steps each 
+# # run inferece on two images continuously for time_steps steps each
 # data_sample = [3, 4]
 # # take mean of two different number samples to poke error 
 # # abnor_sample = (data[data_sample[1], :] + data[2, :]) / 2
@@ -381,7 +381,7 @@ plt.close()
 #                                                                                        rec_layer_weight)
 
 # # plot
-# t = np.arange(T)
+# t = np.arange(time_steps)
 # plt.plot(t, energy_elong, label='energy')
 # plt.plot(t, mean_spike_elong, label='mean spiking')
 # plt.plot(t, mean_internal_drive_elong, label='mean internal drive by t')
@@ -414,12 +414,12 @@ plt.close()
 #     axs[0][i].axis('off')
 
 #     # rec drive from prediction neurons 
-#     pos = axs[1][i].imshow((spikes_all_elong[0, :10*10, i] @ rec_layer_weight[:, :10*10].T).reshape((28+pad_size, 28))[4:, :], 'bwr')
+#     pos = axs[1][i].imshow((spikes_all_elong[0, :10*10, i] @ rec_layer_weight[:, :10*10].time_steps).reshape((28+pad_size, 28))[4:, :], 'bwr')
 #     fig.colorbar(pos, ax=axs[1][i], shrink=0.5)
 #     axs[1][i].axis('off')
 
 #     # rec drive from other neurons 
-#     pos = axs[2][i].imshow((spikes_all_elong[0, 10*10:, i] @ rec_layer_weight[:, 10*10:].T).reshape((28+pad_size, 28)), 'bwr')
+#     pos = axs[2][i].imshow((spikes_all_elong[0, 10*10:, i] @ rec_layer_weight[:, 10*10:].time_steps).reshape((28+pad_size, 28)), 'bwr')
 #     fig.colorbar(pos, ax=axs[2][i], shrink=0.5)
 #     axs[2][i].axis('off')
 
@@ -429,7 +429,7 @@ plt.close()
 # # %%
 # # plot inputs to each predictive neuron at each timestep 
 # t = np.arange(20)
-# received_input_pred = spikes_all_elong[0, :, :].T @ rec_layer_weight [:, :10*10]
+# received_input_pred = spikes_all_elong[0, :, :].time_steps @ rec_layer_weight [:, :10*10]
 
 # for i in range(10): 
 #     plt.plot(t, received_input_pred[:, i], label=str(i))

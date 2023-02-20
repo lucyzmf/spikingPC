@@ -66,7 +66,7 @@ test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
 ###############################################################
 # training parameters
 T = 20
-K = T  # K is num updates per sequence
+K = T  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 100
@@ -80,7 +80,7 @@ onetoone = True
 # %%
 IN_dim = 784
 hidden_dim = [10 * num_readout, 784]
-T = 20  # sequence length, reading from the same image T times
+T = 20  # sequence length, reading from the same image time_steps times
 
 dp = np.arange(0.3, 0.9, 0.1)
 
@@ -108,8 +108,8 @@ saved_dict2 = model_result_dict_load(exp_dir_bp + 'onelayer_rec_best.pth.tar')
 model_bp.load_state_dict(saved_dict2['state_dict'])
 
     # # # get test acc
-    # _, _, _, test_acc_fptt = get_all_analysis_data(model_fptt, test_loader, device, IN_dim, T)
-    # _, _, _, test_acc_bp = get_all_analysis_data(model_bp, test_loader, device, IN_dim, T)
+    # _, _, _, test_acc_fptt = get_all_analysis_data(model_fptt, test_loader, device, IN_dim, time_steps)
+    # _, _, _, test_acc_bp = get_all_analysis_data(model_bp, test_loader, device, IN_dim, time_steps)
 
     # fptt_model_acc.append(test_acc_fptt)
     # bp_model_acc.append(test_acc_bp)

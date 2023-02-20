@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 from network import *
 
-b_j0 = 0.1  # neural threshold baseline
+b_j0=0.1
 
 class SnnLayer(nn.Module):
     def __init__(
@@ -15,9 +15,6 @@ class SnnLayer(nn.Module):
             is_rec: bool,
             is_adapt: bool,
             one_to_one: bool,
-            tau_m_init=3., 
-            tau_adap_init=4.6, 
-            tau_i_init=0.
     ):
         super(SnnLayer, self).__init__()
 
@@ -39,20 +36,17 @@ class SnnLayer(nn.Module):
         # define param for time constants
         self.tau_adp = nn.Parameter(torch.Tensor(hidden_dim))
         self.tau_m = nn.Parameter(torch.Tensor(hidden_dim))
-        self.tau_i = nn.Parameter(torch.Tensor(hidden_dim))
 
-        nn.init.normal_(self.tau_adp, tau_adap_init, .1)
-        nn.init.normal_(self.tau_m, tau_m_init, .1)
-        nn.init.normal_(self.tau_i, tau_i_init, 0.1)
+        nn.init.normal_(self.tau_adp, 4.6, .1)
+        nn.init.normal_(self.tau_m, 3., .1)
         # nn.init.normal_(self.tau_adp, 200., 20.)
         # nn.init.normal_(self.tau_m, 20., .5)
 
         self.sigmoid = nn.Sigmoid()
 
-    def mem_update(self, inputs, mem, spike, current, b, is_adapt, dt=1, baseline_thre=b_j0, r_m=3):
+    def mem_update(self, inputs, mem, spike, current, b, is_adapt, dt=1, baseline_thre=0.1, r_m=3, tau_i=1.8):
         alpha = self.sigmoid(self.tau_m)
         rho = self.sigmoid(self.tau_adp)
-        eta = self.sigmoid(self.tau_i)
         # alpha = torch.exp(-dt/self.tau_m)
         # rho = torch.exp(-dt/self.tau_adp)
 
@@ -64,7 +58,7 @@ class SnnLayer(nn.Module):
         b = rho * b + (1 - rho) * spike  # adaptive contribution
         new_thre = baseline_thre + beta * b  # udpated threshold
 
-        current = eta * current + (1-eta) * inputs
+        current = torch.exp(-1/torch.tensor(tau_i)) * current + inputs
 
         # mem = mem * alpha + (1 - alpha) * r_m * inputs - new_thre * spike
         mem = mem * alpha + current - new_thre * spike  # soft reset
@@ -117,7 +111,7 @@ class OutputLayer(nn.Module):
             nn.init.xavier_uniform_(self.fc.weight)
 
         # tau_m
-        self.tau_m = nn.Parameter(torch.Tensor(out_dim))
+        self.tau_m = nn.Parameter(torch.Tensor(out_dim), requires_grad=False)
         nn.init.constant_(self.tau_m, 0.5)
 
         self.sigmoid = nn.Sigmoid()
@@ -131,7 +125,7 @@ class OutputLayer(nn.Module):
         if self.is_fc:
             x_t = self.fc(x_t)
         else:
-            x_t = x_t.view(-1, 10, int(self.in_dim / 10)).mean(dim=2)  # sum up population spike
+            x_t = x_t.view(-1, self.out_dim, int(self.in_dim / self.out_dim)).sum(dim=2)  # sum up population spike
 
         # d_mem = -mem_t + x_t
         mem = (mem_t + x_t) * self.tau_m
@@ -182,8 +176,8 @@ class SnnNetwork(nn.Module):
 
         x_t = x_t.reshape(batch_dim, input_size).float()
         x_t = self.dp(x_t)
-        # poisson 
-        # x_t = x_t.gt(0.5).float()
+        # poisson
+        x_t = x_t.gt(0.5).float()
 
         r_input = x_t + self.rout2rin(h[5])
 
@@ -246,44 +240,4 @@ class SnnNetwork(nn.Module):
             weight.new(bsz, self.out_dim).zero_(),
         )
 
-
 # %%
-class SnnNetworkSeq(SnnNetwork):
-    def __init__(
-            self,
-            in_dim: int,
-            hidden_dims: list,  # [r out, r in]
-            out_dim: int,
-            is_adapt: bool,
-            one_to_one: bool,
-            dp_rate: float
-    ):
-        super().__init__(in_dim, hidden_dims, out_dim, is_adapt, one_to_one, dp_rate)
-
-    # override inference function
-    def inference(self, x_t, h, time_steps):
-        """
-        only called during inference
-        :param x_t: input, contains all data for one sequence
-        :param h: hidden states
-        :param time_steps: sequence length
-        :return:
-        """
-
-        log_softmax_hist = []
-        h_hist = []
-        pred_hist = []  # log predictions at each time step for evaluation
-
-        for t in range(time_steps):
-            # iterate through each seq per time step
-            log_softmax, h = self.forward(x_t[:, t, :], h)
-
-            log_softmax_hist.append(log_softmax)
-            pred = log_softmax.data.max(1, keepdim=True)[1]
-
-            pred_hist.append(pred)
-            h_hist.append(h)
-
-        pred_hist = torch.stack(pred_hist).squeeze()
-
-        return log_softmax_hist, h_hist, pred_hist

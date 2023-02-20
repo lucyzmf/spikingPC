@@ -18,10 +18,11 @@ import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 import IPython.display as ipd
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 from tqdm import tqdm
 
-from network_class import *
+from network_beforeseq_imple import *
 from utils import *
 from FTTP import *
 
@@ -62,13 +63,13 @@ test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
 ###############################################################
 # training parameters
 T = 20
-K = T  # K is num updates per sequence
+K = T  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 100
 lr = 1e-3
 epoch = 10
-n_classes = 10
+n_classes = 11
 num_readout = 10
 adap_neuron = True
 onetoone = True
@@ -76,8 +77,8 @@ dp_rate = 0.7
 
 # %%
 IN_dim = 784
-hidden_dim = [10 * num_readout, 784]
-T = 20  # sequence length, reading from the same image T times
+hidden_dim = [n_classes * num_readout, 784]
+T = 20  # sequence length, reading from the same image time_steps times
 
 # define network
 model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone, dp_rate=dp_rate)
@@ -89,7 +90,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Feb-08-2023/fptt_ener_dp05_poisson05thre_01alpha/'
+exp_dir = '/home/lucy/spikingPC/results/Feb-20-2023/fptt_ener_dp02_psum_unknownclass/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -107,8 +108,8 @@ print(param_names)
 
 # %%
 # plot p to r weights
-fig, axs = plt.subplots(1, 10, figsize=(35, 3))
-for i in range(10):
+fig, axs = plt.subplots(1, n_classes, figsize=(35, 3))
+for i in range(n_classes):
     sns.heatmap(model.rout2rin.weight[:, num_readout * i:(i + 1) * num_readout].detach().cpu().numpy().sum(axis=1).reshape(28, 28),
                 ax=axs[i])
 plt.title('r_out weights to r_in by class')
@@ -153,7 +154,7 @@ fig, axs = plt.subplots(4, 20, figsize=(80, 20))  # p spiking, r spiking, rec dr
 # axs[0].set_title('class %i, prediction %i' % (target_all[sample_no], preds_all[sample_no]))
 for t in range(T):
     # p spiking
-    axs[0][t].imshow(p_spk_all[sample_no, t, :].reshape(10, int(hidden_dim[0] / 10)))
+    axs[0][t].imshow(p_spk_all[sample_no, t, :].reshape(n_classes, int(hidden_dim[0] / n_classes)))
     axs[0][t].axis('off')
 
     # drive from p to r
@@ -642,4 +643,35 @@ plt.title('sum recurrent r to r connectivity of r neurons that inhibits p of one
 plt.savefig(exp_dir + 'sum recurrent r to r connectivity of r neurons that inhibits p of one class')
 plt.close()
 
+# %%
+# quantify r class specificity to any given class and connectivity to p 
+# exci strength over 
+r2p_w = model.rin2rout.weight.detach().cpu().numpy()
+r2rw = model.r_in_rec.rec_w.weight.detach().cpu().numpy()
+
+class_spec = np.zeros((10, 784))
+
+for i in range(10):
+    class_spec[i, :] = ((r2p_w[i*10:(i+1)*10, :] > 0)*r2p_w[i*10:(i+1)*10, :]).sum(axis=0)
+
+sns.scatterplot(x=class_spec.sum(axis=0)[images_all.mean(dim=0).flatten()!=-1], 
+    y=-(r2rw*(r2rw < 0)).sum(axis=1)[images_all.mean(dim=0).flatten()!=-1])
+plt.xlabel('class specificity')
+plt.ylabel('lateral inhibition strength')
+plt.show()
+
+# %%
+# for unknown class 
+sns.scatterplot(x=images_all[target_all==9].mean(dim=0).flatten(), y=model.rout2rin.weight[:, 100:].sum(dim=1).detach().cpu().numpy())
+plt.xlabel('mean pixel value')
+plt.ylabel('unknow class p2r weights')
+plt.show()
+# %%
+# confusion matrix
+cm = confusion_matrix(target_all, preds_all, labels=np.arange(n_classes))
+disp = ConfusionMatrixDisplay(confusion_matrix=cm,
+                              display_labels=np.arange(n_classes))
+disp.plot()
+
+plt.show()
 # %%

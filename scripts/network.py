@@ -36,7 +36,6 @@ Liquid time constant snn
 ###############################    Define SNN layer   #########################################
 ###############################################################################################
 
-b_j0 = .1  # neural threshold baseline
 R_m = 3  # membrane resistance
 dt = 1
 gamma = .5  # gradient scale
@@ -72,34 +71,34 @@ class ActFun_adp(torch.autograd.Function):
 act_fun_adp = ActFun_adp.apply
 
 
-def mem_update_adp(inputs, mem, spike, tau_adp, tau_m, b, isAdapt=1, dt=1):
-    alpha = tau_m
+# def mem_update_adp(inputs, mem, spike, tau_adp, tau_m, b, isAdapt=1, dt=1):
+#     alpha = tau_m
 
-    ro = tau_adp
+#     ro = tau_adp
 
-    if isAdapt:
-        beta = 1.8
-    else:
-        beta = 0.
+#     if isAdapt:
+#         beta = 1.8
+#     else:
+#         beta = 0.
 
-    b = ro * b + (1 - ro) * spike
-    B = b_j0 + beta * b
+#     b = ro * b + (1 - ro) * spike
+#     B = b_j0 + beta * b
 
-    mem = mem*alpha + (1-alpha) * R_m * inputs - B * spike * dt
-    inputs_ = mem - B
+#     mem = mem*alpha + (1-alpha) * R_m * inputs - B * spike * dt
+#     inputs_ = mem - B
 
-    # spike = act_fun_adp(inputs_)  # act_fun : approximation firing function
-    spike = F.relu(inputs_)
-    # mem = (1 - spike) * mem
+#     # spike = act_fun_adp(inputs_)  # act_fun : approximation firing function
+#     spike = F.relu(inputs_)
+#     # mem = (1 - spike) * mem
 
-    return mem, spike, B, b
+#     return mem, spike, B, b
 
 
-def output_Neuron(inputs, mem, tau_m, dt=1):
-    """
-    The read out neuron is leaky integrator without spike
-    """
-    d_mem = -mem + inputs
-    mem = mem + d_mem * tau_m
-    return mem
+# def output_Neuron(inputs, mem, tau_m, dt=1):
+#     """
+#     The read out neuron is leaky integrator without spike
+#     """
+#     d_mem = -mem + inputs
+#     mem = mem + d_mem * tau_m
+#     return mem
 

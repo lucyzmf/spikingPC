@@ -1,4 +1,5 @@
 # %%
+# this script contains training with sequence data
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -6,6 +7,7 @@ import torch.optim as optim
 import torchaudio
 
 from torch.nn.parameter import Parameter
+from torch.nn import init
 from torch.autograd import Variable
 import torchvision.transforms as transforms
 import torchvision
@@ -14,11 +16,15 @@ import wandb
 from datetime import date
 import os
 
+import matplotlib.pyplot as plt
+import IPython.display as ipd
+from tqdm import tqdm
 
-from network_beforeseq_imple import *
+from network_class import *
 from utils import *
 from FTTP import *
-from test_function import test
+from sequence_dataset import *
+from test_function import test_seq
 
 # %%
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -34,23 +40,34 @@ wandb.init(project="spikingPC_onelayer", entity="lucyzmf")
 
 # add wandb.config
 config = wandb.config
-config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
+
+# network hypers
 config.adap_neuron = True  # whether use adaptive neuron or not
-config.l1_lambda = 0  # weighting for l1 reg
+config.dp = 0.2
+config.onetoone = True
+config.num_readout = 10
+
+# loss hypers
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1  # - config.clf_alpha
-config.num_readout = 10
-config.onetoone = True
-config.input_scale = 0.3
-input_scale = config.input_scale
+
+# training alg hypers
 config.lr = 1e-3
 config.alg = 'fptt'
 alg = config.alg
 config.k_updates = 20
-config.dp = 0.4
+
+# seq data set config
+config.seq_data = True  # whether applies sequence data
+seq_data = config.seq_data
+config.seq_type = 'pred'  # whether change in digit is predictable (eg acending order) or unpredictable
+config.seq_len = 40  # sequence length
+config.random_switch = 1.  # probability of random switch time
+config.switch_time = [config.seq_len / 2]  # if not random switch, provide switch time
+config.num_switch = 1  # used when random switch=T
 
 # training parameters
-T = 20
+T = config.seq_len
 K = config.k_updates  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
@@ -58,7 +75,7 @@ log_interval = 10
 epoch = 10
 n_classes = 10
 
-config.exp_name = config.alg + '_ener_dp04_psum'
+config.exp_name = config.alg + '_ener_fpttalpha02_randswitchp' + str(config.random_switch)
 
 # experiment name 
 exp_name = config.exp_name
@@ -93,29 +110,41 @@ traindata = torchvision.datasets.MNIST(root='./data', train=True,
 testdata = torchvision.datasets.MNIST(root='./data', train=False,
                                       download=True, transform=transform)
 
-# data loading 
-train_loader = torch.utils.data.DataLoader(traindata, batch_size=batch_size,
-                                           shuffle=True, num_workers=2)
-test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
-                                          shuffle=True, num_workers=2)
+# generate sequence dataset
+if config.seq_type == 'pred':
+    seq_train = SequenceDatasetPredictable(traindata, traindata.targets, config.seq_len, config.random_switch,
+                                           config.switch_time, config.num_switch)
+    seq_test = SequenceDatasetPredictable(testdata, testdata.targets, config.seq_len, config.random_switch,
+                                          config.switch_time, config.num_switch)
+else:
+    seq_train = SequenceDataset(traindata, traindata.targets, config.seq_len, config.random_switch,
+                                config.switch_time, config.num_switch)
+    seq_test = SequenceDataset(testdata, testdata.targets, config.seq_len, config.random_switch,
+                               config.switch_time, config.num_switch)
 
-# check data loading correctness
+# %%
+train_loader = torch.utils.data.DataLoader(seq_train, batch_size=batch_size,
+                                           shuffle=False, num_workers=3)
+test_loader = torch.utils.data.DataLoader(seq_test, batch_size=batch_size,
+                                          shuffle=False, num_workers=3)
+
 for batch_idx, (data, target) in enumerate(train_loader):
     print(data.shape)
+    print(target.shape)
     break
 
 # %%
-###############################################################
+# ##############################################################
 # DEFINE NETWORK
-###############################################################
+# ##############################################################
 
 # set input and t param
 IN_dim = 784
-hidden_dim = [n_classes * config.num_readout, 784]
+hidden_dim = [10 * config.num_readout, 784]
 
 # define network
-model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=config.adap_neuron, one_to_one=config.onetoone,
-                   dp_rate=config.dp)
+model = SnnNetworkSeq(IN_dim, hidden_dim, n_classes, is_adapt=config.adap_neuron, one_to_one=config.onetoone,
+                      dp_rate=config.dp)
 model.to(device)
 print(model)
 
@@ -134,7 +163,7 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
 ###############################################################################################
 
 # untrained network
-test_loss, acc1 = test(model, test_loader, T)
+test_loss, acc1 = test_seq(model, test_loader, T)
 
 # %%
 
@@ -146,13 +175,13 @@ best_acc1 = 20
 wandb.watch(model, log_freq=100)
 
 for epoch in range(epochs):
-    train_fptt(epoch, batch_size, log_interval, train_loader,
-               model, named_params, T, K, omega, optimizer,
-               config.clf_alpha, config.energy_alpha, clip, config.lr)
+    train_fptt_seq(epoch, batch_size, log_interval, train_loader,
+                   model, named_params, T, K, omega, optimizer,
+                   config.clf_alpha, config.energy_alpha, clip, config.lr)
 
     reset_named_params(named_params)
 
-    test_loss, acc1 = test(model, test_loader, T)
+    test_loss, acc1 = test_seq(model, test_loader, T)
 
     scheduler.step()
 
