@@ -18,6 +18,7 @@ import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 import IPython.display as ipd
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 from tqdm import tqdm
 
@@ -68,7 +69,7 @@ clip = 1.
 log_interval = 100
 lr = 1e-3
 epoch = 10
-n_classes = 10
+n_classes = 11
 num_readout = 10
 adap_neuron = True
 onetoone = True
@@ -89,7 +90,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withener_outmemconstantdecay/'
+exp_dir = '/home/lucy/spikingPC/results/Feb-20-2023/fptt_ener_dp02_psum_unknownclass/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
@@ -153,7 +154,7 @@ fig, axs = plt.subplots(4, 20, figsize=(80, 20))  # p spiking, r spiking, rec dr
 # axs[0].set_title('class %i, prediction %i' % (target_all[sample_no], preds_all[sample_no]))
 for t in range(T):
     # p spiking
-    axs[0][t].imshow(p_spk_all[sample_no, t, :].reshape(10, int(hidden_dim[0] / 10)))
+    axs[0][t].imshow(p_spk_all[sample_no, t, :].reshape(n_classes, int(hidden_dim[0] / n_classes)))
     axs[0][t].axis('off')
 
     # drive from p to r
@@ -659,4 +660,18 @@ plt.xlabel('class specificity')
 plt.ylabel('lateral inhibition strength')
 plt.show()
 
+# %%
+# for unknown class 
+sns.scatterplot(x=images_all[target_all==9].mean(dim=0).flatten(), y=model.rout2rin.weight[:, 100:].sum(dim=1).detach().cpu().numpy())
+plt.xlabel('mean pixel value')
+plt.ylabel('unknow class p2r weights')
+plt.show()
+# %%
+# confusion matrix
+cm = confusion_matrix(target_all, preds_all, labels=np.arange(n_classes))
+disp = ConfusionMatrixDisplay(confusion_matrix=cm,
+                              display_labels=np.arange(n_classes))
+disp.plot()
+
+plt.show()
 # %%

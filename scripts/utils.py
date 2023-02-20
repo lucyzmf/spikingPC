@@ -266,7 +266,7 @@ def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T):
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
 
             pred = log_softmax_outputs[-1].data.max(1, keepdim=True)[1]
-            preds_all_.append(log_softmax_outputs)
+            preds_all_.append(pred)
 
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
@@ -279,6 +279,7 @@ def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T):
         test_acc))
 
     data_all_ = torch.stack(data_all_).reshape(10000, 28, 28)
+    preds_all_ = torch.stack(preds_all_).flatten().cpu().numpy()
 
     return hiddens_all_, preds_all_, data_all_, test_acc
 
