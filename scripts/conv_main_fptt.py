@@ -26,6 +26,7 @@ print(device)
 # set seed
 torch.manual_seed(999)
 
+# %%
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
 # wandb.init(project="spikingPC_conv", entity="lucyzmf")
@@ -96,6 +97,7 @@ test_loader = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
 # check data loading correctness
 for batch_idx, (data, target) in enumerate(train_loader):
     print(data.shape)
+    _, c, h, w = data.shape
     break
 
 # %%
@@ -104,11 +106,10 @@ for batch_idx, (data, target) in enumerate(train_loader):
 ###############################################################
 
 # set input and t param
-c, h, w = traindata.data[0].size()
 
 IN_dim = [c, h, w]
-config.hidden_channels = [28, 56]
-config.kernel_size = [3, 3]
+config.hidden_channels = [3, 3]
+config.kernel_size = [3, 5]
 config.stride = [1, 1]
 config.paddings = [0, 0]
 config.num_readout = 10
