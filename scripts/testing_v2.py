@@ -69,7 +69,7 @@ clip = 1.
 log_interval = 100
 lr = 1e-3
 epoch = 10
-n_classes = 11
+n_classes = 10
 num_readout = 10
 adap_neuron = True
 onetoone = True
@@ -90,10 +90,12 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 # %%
 
-exp_dir = '/home/lucy/spikingPC/results/Feb-20-2023/fptt_ener_dp02_psum_unknownclass/'
+exp_dir = '/home/lucy/spikingPC/results/Feb-01-2023/curr18_withener_outmemconstantdecay/'
 saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
+
+# model.r_in_rec.rec_w.weight.data = torch.zeros((hidden_dim[1], hidden_dim[1])).to(device)
 
 # %%
 # get params and put into dict
