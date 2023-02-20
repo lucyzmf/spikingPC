@@ -1,3 +1,4 @@
+# %%
 import torch
 import torch.nn as nn
 from network import *
@@ -21,7 +22,7 @@ class SNNConvCell(nn.Module):
                  is_adapt=False,
                  synaptic_curr=None
                  ):
-        super(SNNConvCell, self).init()
+        super(SNNConvCell, self).__init__()
 
         print('SNN-conv +', pooling_type)
 
@@ -32,7 +33,6 @@ class SNNConvCell(nn.Module):
         self.padding = padding
 
         self.input_size = input_size
-        self.output_size = self.compute_output_size()
 
         self.is_adapt = is_adapt
         self.synap_curr = synaptic_curr
@@ -50,6 +50,8 @@ class SNNConvCell(nn.Module):
 
         self.conv1_x = nn.Conv2d(self.in_channels, self.out_channels, kernel_size=self.kernel_size, stride=self.strides,
                                  padding=self.padding, bias=bias)
+
+        self.output_size = self.compute_output_size()
 
         self.sig1 = nn.Sigmoid()
 
