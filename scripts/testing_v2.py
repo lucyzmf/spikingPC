@@ -21,7 +21,7 @@ import IPython.display as ipd
 
 from tqdm import tqdm
 
-from network_class import *
+from network_beforeseq_imple import *
 from utils import *
 from FTTP import *
 
@@ -76,7 +76,7 @@ dp_rate = 0.7
 
 # %%
 IN_dim = 784
-hidden_dim = [10 * num_readout, 784]
+hidden_dim = [n_classes * num_readout, 784]
 T = 20  # sequence length, reading from the same image time_steps times
 
 # define network
@@ -107,8 +107,8 @@ print(param_names)
 
 # %%
 # plot p to r weights
-fig, axs = plt.subplots(1, 10, figsize=(35, 3))
-for i in range(10):
+fig, axs = plt.subplots(1, n_classes, figsize=(35, 3))
+for i in range(n_classes):
     sns.heatmap(model.rout2rin.weight[:, num_readout * i:(i + 1) * num_readout].detach().cpu().numpy().sum(axis=1).reshape(28, 28),
                 ax=axs[i])
 plt.title('r_out weights to r_in by class')
@@ -644,5 +644,19 @@ plt.close()
 
 # %%
 # quantify r class specificity to any given class and connectivity to p 
-# for each pixel location if p in one class / p for all rest of class, if high then high class specificity
-images_all
+# exci strength over 
+r2p_w = model.rin2rout.weight.detach().cpu().numpy()
+r2rw = model.r_in_rec.rec_w.weight.detach().cpu().numpy()
+
+class_spec = np.zeros((10, 784))
+
+for i in range(10):
+    class_spec[i, :] = ((r2p_w[i*10:(i+1)*10, :] > 0)*r2p_w[i*10:(i+1)*10, :]).sum(axis=0)
+
+sns.scatterplot(x=class_spec.sum(axis=0)[images_all.mean(dim=0).flatten()!=-1], 
+    y=-(r2rw*(r2rw < 0)).sum(axis=1)[images_all.mean(dim=0).flatten()!=-1])
+plt.xlabel('class specificity')
+plt.ylabel('lateral inhibition strength')
+plt.show()
+
+# %%

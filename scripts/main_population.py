@@ -15,7 +15,7 @@ from datetime import date
 import os
 
 
-from network_class import *
+from network_beforeseq_imple import *
 from utils import *
 from FTTP import *
 from test_function import test
@@ -111,7 +111,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 # set input and t param
 IN_dim = 784
-hidden_dim = [10 * config.num_readout, 784]
+hidden_dim = [n_classes * config.num_readout, 784]
 
 # define network
 model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=config.adap_neuron, one_to_one=config.onetoone,

@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 from network import *
 
+b_j0=0.1
 
 class SnnLayer(nn.Module):
     def __init__(
@@ -124,7 +125,7 @@ class OutputLayer(nn.Module):
         if self.is_fc:
             x_t = self.fc(x_t)
         else:
-            x_t = x_t.view(-1, 10, int(self.in_dim / 10)).mean(dim=2)  # sum up population spike
+            x_t = x_t.view(-1, self.out_dim, int(self.in_dim / self.out_dim)).sum(dim=2)  # sum up population spike
 
         # d_mem = -mem_t + x_t
         mem = (mem_t + x_t) * self.tau_m
