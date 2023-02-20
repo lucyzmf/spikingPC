@@ -170,7 +170,24 @@ class SnnConvNet(nn.Module):
         h_conv = (mem1, spk1, curr1, b1,
                   mem2, spk2, curr2, b2)
 
+        self.fr_conv1 = self.fr_conv1 + spk1.detach().cpu().numpy().mean()
+        self.fr_conv2 = self.fr_conv2 + spk2.detach().cpu().numpy().mean()
+
         return log_out, h_conv, h_pc
+
+    def inference(self, x_t, h_conv, h_pc, T):
+        log_softmax_hist = []
+        h_conv_hist = []
+        h_pc_hist = []
+
+        for t in range(T):
+            log_softmax, h_conv, h_pc = self.forward(x_t, h_conv, h_pc)
+
+            log_softmax_hist.append(log_softmax)
+            h_conv_hist.append(h_conv)
+            h_pc_hist.append(h_pc)
+
+        return log_softmax_hist, h_conv_hist, h_pc_hist
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
