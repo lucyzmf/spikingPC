@@ -14,11 +14,10 @@ import wandb
 from datetime import date
 import os
 
-
 from conv_net import *
+from conv_traintest import *
 from utils import *
 from FTTP import *
-
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
@@ -137,7 +136,7 @@ scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
 ###############################################################################################
 
 # untrained network
-test_loss, acc1 = test(model, test_loader, T)
+test_loss, acc1 = test_conv(model, test_loader, T)
 
 # %%
 
@@ -148,13 +147,13 @@ best_acc1 = 20
 wandb.watch(model, log_freq=100)
 
 for epoch in range(epochs):
-    train_fptt(epoch, batch_size, log_interval, train_loader,
-               model, named_params, T, K, omega, optimizer,
-               config.clf_alpha, config.energy_alpha, clip, config.lr)
+    train_fptt_conv(epoch, batch_size, log_interval, train_loader,
+                    model, named_params, T, K, omega, optimizer,
+                    config.clf_alpha, config.energy_alpha, clip, config.lr)
 
     reset_named_params(named_params)
 
-    test_loss, acc1 = test(model, test_loader, T)
+    test_loss, acc1 = test_conv(model, test_loader, T)
 
     scheduler.step()
 
