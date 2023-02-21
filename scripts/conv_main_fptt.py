@@ -28,8 +28,8 @@ torch.manual_seed(999)
 # %%
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-# wandb.init(project="spikingPC_conv", entity="lucyzmf")
-wandb.init(mode="disabled")
+wandb.init(project="spikingPC_conv", entity="lucyzmf")
+# wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -48,11 +48,11 @@ T = 20
 K = config.k_updates  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
-log_interval = 10
+log_interval = 20
 epochs = 20
 n_classes = 10
 
-config.exp_name = config.alg + '_toppclayer'
+config.exp_name = config.alg + '_toppclayer_ener_8-16c_max'
 
 # experiment name
 exp_name = config.exp_name
@@ -107,18 +107,20 @@ for batch_idx, (data, target) in enumerate(train_loader):
 # set input and t param
 
 IN_dim = [c, h, w]
-config.hidden_channels = [3, 3]
-config.kernel_size = [3, 5]
+config.hidden_channels = [8, 16]
+config.kernel_size = [5, 5]
 config.stride = [1, 1]
 config.paddings = [0, 0]
-config.num_readout = 10
+config.pooling = 'max'
+config.num_readout = 5
 config.conv_adp = False
 config.syn_curr_conv = False
 
 # define network
 model = SnnConvNet(IN_dim, config.hidden_channels, config.kernel_size, config.stride,
                    config.paddings, n_classes, is_adapt_conv=config.conv_adp,
-                   syn_curr_conv=config.syn_curr_conv, dp_rate=config.dp, p_size=config.num_readout)
+                   syn_curr_conv=config.syn_curr_conv, dp_rate=config.dp, p_size=config.num_readout, 
+                   pooling=config.pooling)
 model.to(device)
 print(model)
 
@@ -145,7 +147,7 @@ named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20
 
-wandb.watch(model, log_freq=100)
+wandb.watch(model, log_freq=50)
 
 for epoch in range(epochs):
     train_fptt_conv(epoch, batch_size, log_interval, train_loader,

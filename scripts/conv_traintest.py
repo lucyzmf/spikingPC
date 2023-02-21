@@ -29,12 +29,12 @@ def train_fptt_conv(epoch, batch_size, log_interval,
 
             if p == 0:
                 h_conv = model.init_hidden(B)
-                h_pc = model.SnnNetwork.init_hidden(B)
+                h_pc = model.pc_layer.init_hidden(B)
             elif p % omega == 0:
                 h_conv = tuple(v.detach() for v in h_conv)
                 h_pc = tuple(v.detach() for v in h_pc)
 
-            o, h = model.forward(data, h_conv, h_pc)
+            o, h_conv, h_pc = model.forward(data, h_conv, h_pc)
 
             # get prediction
             if p == (time_steps - 1):
@@ -78,8 +78,8 @@ def train_fptt_conv(epoch, batch_size, log_interval,
                        100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B),
                        train_loss / log_interval,
                        total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
-                       model.fr_p / time_steps / log_interval,
-                       model.fr_r / time_steps / log_interval))
+                       model.pc_layer.fr_p / time_steps / log_interval,
+                       model.pc_layer.fr_r / time_steps / log_interval))
 
             wandb.log({
                 'clf_loss': total_clf_loss / log_interval / k_updates,
@@ -87,8 +87,10 @@ def train_fptt_conv(epoch, batch_size, log_interval,
                 'regularisation_loss': total_regularizaton_loss / log_interval / k_updates,
                 'energy_loss': total_energy_loss / log_interval / k_updates,
                 'total_loss': train_loss / log_interval / k_updates,
-                'pred spiking freq': model.SnnNetwork.fr_p / time_steps / log_interval,  # firing per time step
-                'rep spiking fr': model.SnnNetwork.fr_r / time_steps / log_interval,
+                'pred spiking freq': model.pc_layer.fr_p / time_steps / log_interval,  # firing per time step
+                'rep spiking fr': model.pc_layer.fr_r / time_steps / log_interval,
+                'conv1 spk fr': model.fr_conv1 / time_steps / log_interval, 
+                'conv2 spk fr': model.fr_conv2 / time_steps / log_interval, 
             })
 
             train_loss = 0
@@ -97,8 +99,8 @@ def train_fptt_conv(epoch, batch_size, log_interval,
             total_energy_loss = 0
             correct = 0
         # model.network.fr = 0
-        model.SnnNetwork.fr_p = 0
-        model.SnnNetwork.fr_r = 0
+        model.pc_layer.fr_p = 0
+        model.pc_layer.fr_r = 0
 
         model.fr_conv1 = 0
         model.fr_conv2 = 0
@@ -116,10 +118,10 @@ def test_conv(model, test_loader, time_steps):
 
         with torch.no_grad():
             model.eval()
-            h_conv = model.init_hidden(data.size()[0])
-            h_pc = model.SnnNetwork.init_hidden(data.size()[0])
+            h_conv = model.init_hidden(data.size(0))
+            h_pc = model.pc_layer.init_hidden(data.size(0))
 
-            log_softmax_outputs, hidden = model.inference(data, h_conv, h_pc, time_steps)
+            log_softmax_outputs, _, _ = model.inference(data, h_conv, h_pc, time_steps)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
 
@@ -140,3 +142,5 @@ def test_conv(model, test_loader, time_steps):
         test_acc))
 
     return test_loss, 100. * correct / len(test_loader.dataset)
+
+# %%
