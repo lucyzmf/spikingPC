@@ -38,13 +38,23 @@ class SnnLayer(nn.Module):
             nn.init.xavier_uniform_(self.fc_weights.weight)
 
         # define param for time constants
-        self.tau_adp = nn.Parameter(torch.Tensor(hidden_dim))
-        self.tau_m = nn.Parameter(torch.Tensor(hidden_dim))
-        self.tau_i = nn.Parameter(torch.Tensor(hidden_dim))
+        # self.tau_adp = nn.Parameter(torch.Tensor(hidden_dim))
+        # self.tau_m = nn.Parameter(torch.Tensor(hidden_dim))
+        # self.tau_i = nn.Parameter(torch.Tensor(hidden_dim))
+        #
+        # nn.init.normal_(self.tau_adp, tau_adap_init, .1)
+        # nn.init.normal_(self.tau_m, tau_m_init, .1)
+        # nn.init.normal_(self.tau_i, tau_i_init, 0.1)
 
-        nn.init.normal_(self.tau_adp, tau_adap_init, .1)
-        nn.init.normal_(self.tau_m, tau_m_init, .1)
-        nn.init.normal_(self.tau_i, tau_i_init, 0.1)
+        self.tau_adp = nn.Parameter(torch.Tensor(1))
+        self.tau_m = nn.Parameter(torch.Tensor(1))
+        self.tau_i = nn.Parameter(torch.Tensor(1))
+
+        nn.init.constant_(self.tau_adp, tau_adap_init)
+        nn.init.constant_(self.tau_m, tau_m_init)
+        nn.init.constant_(self.tau_i, tau_i_init)
+
+
         # nn.init.normal_(self.tau_adp, 200., 20.)
         # nn.init.normal_(self.tau_m, 20., .5)
 
