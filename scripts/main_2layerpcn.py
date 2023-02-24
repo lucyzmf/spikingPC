@@ -15,7 +15,7 @@ from datetime import date
 import os
 
 
-from network_beforeseq_imple import *
+from network_class import *
 from utils import *
 from FTTP import *
 from test_function import test
@@ -38,7 +38,7 @@ config.spike_loss = False  # whether use energy penalty on spike or on mem poten
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.l1_lambda = 0  # weighting for l1 reg
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 0  # - config.clf_alpha
+config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
 config.input_scale = 0.3
@@ -46,7 +46,7 @@ input_scale = config.input_scale
 config.lr = 1e-3
 config.alg = 'fptt'
 alg = config.alg
-config.k_updates = 20
+config.k_updates = 4
 config.dp = 0.4
 
 # training parameters
@@ -58,7 +58,8 @@ log_interval = 40
 epochs = 40
 n_classes = 10
 
-config.exp_name = config.alg + '_ener'+str(config.energy_alpha)+'_dp04_pmean_2layer_fpttalpha05_lowthre'
+config.exp_name = config.alg + '_ener'+str(config.energy_alpha)+\
+    '_dp04_pmean_2layer_fpttalpha02_k4_alltautrainable_diffnocurr'
 
 # experiment name 
 exp_name = config.exp_name
@@ -111,7 +112,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 # set input and t param
 IN_dim = 784
-hidden_dim = [392, 784, n_classes * config.num_readout, 256]
+hidden_dim = [256, 784, n_classes * config.num_readout, 256]
 
 # define network
 model = SnnNetwork2Layer(IN_dim, hidden_dim, n_classes, is_adapt=config.adap_neuron, one_to_one=config.onetoone,
@@ -122,6 +123,7 @@ print(model)
 # define new loss and optimiser 
 total_params = count_parameters(model)
 print('total param count %i' % total_params)
+config.total_param = total_params
 
 # define optimiser
 optimizer = optim.Adamax(model.parameters(), lr=config.lr, weight_decay=0.0001)
