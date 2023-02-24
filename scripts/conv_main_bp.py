@@ -38,9 +38,9 @@ config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1  # - config.clf_alpha
 config.onetoone = True
 config.lr = 1e-3
-config.alg = 'conv_fptt'
+config.alg = 'conv_bp'
 alg = config.alg
-config.k_updates = 4
+config.k_updates = 20
 config.dp = 0.2
 
 # training parameters
@@ -52,7 +52,7 @@ log_interval = 20
 epochs = 40
 n_classes = 10
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_maxpool_fashion_k4_fc2r_hardreset_4layer_schedualerstep2'
+config.exp_name = config.alg + '_ener_max_fashion_2layer_nofc2r2'
 
 # experiment name
 exp_name = config.exp_name
@@ -107,7 +107,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 # set input and t param
 
 IN_dim = [c, h, w]
-config.hidden_channels = [8, 16, 16, 24]
+config.hidden_channels = [16, 16, 32, 64]
 config.kernel_size = [3, 3, 3, 3]
 config.stride = [1, 1, 1, 1]
 config.paddings = [0, 0, 0, 0]
@@ -119,7 +119,7 @@ config.spiking_conv = True
 spiking_conv = config.spiking_conv
 
 # define network
-model = SnnConvNetFourLayer(IN_dim, config.hidden_channels, config.kernel_size, config.stride,
+model = SnnConvNet(IN_dim, config.hidden_channels, config.kernel_size, config.stride,
                    config.paddings, n_classes, is_adapt_conv=config.conv_adp,
                    syn_curr_conv=config.syn_curr_conv, dp_rate=config.dp, p_size=config.num_readout, 
                    pooling=config.pooling)
@@ -154,11 +154,9 @@ best_acc1 = 20
 wandb.watch(model, log_freq=50)
 
 for epoch in range(epochs):
-    train_fptt_conv(epoch, batch_size, log_interval, train_loader,
+    train_bp_conv(epoch, batch_size, log_interval, train_loader,
                     model, named_params, T, K, omega, optimizer,
                     config.clf_alpha, config.energy_alpha, clip, config.lr)
-
-    reset_named_params(named_params)
 
     test_loss, acc1 = test_conv(model, test_loader, T)
 
