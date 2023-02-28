@@ -28,13 +28,11 @@ def train_fptt_conv(epoch, batch_size, log_interval,
         for p in range(time_steps):
 
             if p == 0:
-                h_conv = model.init_hidden(B)
-                h_pc = model.pc_layer.init_hidden(B)
+                h = model.init_hidden(B)
             elif p % omega == 0:
-                h_conv = tuple(v.detach() for v in h_conv)
-                h_pc = tuple(v.detach() for v in h_pc)
+                h = tuple(v.detach() for v in h)
 
-            o, h_conv, h_pc = model.forward(data, h_conv, h_pc)
+            o, h = model.forward(data, h)
 
             # get prediction
             if p == (time_steps - 1):
@@ -53,8 +51,8 @@ def train_fptt_conv(epoch, batch_size, log_interval,
                 regularizer = get_regularizer_named_params(named_params, _lambda=1.0)
 
                 # mem potential loss take l1 norm / num of neurons /batch size
-                energy = (torch.norm(h_pc[1], p=1) + torch.norm(h_pc[5], p=1)) / B / (model.input_to_pc_sz + model.classify_population_sz)
-
+                energy = (p + 1) / k_updates * ((torch.norm(h[1], p=1) + torch.norm(h[5], p=1) + torch.norm(h[9], p=1)
+                                                 + torch.norm(h[13], p=1)) / B / model.neuron_count)
                 # overall loss
                 loss = clf_alpha * clf_loss + regularizer + energy_alpha * energy
 
