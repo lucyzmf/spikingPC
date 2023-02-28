@@ -459,10 +459,10 @@ class SnnNetwork3MidLayer(SnnNetwork):
         nn.init.xavier_uniform_(self.bu1.weight)
 
         self.bu2 = nn.Linear(hidden_dims[0], hidden_dims[4])
-        nn.init.xavier_uniform_(self.bu1.weight)
+        nn.init.xavier_uniform_(self.bu2.weight)
 
         self.bu3 = nn.Linear(hidden_dims[4], hidden_dims[3])
-        nn.init.xavier_uniform_(self.bu1.weight)
+        nn.init.xavier_uniform_(self.bu3.weight)
 
         self.bu4 = nn.Linear(hidden_dims[3], hidden_dims[2])
         nn.init.xavier_uniform_(self.bu4.weight)
@@ -472,10 +472,10 @@ class SnnNetwork3MidLayer(SnnNetwork):
         nn.init.xavier_uniform_(self.td1.weight)
 
         self.td2 = nn.Linear(hidden_dims[4], hidden_dims[0])
-        nn.init.xavier_uniform_(self.td1.weight)
+        nn.init.xavier_uniform_(self.td2.weight)
 
         self.td3 = nn.Linear(hidden_dims[3], hidden_dims[4])
-        nn.init.xavier_uniform_(self.td1.weight)
+        nn.init.xavier_uniform_(self.td3.weight)
 
         self.td4 = nn.Linear(hidden_dims[2], hidden_dims[3])
         nn.init.xavier_uniform_(self.td4.weight)
