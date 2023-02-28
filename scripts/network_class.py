@@ -98,7 +98,10 @@ class SnnLayer(nn.Module):
         if self.is_rec:
             r_in = x_t + self.rec_w(spk_t)
         else:
-            r_in = self.fc_weights(x_t)
+            if self.one_to_one:
+                r_in = x_t
+            else:
+                r_in = self.fc_weights(x_t)
 
         mem_t1, spk_t1, curr_t1, _, b_t1 = self.mem_update(r_in, mem_t, spk_t, curr_t, b_t, self.is_adapt)
 
