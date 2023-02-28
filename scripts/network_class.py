@@ -41,7 +41,7 @@ class SnnLayer(nn.Module):
         self.tau_adp = nn.Parameter(torch.Tensor(hidden_dim))
         self.tau_m = nn.Parameter(torch.Tensor(hidden_dim))
         self.tau_i = nn.Parameter(torch.Tensor(hidden_dim))
-        
+
         nn.init.normal_(self.tau_adp, tau_adap_init, .1)
         nn.init.normal_(self.tau_m, tau_m_init, .1)
         nn.init.normal_(self.tau_i, tau_i_init, 0.1)
@@ -54,7 +54,6 @@ class SnnLayer(nn.Module):
         # nn.init.constant_(self.tau_m, tau_m_init)
         # nn.init.constant_(self.tau_i, tau_i_init)
 
-
         # nn.init.normal_(self.tau_adp, 200., 20.)
         # nn.init.normal_(self.tau_m, 20., .5)
 
@@ -63,7 +62,7 @@ class SnnLayer(nn.Module):
     def mem_update(self, inputs, mem, spike, current, b, is_adapt, dt=1, baseline_thre=b_j0, r_m=3):
         alpha = self.sigmoid(self.tau_m)
         rho = self.sigmoid(self.tau_adp)
-        eta = 0 #self.sigmoid(self.tau_i)
+        eta = 0  # self.sigmoid(self.tau_i)
         # alpha = torch.exp(-dt/self.tau_m)
         # rho = torch.exp(-dt/self.tau_adp)
 
@@ -356,7 +355,6 @@ class SnnNetwork2Layer(SnnNetwork):
 
         self.output_layer = OutputLayer(hidden_dims[2], out_dim, is_fc=False)
 
-
     def forward(self, x_t, h):
         batch_dim, input_size = x_t.shape
 
@@ -373,7 +371,7 @@ class SnnNetwork2Layer(SnnNetwork):
 
         mem_p1, spk_p1, curr_p1, b_p1 = self.r_out_rec1(p_input1, mem_t=h[4], spk_t=h[5], curr_t=h[6], b_t=h[7])
 
-        r_input2 = self.rout2rin2(h[13]) + self.bottom_up(spk_p1) # + self.rin2rout1(spk_r1)
+        r_input2 = self.rout2rin2(h[13]) + self.bottom_up(spk_p1)  # + self.rin2rout1(spk_r1)
 
         mem_r2, spk_r2, curr_r2, b_r2 = self.r_in_rec2(r_input2, mem_t=h[8], spk_t=h[9], curr_t=h[10], b_t=h[11])
 
@@ -381,8 +379,8 @@ class SnnNetwork2Layer(SnnNetwork):
 
         mem_p2, spk_p2, curr_p2, b_p2 = self.r_out_rec2(p_input2, mem_t=h[12], spk_t=h[13], curr_t=h[14], b_t=h[15])
 
-        self.fr_p = self.fr_p + spk_p1.detach().cpu().numpy().mean()/2 + spk_p2.detach().cpu().numpy().mean()/2
-        self.fr_r = self.fr_r + spk_r1.detach().cpu().numpy().mean()/2 + spk_r2.detach().cpu().numpy().mean()/2
+        self.fr_p = self.fr_p + spk_p1.detach().cpu().numpy().mean() / 2 + spk_p2.detach().cpu().numpy().mean() / 2
+        self.fr_r = self.fr_r + spk_r1.detach().cpu().numpy().mean() / 2 + spk_r2.detach().cpu().numpy().mean() / 2
 
         # read out from r_out neurons
         mem_out = self.output_layer(spk_p2, h[-1])
@@ -411,6 +409,149 @@ class SnnNetwork2Layer(SnnNetwork):
             weight.new(bsz, self.hidden_dims[0]).zero_(),
             weight.new(bsz, self.hidden_dims[0]).fill_(b_j0),
             # r
+            weight.new(bsz, self.hidden_dims[3]).uniform_(),
+            weight.new(bsz, self.hidden_dims[3]).zero_(),
+            weight.new(bsz, self.hidden_dims[3]).zero_(),
+            weight.new(bsz, self.hidden_dims[3]).fill_(b_j0),
+            # p
+            weight.new(bsz, self.hidden_dims[2]).uniform_(),
+            weight.new(bsz, self.hidden_dims[2]).zero_(),
+            weight.new(bsz, self.hidden_dims[2]).zero_(),
+            weight.new(bsz, self.hidden_dims[2]).fill_(b_j0),
+            # layer out
+            weight.new(bsz, self.out_dim).zero_(),
+            # sum spike
+            weight.new(bsz, self.out_dim).zero_(),
+        )
+
+
+class SnnNetwork3MidLayer(SnnNetwork):
+    def __init__(
+            self,
+            in_dim: int,
+            hidden_dims: list,  # [p1, r1, p2, r2, r3]
+            out_dim: int,
+            is_adapt: bool,
+            one_to_one: bool,
+            dp_rate: float
+    ):
+        super().__init__(in_dim, hidden_dims, out_dim, is_adapt, one_to_one, dp_rate)
+
+        self.in_dim = in_dim
+        self.hidden_dims = hidden_dims
+        self.out_dim = out_dim
+        self.is_adapt = is_adapt
+        self.one_to_one = one_to_one
+
+        self.dp = nn.Dropout(dp_rate)
+
+        self.r1 = SnnLayer(hidden_dims[1], hidden_dims[1], is_rec=True, is_adapt=is_adapt,
+                           one_to_one=one_to_one)
+
+        self.r2 = SnnLayer(hidden_dims[3], hidden_dims[3], is_rec=True, is_adapt=is_adapt,
+                           one_to_one=one_to_one)
+
+        self.r3 = SnnLayer(hidden_dims[4], hidden_dims[4], is_rec=True, is_adapt=is_adapt,
+                           one_to_one=one_to_one)
+
+        # r in to r out
+        self.bu1 = nn.Linear(hidden_dims[1], hidden_dims[0])
+        nn.init.xavier_uniform_(self.bu1.weight)
+
+        self.bu2 = nn.Linear(hidden_dims[0], hidden_dims[4])
+        nn.init.xavier_uniform_(self.bu1.weight)
+
+        self.bu3 = nn.Linear(hidden_dims[4], hidden_dims[3])
+        nn.init.xavier_uniform_(self.bu1.weight)
+
+        self.bu4 = nn.Linear(hidden_dims[3], hidden_dims[2])
+        nn.init.xavier_uniform_(self.bu4.weight)
+
+        # r out to r in
+        self.td1 = nn.Linear(hidden_dims[0], hidden_dims[1])
+        nn.init.xavier_uniform_(self.td1.weight)
+
+        self.td2 = nn.Linear(hidden_dims[4], hidden_dims[0])
+        nn.init.xavier_uniform_(self.td1.weight)
+
+        self.td3 = nn.Linear(hidden_dims[3], hidden_dims[4])
+        nn.init.xavier_uniform_(self.td1.weight)
+
+        self.td4 = nn.Linear(hidden_dims[2], hidden_dims[3])
+        nn.init.xavier_uniform_(self.td4.weight)
+
+        self.p1 = SnnLayer(hidden_dims[0], hidden_dims[0], is_rec=True, is_adapt=is_adapt,
+                           one_to_one=one_to_one)
+
+        self.p2 = SnnLayer(hidden_dims[2], hidden_dims[2], is_rec=True, is_adapt=is_adapt,
+                           one_to_one=one_to_one)
+
+        self.output_layer = OutputLayer(hidden_dims[2], out_dim, is_fc=False)
+
+    def forward(self, x_t, h):
+        batch_dim, input_size = x_t.shape
+
+        x_t = x_t.reshape(batch_dim, input_size).float()
+        x_t = self.dp(x_t)
+        # poisson
+        # x_t = x_t.gt(0.5).float()
+
+        r_input1 = x_t + self.td1(h[5])
+
+        mem_r1, spk_r1, curr_r1, b_r1 = self.r1(r_input1, mem_t=h[0], spk_t=h[1], curr_t=h[2], b_t=h[3])
+
+        p1_input = self.bu1(spk_r1) + self.td2(h[9])
+
+        mem_p1, spk_p1, curr_p1, b_p1 = self.p1(p1_input, mem_t=h[4], spk_t=h[5], curr_t=h[6], b_t=h[7])
+
+        r3_input = self.bu2(spk_p1) + self.td3(h[13])  # + self.rin2rout1(spk_r1)
+
+        mem_r3, spk_r3, curr_r3, b_r3 = self.r2(r3_input, mem_t=h[8], spk_t=h[9], curr_t=h[10], b_t=h[11])
+
+        r2_input = self.bu3(spk_r3) + self.td4(h[17])
+
+        mem_r2, spk_r2, curr_r2, b_r2 = self.r2(r2_input, mem_t=h[12], spk_t=h[13], curr_t=h[14], b_t=h[15])
+
+        p2_input = self.bu4(spk_r2)
+
+        mem_p2, spk_p2, curr_p2, b_p2 = self.p2(p2_input, mem_t=h[16], spk_t=h[17], curr_t=h[18], b_t=h[19])
+
+        self.fr_p = self.fr_p + spk_p1.detach().cpu().numpy().mean() / 2 + spk_p2.detach().cpu().numpy().mean() / 2
+        self.fr_r = self.fr_r + spk_r1.detach().cpu().numpy().mean() / 2 + spk_r2.detach().cpu().numpy().mean() / 2
+
+        # read out from r_out neurons
+        mem_out = self.output_layer(spk_p2, h[-1])
+
+        h = (mem_r1, spk_r1, curr_r1, b_r1,
+             mem_p1, spk_p1, curr_p1, b_p1,
+             mem_r3, spk_r3, curr_r3, b_r3,
+             mem_r2, spk_r2, curr_r2, b_r2,
+             mem_p2, spk_p2, curr_p2, b_p2,
+             mem_out)
+
+        log_softmax = F.log_softmax(mem_out, dim=1)
+
+        return log_softmax, h
+
+    def init_hidden(self, bsz):
+        weight = next(self.parameters()).data
+        return (
+            # r1
+            weight.new(bsz, self.hidden_dims[1]).uniform_(),
+            weight.new(bsz, self.hidden_dims[1]).zero_(),
+            weight.new(bsz, self.hidden_dims[1]).zero_(),
+            weight.new(bsz, self.hidden_dims[1]).fill_(b_j0),
+            # p1
+            weight.new(bsz, self.hidden_dims[0]).uniform_(),
+            weight.new(bsz, self.hidden_dims[0]).zero_(),
+            weight.new(bsz, self.hidden_dims[0]).zero_(),
+            weight.new(bsz, self.hidden_dims[0]).fill_(b_j0),
+            # r3
+            weight.new(bsz, self.hidden_dims[4]).uniform_(),
+            weight.new(bsz, self.hidden_dims[4]).zero_(),
+            weight.new(bsz, self.hidden_dims[4]).zero_(),
+            weight.new(bsz, self.hidden_dims[4]).fill_(b_j0),
+            # r2
             weight.new(bsz, self.hidden_dims[3]).uniform_(),
             weight.new(bsz, self.hidden_dims[3]).zero_(),
             weight.new(bsz, self.hidden_dims[3]).zero_(),
