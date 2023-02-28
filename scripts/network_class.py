@@ -38,21 +38,21 @@ class SnnLayer(nn.Module):
             nn.init.xavier_uniform_(self.fc_weights.weight)
 
         # define param for time constants
-        # self.tau_adp = nn.Parameter(torch.Tensor(hidden_dim))
-        # self.tau_m = nn.Parameter(torch.Tensor(hidden_dim))
-        # self.tau_i = nn.Parameter(torch.Tensor(hidden_dim))
-        #
-        # nn.init.normal_(self.tau_adp, tau_adap_init, .1)
-        # nn.init.normal_(self.tau_m, tau_m_init, .1)
-        # nn.init.normal_(self.tau_i, tau_i_init, 0.1)
+        self.tau_adp = nn.Parameter(torch.Tensor(hidden_dim))
+        self.tau_m = nn.Parameter(torch.Tensor(hidden_dim))
+        self.tau_i = nn.Parameter(torch.Tensor(hidden_dim))
+        
+        nn.init.normal_(self.tau_adp, tau_adap_init, .1)
+        nn.init.normal_(self.tau_m, tau_m_init, .1)
+        nn.init.normal_(self.tau_i, tau_i_init, 0.1)
 
-        self.tau_adp = nn.Parameter(torch.Tensor(1))
-        self.tau_m = nn.Parameter(torch.Tensor(1))
-        self.tau_i = nn.Parameter(torch.Tensor(1))
+        # self.tau_adp = nn.Parameter(torch.Tensor(1))
+        # self.tau_m = nn.Parameter(torch.Tensor(1))
+        # self.tau_i = nn.Parameter(torch.Tensor(1))
 
-        nn.init.constant_(self.tau_adp, tau_adap_init)
-        nn.init.constant_(self.tau_m, tau_m_init)
-        nn.init.constant_(self.tau_i, tau_i_init)
+        # nn.init.constant_(self.tau_adp, tau_adap_init)
+        # nn.init.constant_(self.tau_m, tau_m_init)
+        # nn.init.constant_(self.tau_i, tau_i_init)
 
 
         # nn.init.normal_(self.tau_adp, 200., 20.)
@@ -75,7 +75,7 @@ class SnnLayer(nn.Module):
         b = rho * b + (1 - rho) * spike  # adaptive contribution
         new_thre = baseline_thre + beta * b  # udpated threshold
 
-        current = eta * current + (1 - eta) * inputs
+        current = eta * current + (1 - eta) * R_m * inputs
 
         # mem = mem * alpha + (1 - alpha) * r_m * inputs - new_thre * spike
         mem = mem * alpha + current - new_thre * spike  # soft reset
@@ -351,9 +351,10 @@ class SnnNetwork2Layer(SnnNetwork):
         nn.init.xavier_uniform_(self.top_down.weight)
         nn.init.xavier_uniform_(self.bottom_up.weight)
 
-        self.output_layer = OutputLayer(hidden_dims[2], out_dim, is_fc=False)
+        self.skip = nn.Linear(hidden_dims[1], hidden_dims[3])
+        nn.init.xavier_uniform_(self.skip.weight)
 
-        # self.BN1 = nn.BatchNorm1d(100)
+        self.output_layer = OutputLayer(hidden_dims[2], out_dim, is_fc=False)
 
 
     def forward(self, x_t, h):
@@ -364,7 +365,7 @@ class SnnNetwork2Layer(SnnNetwork):
         # poisson
         # x_t = x_t.gt(0.5).float()
 
-        r_input1 = x_t + self.rout2rin(h[5])
+        r_input1 = x_t + self.rout2rin1(h[5])
 
         mem_r1, spk_r1, curr_r1, b_r1 = self.r_in_rec1(r_input1, mem_t=h[0], spk_t=h[1], curr_t=h[2], b_t=h[3])
 
@@ -372,7 +373,7 @@ class SnnNetwork2Layer(SnnNetwork):
 
         mem_p1, spk_p1, curr_p1, b_p1 = self.r_out_rec1(p_input1, mem_t=h[4], spk_t=h[5], curr_t=h[6], b_t=h[7])
 
-        r_input2 = self.rout2rin2(h[13]) + self.bottom_up(spk_p1)
+        r_input2 = self.rout2rin2(h[13]) + self.bottom_up(spk_p1) # + self.rin2rout1(spk_r1)
 
         mem_r2, spk_r2, curr_r2, b_r2 = self.r_in_rec2(r_input2, mem_t=h[8], spk_t=h[9], curr_t=h[10], b_t=h[11])
 
