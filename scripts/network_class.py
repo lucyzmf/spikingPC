@@ -114,6 +114,7 @@ class OutputLayer(nn.Module):
             in_dim: int,
             out_dim: int,
             is_fc: bool,
+            tau_fixed = None
     ):
         """
         output layer class
@@ -130,7 +131,11 @@ class OutputLayer(nn.Module):
             nn.init.xavier_uniform_(self.fc.weight)
 
         # tau_m
-        self.tau_m = nn.Parameter(torch.Tensor(out_dim))
+        if tau_fixed is None:
+            self.tau_m = nn.Parameter(torch.Tensor(out_dim))
+        else:
+            self.tau_m = nn.Parameter(torch.Tensor(out_dim), requires_grad=False)
+
         nn.init.constant_(self.tau_m, 0.5)
 
         self.sigmoid = nn.Sigmoid()

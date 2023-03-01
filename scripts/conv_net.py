@@ -207,7 +207,7 @@ class SnnConvNet(nn.Module):
         self.deconv1 = nn.ConvTranspose2d(hidden_channels[0], input_size[0], kernel_size=kernel_size[0],
                                           stride=stride[0], padding=paddings[0])
 
-        self.output_layer = OutputLayer(p_size * num_classes, out_dim, is_fc=False)
+        self.output_layer = OutputLayer(p_size * num_classes, out_dim, is_fc=False, tau_fixed=True)
 
         self.neuron_count = self.conv1.output_size + self.h_layer.hidden_dim + self.pop_enc.hidden_dim + self.conv2.output_size
 
