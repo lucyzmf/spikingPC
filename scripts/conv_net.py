@@ -550,3 +550,136 @@ class SnnConvNet3Layer(SnnConvNet):
             # layer out
             weight.new(bsz, self.out_dim).zero_()
         )
+
+class SnnConvNet4Layer(SnnConvNet3Layer):
+    def __init__(
+            self,
+            input_size,  # data size
+            hidden_channels: list,  # number of feature maps/channels per layer
+            kernel_size: list,
+            stride: list,
+            paddings: list,
+            out_dim: int,  # num classes
+            is_rec: list,
+            is_adapt_conv: bool,
+            syn_curr_conv: bool,
+            dp_rate=0.3,
+            p_size=10,  # num prediction neurons
+            num_classes=10,
+            pooling=None
+    ):
+        super().__init__(input_size, hidden_channels, kernel_size, stride, paddings, out_dim, is_rec, is_adapt_conv,
+                         syn_curr_conv, dp_rate, p_size, num_classes, pooling)
+
+        # ff weights
+
+        self.conv4 = SNNConvCell(hidden_channels[2], hidden_channels[3], kernel_size[3], stride[3], paddings[3],
+                                 self.conv3.output_shape, is_adapt=is_adapt_conv, pooling_type=pooling,
+                                 is_rec=is_rec[1])
+
+        self.input_to_pc_sz = self.conv4.output_shape[0] * self.conv4.output_shape[1] * self.conv4.output_shape[2]
+
+        self.conv_to_pop = nn.Linear(self.input_to_pc_sz, p_size * num_classes)
+        nn.init.xavier_uniform_(self.conv_to_pop.weight)
+
+        # feedback weights
+        self.pop_to_conv = nn.Linear(p_size * num_classes, self.input_to_pc_sz)
+        nn.init.xavier_uniform_(self.pop_to_conv.weight)
+
+        self.deconv4 = nn.ConvTranspose2d(hidden_channels[3], hidden_channels[2], kernel_size=kernel_size[3],
+                                          stride=stride[3], padding=paddings[3])
+
+        self.neuron_count = self.conv1.output_size + self.h_layer.hidden_dim + self.pop_enc.hidden_dim + \
+                            self.conv2.output_size + self.conv3.output_size + self.conv4.output_size
+
+    def forward(self, x_t, h):
+        batch_dim, c, height, width = x_t.size()
+        x_t = self.dp(x_t)
+
+        # hidden layer
+        h_input = x_t + self.deconv1(h[5])
+        mem_h, spk_h, curr_h, b_h = self.h_layer(h_input.view(batch_dim, -1), mem_t=h[0], spk_t=h[1], curr_t=h[2],
+                                                 b_t=h[3])
+        spk_h = spk_h.reshape(batch_dim, c, height, width)
+
+        mem_conv1, spk_conv1, curr_conv1, b_conv1 = self.conv1(spk_h, mem_t=h[4], spk_t=h[5], curr_t=h[6], b_t=h[7],
+                                                               top_down_sig=self.deconv2(h[9]))
+
+        mem_conv2, spk_conv2, curr_conv2, b_conv2 = self.conv2(spk_conv1, mem_t=h[8], spk_t=h[9], curr_t=h[10],
+                                                               b_t=h[11],
+                                                               top_down_sig=self.deconv3(h[13]))
+
+        mem_conv3, spk_conv3, curr_conv3, b_conv3 = self.conv3(spk_conv2, mem_t=h[12], spk_t=h[13], curr_t=h[14],
+                                                               b_t=h[15],
+                                                               top_down_sig=self.deconv4(h[17]))
+
+        mem_conv4, spk_conv4, curr_conv4, b_conv4 = self.conv4(spk_conv3, mem_t=h[16], spk_t=h[17], curr_t=h[18],
+                                                               b_t=h[19],
+                                                               top_down_sig=self.pop_to_conv(h[21]))
+
+        in_to_pop = self.conv_to_pop(spk_conv4.view(batch_dim, -1))
+        # in_to_pc = spk2.view(batch_dim, -1)
+
+        mem_pop, spk_pop, curr_pop, b_pop = self.pop_enc(in_to_pop, mem_t=h[20], spk_t=h[21], curr_t=h[22],
+                                                         b_t=h[23])
+
+        mem_out = self.output_layer(spk_pop, h[-1])
+
+        h = (mem_h, spk_h.view(batch_dim, -1), curr_h, b_h,
+             mem_conv1, spk_conv1, curr_conv1, b_conv1,
+             mem_conv2, spk_conv2, curr_conv2, b_conv2,
+             mem_conv3, spk_conv3, curr_conv3, b_conv3,
+             mem_conv4, spk_conv4, curr_conv4, b_conv4,
+             mem_pop, spk_pop, curr_pop, b_pop,
+             mem_out
+             )
+
+        self.fr_conv1 = self.fr_conv1 + spk_conv1.detach().cpu().numpy().mean()
+        self.fr_conv2 = self.fr_conv2 + spk_conv2.detach().cpu().numpy().mean()
+        self.fr_h = self.fr_h + spk_h.detach().cpu().numpy().mean()
+        self.fr_pop = self.fr_pop + spk_pop.detach().cpu().numpy().mean()
+
+        log_softmax = F.log_softmax(mem_out, dim=1)
+
+        return log_softmax, h
+
+    def init_hidden(self, bsz):
+        weight = next(self.parameters()).data
+        sz1 = self.conv1.output_shape  # torch size object
+        sz2 = self.conv2.output_shape
+        sz3 = self.conv3.output_shape
+        sz4 = self.conv4.output_shape
+        return (
+            # h layer
+            weight.new(bsz, self.h_layer.hidden_dim).uniform_(),
+            weight.new(bsz, self.h_layer.hidden_dim).zero_(),
+            weight.new(bsz, self.h_layer.hidden_dim).zero_(),
+            weight.new(bsz, self.h_layer.hidden_dim).fill_(b_j0),
+            # conv1
+            weight.new(bsz, sz1[0], sz1[1], sz1[2]).uniform_(),
+            weight.new(bsz, sz1[0], sz1[1], sz1[2]).zero_(),
+            weight.new(bsz, sz1[0], sz1[1], sz1[2]).zero_(),
+            weight.new(bsz, sz1[0], sz1[1], sz1[2]).fill_(b_j0),
+            # conv2
+            weight.new(bsz, sz2[0], sz2[1], sz2[2]).uniform_(),
+            weight.new(bsz, sz2[0], sz2[1], sz2[2]).zero_(),
+            weight.new(bsz, sz2[0], sz2[1], sz2[2]).zero_(),
+            weight.new(bsz, sz2[0], sz2[1], sz2[2]).fill_(b_j0),
+            # conv3
+            weight.new(bsz, sz3[0], sz3[1], sz3[2]).uniform_(),
+            weight.new(bsz, sz3[0], sz3[1], sz3[2]).zero_(),
+            weight.new(bsz, sz3[0], sz3[1], sz3[2]).zero_(),
+            weight.new(bsz, sz3[0], sz3[1], sz3[2]).fill_(b_j0),
+            # conv4
+            weight.new(bsz, sz4[0], sz4[1], sz4[2]).uniform_(),
+            weight.new(bsz, sz4[0], sz4[1], sz4[2]).zero_(),
+            weight.new(bsz, sz4[0], sz4[1], sz4[2]).zero_(),
+            weight.new(bsz, sz4[0], sz4[1], sz4[2]).fill_(b_j0),
+            # pop encode
+            weight.new(bsz, self.pop_enc.hidden_dim).uniform_(),
+            weight.new(bsz, self.pop_enc.hidden_dim).zero_(),
+            weight.new(bsz, self.pop_enc.hidden_dim).zero_(),
+            weight.new(bsz, self.pop_enc.hidden_dim).fill_(b_j0),
+            # layer out
+            weight.new(bsz, self.out_dim).zero_()
+        )
