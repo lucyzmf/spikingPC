@@ -522,7 +522,7 @@ class SnnConvNet3Layer(nn.Module):
                                                                b_t=h[11],
                                                                top_down_sig=self.deconv3(h[13]))
 
-        mem_conv3, spk_conv3, curr_conv3, b_conv3 = self.conv2(spk_conv1, mem_t=h[12], spk_t=h[13], curr_t=h[14],
+        mem_conv3, spk_conv3, curr_conv3, b_conv3 = self.conv2(spk_conv2, mem_t=h[12], spk_t=h[13], curr_t=h[14],
                                                                b_t=h[15],
                                                                top_down_sig=self.pop_to_conv(h[17]))
 
