@@ -127,12 +127,12 @@ class SNNConvCell(nn.Module):
 
         if self.is_rec:
             self.dens_rec.weight.data = self.dens_rec.weight.data * self.weight_mask.to(device)
-            conv_x = conv_x + self.dens_rec(spk_t.view(b, -1)).reshape(b, self.output_shape[0], \
+            conv_x = conv_x + self.dens_rec(spk_t.view(b, -1)).reshape(b, self.output_shape[0],
                                                                        self.output_shape[1], self.output_shape[2])
 
         # if there's top down signal
         if top_down_sig is not None:
-            conv_x = conv_x + top_down_sig.reshape(b, self.output_shape[0], \
+            conv_x = conv_x + top_down_sig.reshape(b, self.output_shape[0],
                                                    self.output_shape[1], self.output_shape[2])
 
         mem, spk, curr, _, b = self.mem_update(conv_x, mem_t, spk_t, curr_t, b_t, self.is_adapt)
@@ -429,7 +429,7 @@ class SnnConvNet1Layer(nn.Module):
 
 
 # %%
-class SnnConvNet3Layer(nn.Module):
+class SnnConvNet3Layer(SnnConvNet):
     def __init__(
             self,
             input_size,  # data size
@@ -446,41 +446,19 @@ class SnnConvNet3Layer(nn.Module):
             num_classes=10,
             pooling=None
     ):
-        super(SnnConvNet3Layer, self).__init__()
-
-        self.hidden_channels = hidden_channels
-        self.out_dim = out_dim
-        self.is_adapt_conv = is_adapt_conv
-        self.syn_curr = syn_curr_conv
-        self.pooling = pooling
-        self.dp = nn.Dropout2d(dp_rate)
-        self.input_size = input_size  # c*h*w
-        self.classify_population_sz = out_dim * p_size
+        super().__init__(input_size, hidden_channels, kernel_size, stride, paddings, out_dim, is_rec, is_adapt_conv,
+                         syn_curr_conv, dp_rate, p_size, num_classes, pooling)
 
         # ff weights
-        self.h_layer = SnnLayer(input_size[1] * input_size[2], input_size[1] * input_size[2], is_rec=False,
-                                is_adapt=False,
-                                one_to_one=True)
-
-        self.conv1 = SNNConvCell(input_size[0], hidden_channels[0], kernel_size[0], stride[0], paddings[0],
-                                 self.input_size, is_adapt=is_adapt_conv, pooling_type=None, is_rec=is_rec[0])
-
-        self.conv2 = SNNConvCell(hidden_channels[0], hidden_channels[1], kernel_size[1], stride[1], paddings[1],
-                                 self.conv1.output_shape, is_adapt=is_adapt_conv, pooling_type=pooling,
-                                 is_rec=is_rec[1])
 
         self.conv3 = SNNConvCell(hidden_channels[1], hidden_channels[2], kernel_size[2], stride[2], paddings[2],
                                  self.conv2.output_shape, is_adapt=is_adapt_conv, pooling_type=pooling,
                                  is_rec=is_rec[1])
 
         self.input_to_pc_sz = self.conv3.output_shape[0] * self.conv3.output_shape[1] * self.conv3.output_shape[2]
-        # self.input_to_pc_sz = self.conv1.output_shape[0] * self.conv1.output_shape[1] * self.conv1.output_shape[2]
 
         self.conv_to_pop = nn.Linear(self.input_to_pc_sz, p_size * num_classes)
         nn.init.xavier_uniform_(self.conv_to_pop.weight)
-
-        self.pop_enc = SnnLayer(p_size * num_classes, p_size * num_classes, is_rec=True,
-                                is_adapt=True, one_to_one=True)
 
         # feedback weights
         self.pop_to_conv = nn.Linear(p_size * num_classes, self.input_to_pc_sz)
@@ -489,21 +467,8 @@ class SnnConvNet3Layer(nn.Module):
         self.deconv3 = nn.ConvTranspose2d(hidden_channels[2], hidden_channels[1], kernel_size=kernel_size[2],
                                           stride=stride[2], padding=paddings[2])
 
-        self.deconv2 = nn.ConvTranspose2d(hidden_channels[1], hidden_channels[0], kernel_size=kernel_size[1],
-                                          stride=stride[1], padding=paddings[1])
-
-        self.deconv1 = nn.ConvTranspose2d(hidden_channels[0], input_size[0], kernel_size=kernel_size[0],
-                                          stride=stride[0], padding=paddings[0])
-
-        self.output_layer = OutputLayer(p_size * num_classes, out_dim, is_fc=False, tau_fixed=True)
-
         self.neuron_count = self.conv1.output_size + self.h_layer.hidden_dim + self.pop_enc.hidden_dim + \
                             self.conv2.output_size + self.conv3.output_size
-
-        self.fr_conv1 = 0
-        self.fr_conv2 = 0
-        self.fr_h = 0
-        self.fr_pop = 0
 
     def forward(self, x_t, h):
         batch_dim, c, height, width = x_t.size()
@@ -550,18 +515,6 @@ class SnnConvNet3Layer(nn.Module):
         log_softmax = F.log_softmax(mem_out, dim=1)
 
         return log_softmax, h
-
-    def inference(self, x_t, h, T):
-        log_softmax_hist = []
-        h_hist = []
-
-        for t in range(T):
-            log_softmax, h = self.forward(x_t, h)
-
-            log_softmax_hist.append(log_softmax)
-            h_hist.append(h)
-
-        return log_softmax_hist, h_hist
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
