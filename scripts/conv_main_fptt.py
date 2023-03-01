@@ -28,8 +28,8 @@ torch.manual_seed(999)
 # %%
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC_conv", entity="lucyzmf")
-# wandb.init(mode="disabled")
+# wandb.init(project="spikingPC_rec_conv", entity="lucyzmf")
+wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -48,11 +48,11 @@ T = 20
 K = config.k_updates  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
-log_interval = 20
+log_interval = 40
 epochs = 40
 n_classes = 10
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_maxpool_fashion_k4_fc2r_hardreset_4layer_schedualerstep2'
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_rec_conv_2l'
 
 # experiment name
 exp_name = config.exp_name
@@ -81,10 +81,10 @@ transform = transforms.Compose(
 
 batch_size = 256
 
-traindata = torchvision.datasets.FashionMNIST(root='./data', train=True,
+traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
 
-testdata = torchvision.datasets.FashionMNIST(root='./data', train=False,
+testdata = torchvision.datasets.MNIST(root='./data', train=False,
                                       download=True, transform=transform)
 
 # data loading
@@ -107,22 +107,23 @@ for batch_idx, (data, target) in enumerate(train_loader):
 # set input and t param
 
 IN_dim = [c, h, w]
-config.hidden_channels = [8, 16, 16, 24]
-config.kernel_size = [3, 3, 3, 3]
-config.stride = [1, 1, 1, 1]
-config.paddings = [0, 0, 0, 0]
-config.pooling = 'max'
-config.num_readout = 5
+config.hidden_channels = [8, 8]
+config.kernel_size = [3, 3]
+config.stride = [1, 1]
+config.paddings = [0, 0]
+config.is_rec = [False, False]
+config.pooling = None
+config.num_readout = 10
 config.conv_adp = False
 config.syn_curr_conv = False
 config.spiking_conv = True
 spiking_conv = config.spiking_conv
 
 # define network
-model = SnnConvNetFourLayer(IN_dim, config.hidden_channels, config.kernel_size, config.stride,
+model = SnnConvNet(IN_dim, config.hidden_channels, config.kernel_size, config.stride,
                    config.paddings, n_classes, is_adapt_conv=config.conv_adp,
                    syn_curr_conv=config.syn_curr_conv, dp_rate=config.dp, p_size=config.num_readout, 
-                   pooling=config.pooling)
+                   pooling=config.pooling, is_rec=config.is_rec)
 model.to(device)
 print(model)
 

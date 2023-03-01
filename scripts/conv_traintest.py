@@ -51,8 +51,8 @@ def train_fptt_conv(epoch, batch_size, log_interval,
                 regularizer = get_regularizer_named_params(named_params, _lambda=1.0)
 
                 # mem potential loss take l1 norm / num of neurons /batch size
-                energy = (p + 1) / k_updates * ((torch.norm(h[1], p=1) + torch.norm(h[5], p=1) + torch.norm(h[9], p=1)
-                                                 + torch.norm(h[13], p=1)) / B / model.neuron_count)
+                energy = ((torch.norm(h[1], p=1) + torch.norm(h[5], p=1) + torch.norm(h[9], p=1)
+                                                 ) / B / model.neuron_count)
                 # overall loss
                 loss = clf_alpha * clf_loss + regularizer + energy_alpha * energy
 
@@ -71,13 +71,13 @@ def train_fptt_conv(epoch, batch_size, log_interval,
 
         if batch_idx > 0 and batch_idx % log_interval == (log_interval - 1):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
-                \tClf: {:.6f}\tReg: {:.6f}\tFr_p: {:.6f}\tFr_r: {:.6f}'.format(
+                \tClf: {:.6f}\tReg: {:.6f}\tFr_conv1: {:.6f}\tFr_conv2: {:.6f}'.format(
                 epoch, batch_idx * batch_size, len(train_loader.dataset),
                        100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B),
                        train_loss / log_interval,
                        total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
-                       model.pc_layer.fr_p / time_steps / log_interval,
-                       model.pc_layer.fr_r / time_steps / log_interval))
+                       model.fr_conv1 / time_steps / log_interval,
+                       model.fr_conv2 / time_steps / log_interval))
 
             wandb.log({
                 'clf_loss': total_clf_loss / log_interval / k_updates,
@@ -85,10 +85,10 @@ def train_fptt_conv(epoch, batch_size, log_interval,
                 'regularisation_loss': total_regularizaton_loss / log_interval / k_updates,
                 'energy_loss': total_energy_loss / log_interval / k_updates,
                 'total_loss': train_loss / log_interval / k_updates,
-                'pred spiking freq': model.pc_layer.fr_p / time_steps / log_interval,  # firing per time step
-                'rep spiking fr': model.pc_layer.fr_r / time_steps / log_interval,
                 'conv1 spk fr': model.fr_conv1 / time_steps / log_interval, 
                 'conv2 spk fr': model.fr_conv2 / time_steps / log_interval, 
+                'h layer spk fr': model.fr_h / time_steps / log_interval, 
+                'pop layer spk fr': model.fr_pop / time_steps / log_interval, 
             })
 
             train_loss = 0
@@ -97,11 +97,11 @@ def train_fptt_conv(epoch, batch_size, log_interval,
             total_energy_loss = 0
             correct = 0
         # model.network.fr = 0
-        model.pc_layer.fr_p = 0
-        model.pc_layer.fr_r = 0
 
         model.fr_conv1 = 0
         model.fr_conv2 = 0
+        model.fr_h = 0
+        model.fr_pop = 0
 
 
 def train_bp_conv(epoch, batch_size, log_interval,
@@ -212,10 +212,9 @@ def test_conv(model, test_loader, time_steps):
 
         with torch.no_grad():
             model.eval()
-            h_conv = model.init_hidden(data.size(0))
-            h_pc = model.pc_layer.init_hidden(data.size(0))
+            h = model.init_hidden(data.size(0))
 
-            log_softmax_outputs, _, _ = model.inference(data, h_conv, h_pc, time_steps)
+            log_softmax_outputs, _ = model.inference(data, h, time_steps)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
 

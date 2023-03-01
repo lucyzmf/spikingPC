@@ -57,9 +57,16 @@ class SNNConvCell(nn.Module):
         self.output_size = self.output_shape[0] * self.output_shape[1] * self.output_shape[2]
         print('output size %i' % self.output_size)
 
+
         if self.is_rec:
-            self.dens_rec = nn.Linear(self.output_shape, self.output_shape)
-            nn.init.xavier_uniform_(self.dens_rec.weight)
+            self.dens_rec = nn.Linear(self.output_size, self.output_size)
+            nn.init.xavier_uniform_(self.dens_rec.weight, gain=2)
+            self.dens_rec.weight.data = self.dens_rec.weight.data * self.weight_mask
+
+            w_p = 256*256
+            mask = torch.concatenate((torch.ones(w_p), torch.zeros(self.output_size**2-w_p)))
+            idx = torch.randperm(self.output_size **2)
+            self.weight_mask = mask[idx].reshape(self.output_size, self.output_size)
 
         self.sigmoid = nn.Sigmoid()
 
@@ -111,16 +118,23 @@ class SNNConvCell(nn.Module):
 
     def forward(self, x_t, mem_t, spk_t, curr_t, b_t, top_down_sig=None):
         x_in = self.BN(self.conv_in(x_t.float()))
+        b, _, _, _ = x_in.size()
         # conv_bnx = self.conv1_x(x_t.float())
 
         if self.pooling is not None:
-            conv_x = self.pooling(x_in) + self.is_rec * self.dens_rec(spk_t).reshape(self.output_shape)
+            conv_x = self.pooling(x_in) 
         else:
-            conv_x = x_in + self.is_rec * self.dens_rec(spk_t).reshape(self.output_shape)
+            conv_x = x_in 
+            
+        if self.is_rec:
+            self.dens_rec.weight.data = self.dens_rec.weight.data * self.weight_mask.to(device)
+            conv_x = conv_x + self.dens_rec(spk_t.view(b, -1)).reshape(b, self.output_shape[0], \
+                self.output_shape[1], self.output_shape[2])
 
         # if there's top down signal
-        if top_down_sig:
-            conv_x = conv_x + top_down_sig.reshape(self.output_shape)
+        if top_down_sig is not None:
+            conv_x = conv_x + top_down_sig.reshape(b, self.output_shape[0], \
+                self.output_shape[1], self.output_shape[2])
 
         mem, spk, curr, _, b = self.mem_update(conv_x, mem_t, spk_t, curr_t, b_t, self.is_adapt)
 
@@ -164,7 +178,7 @@ class SnnConvNet(nn.Module):
 
         # ff weights
         self.h_layer = SnnLayer(input_size[1] * input_size[2], input_size[1] * input_size[2], is_rec=False,
-                                is_adapt=True,
+                                is_adapt=False,
                                 one_to_one=True)
 
         self.conv1 = SNNConvCell(input_size[0], hidden_channels[0], kernel_size[0], stride[0], paddings[0],
@@ -175,6 +189,7 @@ class SnnConvNet(nn.Module):
                                  is_rec=is_rec[1])
 
         self.input_to_pc_sz = self.conv2.output_shape[0] * self.conv2.output_shape[1] * self.conv2.output_shape[2]
+        # self.input_to_pc_sz = self.conv1.output_shape[0] * self.conv1.output_shape[1] * self.conv1.output_shape[2]
 
         self.conv_to_pop = nn.Linear(self.input_to_pc_sz, p_size * num_classes)
         nn.init.xavier_uniform_(self.conv_to_pop.weight)
@@ -194,19 +209,22 @@ class SnnConvNet(nn.Module):
 
         self.output_layer = OutputLayer(p_size * num_classes, out_dim, is_fc=False)
 
-        self.neuron_count = self.conv1.output_size + self.conv2.output_size + self.h_layer.hidden_dim + self.pop_enc.hidden_dim
+        self.neuron_count = self.conv1.output_size + self.h_layer.hidden_dim + self.pop_enc.hidden_dim + self.conv2.output_size
+
 
         self.fr_conv1 = 0
         self.fr_conv2 = 0
+        self.fr_h = 0
+        self.fr_pop = 0
 
     def forward(self, x_t, h):
-        batch_dim, c, h, w = x_t.size()
+        batch_dim, c, height, width = x_t.size()
         x_t = self.dp(x_t)
 
         # hidden layer
         h_input = x_t + self.deconv1(h[5])
-        mem_h, spk_h, curr_h, b_h = self.h_layer(x_t.view(batch_dim, -1), mem_t=h[0], spk_t=h[1], curr_t=h[2], b_t=h[3])
-        spk_h = spk_h.reshape(batch_dim, c, h, w)
+        mem_h, spk_h, curr_h, b_h = self.h_layer(h_input.view(batch_dim, -1), mem_t=h[0], spk_t=h[1], curr_t=h[2], b_t=h[3])
+        spk_h = spk_h.reshape(batch_dim, c, height, width)
 
         mem_conv1, spk_conv1, curr_conv1, b_conv1 = self.conv1(spk_h, mem_t=h[4], spk_t=h[5], curr_t=h[6], b_t=h[7],
                                                                top_down_sig=self.deconv2(h[9]))
@@ -223,7 +241,7 @@ class SnnConvNet(nn.Module):
 
         mem_out = self.output_layer(spk_pop, h[-1])
 
-        h = (mem_h, spk_h, curr_h, b_h,
+        h = (mem_h, spk_h.view(batch_dim, -1), curr_h, b_h,
              mem_conv1, spk_conv1, curr_conv1, b_conv1,
              mem_conv2, spk_conv2, curr_conv2, b_conv2,
              mem_pop, spk_pop, curr_pop, b_pop,
@@ -232,6 +250,8 @@ class SnnConvNet(nn.Module):
 
         self.fr_conv1 = self.fr_conv1 + spk_conv1.detach().cpu().numpy().mean()
         self.fr_conv2 = self.fr_conv2 + spk_conv2.detach().cpu().numpy().mean()
+        self.fr_h = self.fr_h + spk_h.detach().cpu().numpy().mean()
+        self.fr_pop = self.fr_pop + spk_pop.detach().cpu().numpy().mean()
 
         log_softmax = F.log_softmax(mem_out, dim=1)
 
@@ -274,6 +294,8 @@ class SnnConvNet(nn.Module):
             weight.new(bsz, self.pop_enc.hidden_dim).zero_(),
             weight.new(bsz, self.pop_enc.hidden_dim).zero_(),
             weight.new(bsz, self.pop_enc.hidden_dim).fill_(b_j0),
+            # layer out
+            weight.new(bsz, self.out_dim).zero_()
         )
 
 
@@ -396,3 +418,5 @@ class SnnConvNetFourLayer(nn.Module):
             weight.new(bsz, sz4[0], sz4[1], sz4[2]).zero_(),
             weight.new(bsz, sz4[0], sz4[1], sz4[2]).fill_(b_j0)
         )
+
+# %%

@@ -104,6 +104,10 @@ def train_fptt(epoch, batch_size, log_interval,
                 elif len(model.hidden_dims) == 4: 
                     energy = (torch.norm(h[1], p=1) + torch.norm(h[5], p=1) +\
                         torch.norm(h[9], p=1) + torch.norm(h[13], p=1)) / B / sum(model.hidden_dims)
+                elif len(model.hidden_dims) == 5: 
+                    energy = (torch.norm(h[1], p=1) + torch.norm(h[5], p=1) +\
+                        torch.norm(h[9], p=1) + torch.norm(h[13], p=1) + torch.norm(h[17], p=1)) / B / sum(model.hidden_dims)
+                    energy = (p + 1) / k_updates * energy
 
                 # overall loss
                 loss = clf_alpha * clf_loss + regularizer + energy_alpha * energy
