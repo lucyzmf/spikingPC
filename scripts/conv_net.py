@@ -470,7 +470,7 @@ class SnnConvNet3Layer(nn.Module):
                                  is_rec=is_rec[1])
 
         self.conv3 = SNNConvCell(hidden_channels[1], hidden_channels[2], kernel_size[2], stride[2], paddings[2],
-                                 self.conv1.output_shape, is_adapt=is_adapt_conv, pooling_type=pooling,
+                                 self.conv2.output_shape, is_adapt=is_adapt_conv, pooling_type=pooling,
                                  is_rec=is_rec[1])
 
         self.input_to_pc_sz = self.conv3.output_shape[0] * self.conv3.output_shape[1] * self.conv3.output_shape[2]
@@ -522,7 +522,7 @@ class SnnConvNet3Layer(nn.Module):
                                                                b_t=h[11],
                                                                top_down_sig=self.deconv3(h[13]))
 
-        mem_conv3, spk_conv3, curr_conv3, b_conv3 = self.conv2(spk_conv2, mem_t=h[12], spk_t=h[13], curr_t=h[14],
+        mem_conv3, spk_conv3, curr_conv3, b_conv3 = self.conv3(spk_conv2, mem_t=h[12], spk_t=h[13], curr_t=h[14],
                                                                b_t=h[15],
                                                                top_down_sig=self.pop_to_conv(h[17]))
 
