@@ -51,8 +51,19 @@ def train_fptt_conv(epoch, batch_size, log_interval,
                 regularizer = get_regularizer_named_params(named_params, _lambda=1.0)
 
                 # mem potential loss take l1 norm / num of neurons /batch size
-                energy = ((torch.norm(h[1], p=1) + torch.norm(h[5], p=1) + torch.norm(h[9], p=1)
+                if len(model.hidden_channels) == 1:
+                    energy = ((torch.norm(h[1], p=1) + torch.norm(h[5], p=1) + torch.norm(h[9], p=1) 
                                                  ) / B / model.neuron_count)
+                elif len(model.hidden_channels) == 2:
+                    energy = ((torch.norm(h[1], p=1) + torch.norm(h[5], p=1) + torch.norm(h[9], p=1) + torch.norm(h[13], p=1)
+                                                 ) / B / model.neuron_count)
+                elif len(model.hidden_channels) == 3:
+                     energy = ((torch.norm(h[1], p=1) + torch.norm(h[5], p=1) + torch.norm(h[9], p=1) + torch.norm(h[13], p=1)
+                                + torch.norm(h[17], p=1)) / B / model.neuron_count)
+                elif len(model.hidden_channels) == 4:
+                     energy = ((torch.norm(h[1], p=1) + torch.norm(h[5], p=1) + torch.norm(h[9], p=1) + torch.norm(h[13], p=1)
+                                + torch.norm(h[17], p=1) + + torch.norm(h[21], p=1)) / B / model.neuron_count)
+
                 # overall loss
                 loss = clf_alpha * clf_loss + regularizer + energy_alpha * energy
 

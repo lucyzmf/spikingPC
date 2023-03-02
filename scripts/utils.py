@@ -241,7 +241,7 @@ def shift_input(i, T, data):
 
 # %%
 # get all hidden states
-def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T):
+def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T, conv=None):
     trained_model.eval()
     test_loss = 0
     correct = 0
@@ -254,7 +254,8 @@ def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T):
     for i, (data, target) in enumerate(test_loader):
         data_all_.append(data.data)
         data, target = data.to(device), target.to(device)
-        data = data.view(-1, IN_dim)
+        if conv is None:
+            data = data.view(-1, IN_dim)
 
         with torch.no_grad():
             trained_model.eval()
