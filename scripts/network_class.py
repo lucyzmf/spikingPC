@@ -133,10 +133,11 @@ class OutputLayer(nn.Module):
         # tau_m
         if tau_fixed is None:
             self.tau_m = nn.Parameter(torch.Tensor(out_dim))
+            nn.init.constant_(self.tau_m, 0.5)
         else:
             self.tau_m = nn.Parameter(torch.Tensor(out_dim), requires_grad=False)
+            nn.init.constant_(self.tau_m, tau_fixed)
 
-        nn.init.constant_(self.tau_m, 0.5)
 
         self.sigmoid = nn.Sigmoid()
 
@@ -149,7 +150,7 @@ class OutputLayer(nn.Module):
         if self.is_fc:
             x_t = self.fc(x_t)
         else:
-            x_t = x_t.view(-1, 10, int(self.in_dim / 10)).mean(dim=2)  # sum up population spike
+            x_t = x_t.view(-1, 10, int(self.in_dim / 10)).sum(dim=2)  # sum up population spike
 
         # d_mem = -mem_t + x_t
         mem = (mem_t + x_t) * self.tau_m
