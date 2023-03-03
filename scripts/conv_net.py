@@ -58,14 +58,14 @@ class SNNConvCell(nn.Module):
         print('output size %i' % self.output_size)
 
         if self.is_rec:
-            self.dens_rec = nn.Linear(self.output_size, self.output_size)
-            nn.init.xavier_uniform_(self.dens_rec.weight, gain=2)
-            self.dens_rec.weight.data = self.dens_rec.weight.data * self.weight_mask
-
-            w_p = 256 * 256
+            w_p = 400*400
             mask = torch.concatenate((torch.ones(w_p), torch.zeros(self.output_size ** 2 - w_p)))
             idx = torch.randperm(self.output_size ** 2)
             self.weight_mask = mask[idx].reshape(self.output_size, self.output_size)
+
+            self.dens_rec = nn.Linear(self.output_size, self.output_size)
+            nn.init.xavier_uniform_(self.dens_rec.weight)
+            self.dens_rec.weight.data = self.dens_rec.weight.data * self.weight_mask
 
         self.sigmoid = nn.Sigmoid()
 

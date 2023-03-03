@@ -62,7 +62,7 @@ class SnnLayer(nn.Module):
     def mem_update(self, inputs, mem, spike, current, b, is_adapt, dt=1, baseline_thre=b_j0, r_m=3):
         alpha = self.sigmoid(self.tau_m)
         rho = self.sigmoid(self.tau_adp)
-        eta = 0  # self.sigmoid(self.tau_i)
+        eta = self.sigmoid(self.tau_i)
         # alpha = torch.exp(-dt/self.tau_m)
         # rho = torch.exp(-dt/self.tau_adp)
 
