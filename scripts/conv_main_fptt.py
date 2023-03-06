@@ -28,8 +28,8 @@ torch.manual_seed(999)
 # %%
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-# wandb.init(project="spikingPC_rec_conv", entity="lucyzmf")
-wandb.init(mode="disabled")
+wandb.init(project="spikingPC_rec_conv", entity="lucyzmf")
+# wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
@@ -49,10 +49,10 @@ K = config.k_updates  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 40
-epochs = 40
+epochs = 30
 n_classes = 10
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_rec_conv_2l'
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_rec_conv_2l_poisson3'
 
 # experiment name
 exp_name = config.exp_name
