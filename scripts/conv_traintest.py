@@ -62,7 +62,10 @@ def train_fptt_conv(epoch, batch_size, log_interval,
                                 + torch.norm(h[17], p=1)) / B / model.neuron_count)
                 elif len(model.hidden_channels) == 4:
                      energy = ((torch.norm(h[1], p=1) + torch.norm(h[5], p=1) + torch.norm(h[9], p=1) + torch.norm(h[13], p=1)
-                                + torch.norm(h[17], p=1) + + torch.norm(h[21], p=1)) / B / model.neuron_count)
+                                + torch.norm(h[17], p=1) + torch.norm(h[21], p=1)) / B / model.neuron_count)
+                elif len(model.hidden_channels) == 5:
+                     energy = ((torch.norm(h[1], p=1) + torch.norm(h[5], p=1) + torch.norm(h[9], p=1) + torch.norm(h[13], p=1)
+                                + torch.norm(h[17], p=1) + torch.norm(h[21], p=1) + torch.norm(h[25], p=1)) / B / model.neuron_count)
 
                 # overall loss
                 loss = clf_alpha * clf_loss + regularizer + energy_alpha * energy

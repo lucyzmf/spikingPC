@@ -128,7 +128,7 @@ class OutputLayer(nn.Module):
         if self.is_fc:
             x_t = self.fc(x_t)
         else:
-            x_t = x_t.view(-1, self.out_dim, int(self.in_dim / self.out_dim)).mean(dim=2)  # sum up population spike
+            x_t = x_t.view(-1, self.out_dim, int(self.in_dim / self.out_dim)).sum(dim=2)  # sum up population spike
 
         # d_mem = -mem_t + x_t
         mem = (mem_t + x_t) * self.tau_m
@@ -180,7 +180,7 @@ class SnnNetwork(nn.Module):
         x_t = x_t.reshape(batch_dim, input_size).float()
         x_t = self.dp(x_t)
         # poisson
-        x_t = x_t.gt(0.5).float()
+        # x_t = x_t.gt(0.5).float()
 
         r_input = x_t + self.rout2rin(h[5])
 

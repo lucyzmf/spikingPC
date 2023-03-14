@@ -35,7 +35,7 @@ wandb.init(project="spikingPC_rec_conv", entity="lucyzmf")
 config = wandb.config
 config.adap_neuron = True  # whether use adaptive conv neuron or not
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1  # - config.clf_alpha
+config.energy_alpha = 0  # - config.clf_alpha
 config.onetoone = True
 config.lr = 1e-3
 config.alg = 'conv_fptt'
@@ -52,7 +52,7 @@ log_interval = 40
 epochs = 30
 n_classes = 10
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_rec_conv_2l_poisson3'
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_conv_3l_pmean_k4_kernel5_curr'
 
 # experiment name
 exp_name = config.exp_name
@@ -77,6 +77,7 @@ else:
 
 transform = transforms.Compose(
     [transforms.ToTensor(),
+     transforms.Resize(16), 
      transforms.Normalize((0.5), (0.5))])
 
 batch_size = 256
@@ -107,20 +108,20 @@ for batch_idx, (data, target) in enumerate(train_loader):
 # set input and t param
 
 IN_dim = [c, h, w]
-config.hidden_channels = [8, 8]
-config.kernel_size = [3, 3]
-config.stride = [1, 1]
-config.paddings = [0, 0]
-config.is_rec = [False, False]
+config.hidden_channels = [8, 8, 8]
+config.kernel_size = [5, 5, 5]
+config.stride = [1, 1, 1]
+config.paddings = [0, 0, 0]
+config.is_rec = [False, False, False]
 config.pooling = None
 config.num_readout = 10
 config.conv_adp = False
-config.syn_curr_conv = False
+config.syn_curr_conv = True
 config.spiking_conv = True
 spiking_conv = config.spiking_conv
 
 # define network
-model = SnnConvNet(IN_dim, config.hidden_channels, config.kernel_size, config.stride,
+model = SnnConvNet3Layer(IN_dim, config.hidden_channels, config.kernel_size, config.stride,
                    config.paddings, n_classes, is_adapt_conv=config.conv_adp,
                    syn_curr_conv=config.syn_curr_conv, dp_rate=config.dp, p_size=config.num_readout, 
                    pooling=config.pooling, is_rec=config.is_rec)
