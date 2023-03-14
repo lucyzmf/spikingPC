@@ -22,7 +22,7 @@ from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
 
 from tqdm import tqdm
 
-from network_beforeseq_imple import *
+from network_class import *
 from utils import *
 from FTTP import *
 
@@ -95,7 +95,7 @@ saved_dict = model_result_dict_load(exp_dir + 'onelayer_rec_best.pth.tar')
 
 model.load_state_dict(saved_dict['state_dict'])
 
-# model.r_in_rec.rec_w.weight.data = torch.zeros((hidden_dim[1], hidden_dim[1])).to(device)
+# model.layer1.rec_w.weight.data = torch.zeros((hidden_dim[1], hidden_dim[1])).to(device)
 
 # %%
 # get params and put into dict

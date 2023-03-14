@@ -15,7 +15,7 @@ from datetime import date
 import os
 
 
-from network_beforeseq_imple import *
+from network_class import *
 from utils import *
 from FTTP import *
 from test_function import test
@@ -29,20 +29,15 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC_onelayer", entity="lucyzmf")
+wandb.init(project="spikingPC_voltageloss", entity="lucyzmf")
 # wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
-config.spike_loss = False  # whether use energy penalty on spike or on mem potential 
 config.adap_neuron = True  # whether use adaptive neuron or not
-config.l1_lambda = 0  # weighting for l1 reg
-config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = 1  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
-config.input_scale = 0.3
-input_scale = config.input_scale
 config.lr = 1e-3
 config.alg = 'fptt'
 alg = config.alg
@@ -55,14 +50,12 @@ K = config.k_updates  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 10
-epoch = 10
-n_classes = 10
+epochs = 30
 
-config.exp_name = config.alg + '_ener_dp04_psum'
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_pmean_voltageE'
 
 # experiment name 
 exp_name = config.exp_name
-energy_penalty = True
 # checkpoint file name
 check_fn = 'onelayer_rec_best.pth.tar'
 # experiment date and name 
@@ -111,7 +104,8 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 # set input and t param
 IN_dim = 784
-hidden_dim = [n_classes * config.num_readout, 784]
+hidden_dim = [784, 256]
+n_classes = 10
 
 # define network
 model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=config.adap_neuron, one_to_one=config.onetoone,
@@ -138,7 +132,6 @@ test_loss, acc1 = test(model, test_loader, T)
 
 # %%
 
-epochs = 20
 named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20

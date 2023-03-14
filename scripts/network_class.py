@@ -3,9 +3,46 @@ import math
 
 import torch
 import torch.nn as nn
-from network import *
 
 b_j0 = 0.1  # neural threshold baseline
+
+R_m = 3  # membrane resistance
+dt = 1
+gamma = .5  # gradient scale
+lens = 0.5
+
+
+def gaussian(x, mu=0., sigma=.5):
+    return torch.exp(-((x - mu) ** 2) / (2 * sigma ** 2)) / torch.sqrt(2 * torch.tensor(math.pi)) / sigma
+
+
+class ActFun_adp(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, input):  # input = membrane potential- threshold
+        ctx.save_for_backward(input)
+        return input.gt(0).float()  # is firing ???
+
+    @staticmethod
+    def backward(ctx, grad_output):  # approximate the gradients
+        input, = ctx.saved_tensors
+        grad_input = grad_output.clone()
+        # temp = abs(input) < lens
+        scale = 6.0
+        hight = .15
+        # temp = torch.exp(-(input**2)/(2*lens**2))/torch.sqrt(2*torch.tensor(math.pi))/lens
+        temp = gaussian(input, mu=0., sigma=lens) * (1. + hight) \
+               - gaussian(input, mu=lens, sigma=scale * lens) * hight \
+               - gaussian(input, mu=-lens, sigma=scale * lens) * hight
+        # temp =  gaussian(input, mu=0., sigma=lens)
+        return grad_input * temp.float() * gamma
+        # return grad_input
+
+
+act_fun_adp = ActFun_adp.apply
+
+
+def shifted_sigmoid(currents):
+    return 1 / (1 + torch.exp(currents)) - 0.5
 
 
 class SnnLayer(nn.Module):
@@ -40,29 +77,39 @@ class SnnLayer(nn.Module):
         # define param for time constants
         self.tau_adp = nn.Parameter(torch.Tensor(hidden_dim))
         self.tau_m = nn.Parameter(torch.Tensor(hidden_dim))
-        self.tau_i = nn.Parameter(torch.Tensor(hidden_dim))
+        self.tau_a = nn.Parameter(torch.Tensor(hidden_dim))
 
         nn.init.normal_(self.tau_adp, tau_adap_init, .1)
         nn.init.normal_(self.tau_m, tau_m_init, .1)
-        nn.init.normal_(self.tau_i, tau_i_init, 0.1)
+        nn.init.normal_(self.tau_a, tau_i_init, 0.1)
 
         # self.tau_adp = nn.Parameter(torch.Tensor(1))
         # self.tau_m = nn.Parameter(torch.Tensor(1))
-        # self.tau_i = nn.Parameter(torch.Tensor(1))
+        # self.tau_a = nn.Parameter(torch.Tensor(1))
 
         # nn.init.constant_(self.tau_adp, tau_adap_init)
         # nn.init.constant_(self.tau_m, tau_m_init)
-        # nn.init.constant_(self.tau_i, tau_i_init)
+        # nn.init.constant_(self.tau_a, tau_i_init)
 
         # nn.init.normal_(self.tau_adp, 200., 20.)
         # nn.init.normal_(self.tau_m, 20., .5)
 
         self.sigmoid = nn.Sigmoid()
 
-    def mem_update(self, inputs, mem, spike, current, b, is_adapt, dt=1, baseline_thre=b_j0, r_m=3):
+    def mem_update(self, ff, fb, soma, spike, a_curr, b, is_adapt, dt=1, baseline_thre=b_j0, r_m=3):
+        """
+        mem update for each layer of neurons
+        :param ff: feedforward signal
+        :param fb: feedback signal to apical tuft
+        :param soma: mem voltage potential at soma
+        :param spike: spiking at last time step
+        :param a_curr: apical tuft current at last t
+        :param b: adaptive threshold
+        :return:
+        """
         alpha = self.sigmoid(self.tau_m)
         rho = self.sigmoid(self.tau_adp)
-        eta = self.sigmoid(self.tau_i)
+        eta = self.sigmoid(self.tau_a)
         # alpha = torch.exp(-dt/self.tau_m)
         # rho = torch.exp(-dt/self.tau_adp)
 
@@ -74,38 +121,38 @@ class SnnLayer(nn.Module):
         b = rho * b + (1 - rho) * spike  # adaptive contribution
         new_thre = baseline_thre + beta * b  # udpated threshold
 
-        current = eta * current + (1 - eta) * R_m * inputs
+        a_new = eta * a_curr + fb  # fb into apical tuft
 
-        # mem = mem * alpha + (1 - alpha) * r_m * inputs - new_thre * spike
-        mem = mem * alpha + current - new_thre * spike  # soft reset
-        inputs_ = mem - new_thre
+        soma_new = alpha * soma + shifted_sigmoid(a_new) + ff - new_thre * spike
+        inputs_ = soma_new - new_thre
 
         spike = act_fun_adp(inputs_)  # act_fun : approximation firing function
         # mem = (1 - spike) * mem
 
-        return mem, spike, current, new_thre, b
+        return soma_new, spike, a_curr, new_thre, b
 
-    def forward(self, x_t, mem_t, spk_t, curr_t, b_t):
+    def forward(self, ff, fb, soma_t, spk_t, a_curr_t, b_t):
         """
         forward function of a single layer. given previous neuron states and current input, update neuron states
-        :param curr_t: current
-        :param x_t: input at time t
-        :param mem_t: mem potentials at t
-        :param spk_t: spikes at t
-        :param b_t: adaptive threshold contribution at t
-        :return: new neuron states
+
+        :param ff: ff signal (not counting rec)
+        :param fb: fb top down signal
+        :param soma_t: soma voltage
+        :param a_curr_t: apical tuft voltage
+        :return:
         """
+
         if self.is_rec:
-            r_in = x_t + self.rec_w(spk_t)
+            r_in = ff + self.rec_w(spk_t)
         else:
             if self.one_to_one:
-                r_in = x_t
+                r_in = ff
             else:
-                r_in = self.fc_weights(x_t)
+                r_in = self.fc_weights(ff)
 
-        mem_t1, spk_t1, curr_t1, _, b_t1 = self.mem_update(r_in, mem_t, spk_t, curr_t, b_t, self.is_adapt)
+        soma_t1, spk_t1, a_curr_t1, _, b_t1 = self.mem_update(r_in, fb, soma_t, spk_t, a_curr_t, b_t, self.is_adapt)
 
-        return mem_t1, spk_t1, curr_t1, b_t1
+        return soma_t1, spk_t1, a_curr_t1, b_t1
 
 
 class OutputLayer(nn.Module):
@@ -114,7 +161,7 @@ class OutputLayer(nn.Module):
             in_dim: int,
             out_dim: int,
             is_fc: bool,
-            tau_fixed = None
+            tau_fixed=None
     ):
         """
         output layer class
@@ -138,7 +185,6 @@ class OutputLayer(nn.Module):
             self.tau_m = nn.Parameter(torch.Tensor(out_dim), requires_grad=False)
             nn.init.constant_(self.tau_m, tau_fixed)
 
-
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x_t, mem_t, dt=1):
@@ -161,7 +207,7 @@ class SnnNetwork(nn.Module):
     def __init__(
             self,
             in_dim: int,
-            hidden_dims: list,  # [r out, r in]
+            hidden_dims: list,
             out_dim: int,
             is_adapt: bool,
             one_to_one: bool,
@@ -177,24 +223,30 @@ class SnnNetwork(nn.Module):
 
         self.dp = nn.Dropout(dp_rate)
 
-        self.r_in_rec = SnnLayer(hidden_dims[1], hidden_dims[1], is_rec=True, is_adapt=is_adapt,
-                                 one_to_one=one_to_one)
+        self.layer1 = SnnLayer(hidden_dims[0], hidden_dims[0], is_rec=True, is_adapt=is_adapt,
+                               one_to_one=one_to_one)
 
         # r in to r out
-        self.rin2rout = nn.Linear(hidden_dims[1], hidden_dims[0])
-        nn.init.xavier_uniform_(self.rin2rout.weight)
+        self.layer1to2 = nn.Linear(hidden_dims[0], hidden_dims[1])
+        nn.init.xavier_uniform_(self.layer1to2.weight)
 
         # r out to r in
-        self.rout2rin = nn.Linear(hidden_dims[0], hidden_dims[1])
-        nn.init.xavier_uniform_(self.rout2rin.weight)
+        self.layer2to1 = nn.Linear(hidden_dims[1], hidden_dims[0])
+        nn.init.xavier_uniform_(self.layer2to1.weight)
 
-        self.r_out_rec = SnnLayer(hidden_dims[0], hidden_dims[0], is_rec=True, is_adapt=is_adapt,
-                                  one_to_one=one_to_one)
+        self.layer2 = SnnLayer(hidden_dims[1], hidden_dims[1], is_rec=True, is_adapt=is_adapt,
+                               one_to_one=one_to_one)
 
-        self.output_layer = OutputLayer(hidden_dims[0], out_dim, is_fc=False)
+        self.output_layer = OutputLayer(hidden_dims[1], out_dim, is_fc=False)
 
-        self.fr_p = 0
-        self.fr_r = 0
+        self.out2layer2 = nn.Linear(out_dim, hidden_dims[1])
+        nn.init.xavier_uniform_(self.out2layer2.weight)
+
+        self.fr_layer2 = 0
+        self.fr_layer1 = 0
+
+        self.error1 = 0
+        self.error2 = 0
 
     def forward(self, x_t, h):
         batch_dim, input_size = x_t.shape
@@ -204,22 +256,25 @@ class SnnNetwork(nn.Module):
         # poisson 
         # x_t = x_t.gt(0.5).float()
 
-        r_input = x_t + self.rout2rin(h[5])
+        soma_1, spk_1, a_curr_1, b_1 = self.layer1(x_t, self.layer2to1(h[5]), mem_t=h[0], spk_t=h[1],
+                                                   curr_t=h[2], b_t=h[3])
 
-        mem_r, spk_r, curr_r, b_r = self.r_in_rec(r_input, mem_t=h[0], spk_t=h[1], curr_t=h[2], b_t=h[3])
+        self.error1 = a_curr_1 - soma_1
 
-        p_input = self.rin2rout(spk_r)
+        # use out mem signal as feedback
+        soma_2, spk_2, a_curr_2, b_2 = self.layer2(self.layer1to2(spk_1), self.out2layer2(h[-1]), mem_t=h[4],
+                                                   spk_t=h[5], curr_t=h[6], b_t=h[7])
 
-        mem_p, spk_p, curr_p, b_p = self.r_out_rec(p_input, mem_t=h[4], spk_t=h[5], curr_t=h[6], b_t=h[7])
+        self.error2 = a_curr_2 - soma_2
 
-        self.fr_p = self.fr_p + spk_p.detach().cpu().numpy().mean()
-        self.fr_r = self.fr_r + spk_r.detach().cpu().numpy().mean()
+        self.fr_layer2 = self.fr_layer2 + spk_2.detach().cpu().numpy().mean()
+        self.fr_layer1 = self.fr_layer1 + spk_1.detach().cpu().numpy().mean()
 
         # read out from r_out neurons
-        mem_out = self.output_layer(spk_p, h[-1])
+        mem_out = self.output_layer(spk_2, h[-1])
 
-        h = (mem_r, spk_r, curr_r, b_r,
-             mem_p, spk_p, curr_p, b_p,
+        h = (soma_1, spk_1, a_curr_1, b_1,
+             soma_2, spk_2, a_curr_2, b_2,
              mem_out)
 
         log_softmax = F.log_softmax(mem_out, dim=1)
@@ -267,46 +322,6 @@ class SnnNetwork(nn.Module):
 
 
 # %%
-class SnnNetworkSeq(SnnNetwork):
-    def __init__(
-            self,
-            in_dim: int,
-            hidden_dims: list,  # [r out, r in]
-            out_dim: int,
-            is_adapt: bool,
-            one_to_one: bool,
-            dp_rate: float
-    ):
-        super().__init__(in_dim, hidden_dims, out_dim, is_adapt, one_to_one, dp_rate)
-
-    # override inference function
-    def inference(self, x_t, h, time_steps):
-        """
-        only called during inference
-        :param x_t: input, contains all data for one sequence
-        :param h: hidden states
-        :param time_steps: sequence length
-        :return:
-        """
-
-        log_softmax_hist = []
-        h_hist = []
-        pred_hist = []  # log predictions at each time step for evaluation
-
-        for t in range(time_steps):
-            # iterate through each seq per time step
-            log_softmax, h = self.forward(x_t[:, t, :], h)
-
-            log_softmax_hist.append(log_softmax)
-            pred = log_softmax.data.max(1, keepdim=True)[1]
-
-            pred_hist.append(pred)
-            h_hist.append(h)
-
-        pred_hist = torch.stack(pred_hist).squeeze()
-
-        return log_softmax_hist, h_hist, pred_hist
-
 
 class SnnNetwork2Layer(SnnNetwork):
     def __init__(
@@ -388,8 +403,8 @@ class SnnNetwork2Layer(SnnNetwork):
 
         mem_p2, spk_p2, curr_p2, b_p2 = self.r_out_rec2(p_input2, mem_t=h[12], spk_t=h[13], curr_t=h[14], b_t=h[15])
 
-        self.fr_p = self.fr_p + spk_p1.detach().cpu().numpy().mean() / 2 + spk_p2.detach().cpu().numpy().mean() / 2
-        self.fr_r = self.fr_r + spk_r1.detach().cpu().numpy().mean() / 2 + spk_r2.detach().cpu().numpy().mean() / 2
+        self.fr_p = self.fr_layer2 + spk_p1.detach().cpu().numpy().mean() / 2 + spk_p2.detach().cpu().numpy().mean() / 2
+        self.fr_r = self.fr_layer1 + spk_r1.detach().cpu().numpy().mean() / 2 + spk_r2.detach().cpu().numpy().mean() / 2
 
         # read out from r_out neurons
         mem_out = self.output_layer(spk_p2, h[-1])
@@ -525,8 +540,8 @@ class SnnNetwork3MidLayer(SnnNetwork):
 
         mem_p2, spk_p2, curr_p2, b_p2 = self.p2(p2_input, mem_t=h[16], spk_t=h[17], curr_t=h[18], b_t=h[19])
 
-        self.fr_p = self.fr_p + spk_p1.detach().cpu().numpy().mean() / 2 + spk_p2.detach().cpu().numpy().mean() / 2
-        self.fr_r = self.fr_r + spk_r1.detach().cpu().numpy().mean() / 2 + spk_r2.detach().cpu().numpy().mean() / 2
+        self.fr_p = self.fr_layer2 + spk_p1.detach().cpu().numpy().mean() / 2 + spk_p2.detach().cpu().numpy().mean() / 2
+        self.fr_r = self.fr_layer1 + spk_r1.detach().cpu().numpy().mean() / 2 + spk_r2.detach().cpu().numpy().mean() / 2
 
         # read out from r_out neurons
         mem_out = self.output_layer(spk_p2, h[-1])

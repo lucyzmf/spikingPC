@@ -176,8 +176,8 @@ def train_bptt(train_loader, n_classes, model, named_params):
                        100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B),
                        train_loss / log_interval,
                        total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
-                       model.fr_p / T / log_interval,
-                       model.fr_r / T / log_interval))
+                       model.fr_layer2 / T / log_interval,
+                       model.fr_layer1 / T / log_interval))
 
             wandb.log({
                 'clf_loss': total_clf_loss / log_interval / K,
@@ -185,8 +185,8 @@ def train_bptt(train_loader, n_classes, model, named_params):
                 'regularisation_loss': total_regularizaton_loss / log_interval / K,
                 'energy_loss': total_energy_loss / log_interval / K,
                 'total_loss': train_loss / log_interval / K,
-                'pred spiking freq': model.fr_p / T / log_interval,  # firing per time step
-                'rep spiking fr': model.fr_r / T / log_interval,
+                'pred spiking freq': model.fr_layer2 / T / log_interval,  # firing per time step
+                'rep spiking fr': model.fr_layer1 / T / log_interval,
             })
 
             train_loss = 0
@@ -195,8 +195,8 @@ def train_bptt(train_loader, n_classes, model, named_params):
             total_l1_loss = 0
             correct = 0
 
-        model.fr_p = 0
-        model.fr_r = 0
+        model.fr_layer2 = 0
+        model.fr_layer1 = 0
 
 
 # %%

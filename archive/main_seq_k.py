@@ -225,11 +225,11 @@ def train(train_batches, train_label, n_classes, model, named_params):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
                 \tClf: {:.6f}\tReg: {:.6f}\tFr_p: {:.6f}\tFr_r: {:.6f}'.format(
                 epoch, batch_idx * batch_size, n_trainset,
-                       100. * batch_idx / n_trainset, lr, 100 * correct / (log_interval * batch_size)/T,
+                       100. * batch_idx / n_trainset, lr, 100 * correct / (log_interval * batch_size) / T,
                        train_loss / log_interval,
                        total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
-                       model.fr_p / T / log_interval,
-                       model.fr_r / T / log_interval))
+                       model.fr_layer2 / T / log_interval,
+                       model.fr_layer1 / T / log_interval))
 
             wandb.log({
                 'clf_loss': total_clf_loss / log_interval / K,
@@ -238,8 +238,8 @@ def train(train_batches, train_label, n_classes, model, named_params):
                 'energy_loss': total_energy_loss / log_interval / K,
                 'l1_loss': config.l1_lambda * total_l1_loss / log_interval / K,
                 'total_loss': train_loss / log_interval / K,
-                'pred spiking freq': model.fr_p / T / log_interval,  # firing per time step
-                'rep spiking fr': model.fr_r / T / log_interval,
+                'pred spiking freq': model.fr_layer2 / T / log_interval,  # firing per time step
+                'rep spiking fr': model.fr_layer1 / T / log_interval,
             })
 
             train_loss = 0
@@ -249,8 +249,8 @@ def train(train_batches, train_label, n_classes, model, named_params):
             total_l1_loss = 0
             correct = 0
         # model.network.fr = 0
-        model.fr_p = 0
-        model.fr_r = 0
+        model.fr_layer2 = 0
+        model.fr_layer1 = 0
 
 
 # %%

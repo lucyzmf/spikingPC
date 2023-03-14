@@ -126,15 +126,15 @@ model_bp.load_state_dict(saved_dict2['state_dict'])
 # plt.show()
 
 # %%
-plt.hist([model_fptt.r_in_rec.rec_w.weight.detach().cpu().numpy().flatten(), \
-    model_bp.r_in_rec.rec_w.weight.detach().cpu().numpy().flatten()], label=['fptt', 'bp'])
+plt.hist([model_fptt.layer1.rec_w.weight.detach().cpu().numpy().flatten(), \
+          model_bp.layer1.rec_w.weight.detach().cpu().numpy().flatten()], label=['fptt', 'bp'])
 plt.legend()
 plt.title('r rec w')
 plt.show()
 
 # %%
-plt.hist([model_fptt.r_out_rec.rec_w.weight.detach().cpu().numpy().flatten(), \
-    model_bp.r_out_rec.rec_w.weight.detach().cpu().numpy().flatten()], label=['fptt', 'bp'])
+plt.hist([model_fptt.layer2.rec_w.weight.detach().cpu().numpy().flatten(), \
+          model_bp.layer2.rec_w.weight.detach().cpu().numpy().flatten()], label=['fptt', 'bp'])
 plt.legend()
 plt.title('p rec w')
 plt.show()

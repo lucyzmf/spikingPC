@@ -126,7 +126,7 @@ for i in range(10 * 2):
     else:
         model = model_fptt
         model_type = 'fptt'
-    w = model.rout2rin.weight[:, num_readout * (i % 10):((i % 10) + 1) * num_readout].detach()
+    w = model.layer2to1.weight[:, num_readout * (i % 10):((i % 10) + 1) * num_readout].detach()
     inhibition_strength_per_class['inhibition'].append(((w < 0) * w).sum().cpu().item())
     inhibition_strength_per_class['model type'].append(model_type)
 
@@ -148,7 +148,7 @@ for i in range(10 * 2):
     else:
         model = model_fptt
         model_type = 'fptt'
-    w = model.rin2rout.weight[num_readout * (i % 10):((i % 10) + 1) * num_readout, :].detach()
+    w = model.layer1to2.weight[num_readout * (i % 10):((i % 10) + 1) * num_readout, :].detach()
     ex_strength_per_class['excitation'].append(((w > 0) * w).sum().cpu().item())
     ex_strength_per_class['model type'].append(model_type)
 
@@ -183,10 +183,10 @@ for i in range(2):
     time_constants['neuron type'] += (['p'] * 100 *2 + ['r'] * 784 *2)
     time_constants['measurement type'] += (['tau_m']*100 + ['tau_adp'] * 100 + ['tau_m']*784 + ['tau_adp'] * 784)
 
-    tau_m_p = model.r_out_rec.tau_m.data.cpu().tolist()
-    tau_adp_p = model.r_out_rec.tau_adp.data.cpu().tolist()
-    tau_m_r = model.r_in_rec.tau_m.data.cpu().tolist()
-    tau_adp_r = model.r_in_rec.tau_adp.data.cpu().tolist()
+    tau_m_p = model.layer2.tau_m.data.cpu().tolist()
+    tau_adp_p = model.layer2.tau_adp.data.cpu().tolist()
+    tau_m_r = model.layer1.tau_m.data.cpu().tolist()
+    tau_adp_r = model.layer1.tau_adp.data.cpu().tolist()
     time_constants['value'] += (tau_m_p + tau_adp_p + tau_m_r + tau_adp_r)
 
 time_constants_df = pd.DataFrame.from_dict(time_constants)
