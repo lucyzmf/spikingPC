@@ -3,6 +3,7 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 b_j0 = 0.1  # neural threshold baseline
 
@@ -42,7 +43,7 @@ act_fun_adp = ActFun_adp.apply
 
 
 def shifted_sigmoid(currents):
-    return 1 / (1 + torch.exp(currents)) - 0.5
+    return (1 / (1 + torch.exp(currents)) - 0.5)/2
 
 
 class SnnLayer(nn.Module):
@@ -223,7 +224,7 @@ class SnnNetwork(nn.Module):
 
         self.dp = nn.Dropout(dp_rate)
 
-        self.layer1 = SnnLayer(hidden_dims[0], hidden_dims[0], is_rec=True, is_adapt=is_adapt,
+        self.layer1 = SnnLayer(hidden_dims[0], hidden_dims[0], is_rec=False, is_adapt=is_adapt,
                                one_to_one=one_to_one)
 
         # r in to r out
@@ -234,10 +235,10 @@ class SnnNetwork(nn.Module):
         self.layer2to1 = nn.Linear(hidden_dims[1], hidden_dims[0])
         nn.init.xavier_uniform_(self.layer2to1.weight)
 
-        self.layer2 = SnnLayer(hidden_dims[1], hidden_dims[1], is_rec=True, is_adapt=is_adapt,
+        self.layer2 = SnnLayer(hidden_dims[1], hidden_dims[1], is_rec=False, is_adapt=is_adapt,
                                one_to_one=one_to_one)
 
-        self.output_layer = OutputLayer(hidden_dims[1], out_dim, is_fc=False)
+        self.output_layer = OutputLayer(hidden_dims[1], out_dim, is_fc=True)
 
         self.out2layer2 = nn.Linear(out_dim, hidden_dims[1])
         nn.init.xavier_uniform_(self.out2layer2.weight)
@@ -256,14 +257,14 @@ class SnnNetwork(nn.Module):
         # poisson 
         # x_t = x_t.gt(0.5).float()
 
-        soma_1, spk_1, a_curr_1, b_1 = self.layer1(x_t, self.layer2to1(h[5]), mem_t=h[0], spk_t=h[1],
-                                                   curr_t=h[2], b_t=h[3])
+        soma_1, spk_1, a_curr_1, b_1 = self.layer1(ff=x_t, fb=self.layer2to1(h[5]), soma_t=h[0], spk_t=h[1],
+                                                   a_curr_t=h[2], b_t=h[3])
 
         self.error1 = a_curr_1 - soma_1
 
         # use out mem signal as feedback
-        soma_2, spk_2, a_curr_2, b_2 = self.layer2(self.layer1to2(spk_1), self.out2layer2(h[-1]), mem_t=h[4],
-                                                   spk_t=h[5], curr_t=h[6], b_t=h[7])
+        soma_2, spk_2, a_curr_2, b_2 = self.layer2(ff=self.layer1to2(spk_1), fb=self.out2layer2(h[-1]), soma_t=h[4],
+                                                   spk_t=h[5], a_curr_t=h[6], b_t=h[7])
 
         self.error2 = a_curr_2 - soma_2
 
@@ -305,15 +306,15 @@ class SnnNetwork(nn.Module):
         weight = next(self.parameters()).data
         return (
             # r
-            weight.new(bsz, self.hidden_dims[1]).uniform_(),
-            weight.new(bsz, self.hidden_dims[1]).zero_(),
-            weight.new(bsz, self.hidden_dims[1]).zero_(),
-            weight.new(bsz, self.hidden_dims[1]).fill_(b_j0),
-            # p
             weight.new(bsz, self.hidden_dims[0]).uniform_(),
             weight.new(bsz, self.hidden_dims[0]).zero_(),
             weight.new(bsz, self.hidden_dims[0]).zero_(),
             weight.new(bsz, self.hidden_dims[0]).fill_(b_j0),
+            # p
+            weight.new(bsz, self.hidden_dims[1]).uniform_(),
+            weight.new(bsz, self.hidden_dims[1]).zero_(),
+            weight.new(bsz, self.hidden_dims[1]).zero_(),
+            weight.new(bsz, self.hidden_dims[1]).fill_(b_j0),
             # layer out
             weight.new(bsz, self.out_dim).zero_(),
             # sum spike

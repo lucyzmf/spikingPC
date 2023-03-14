@@ -35,7 +35,8 @@ wandb.init(project="spikingPC_voltageloss", entity="lucyzmf")
 # add wandb.config
 config = wandb.config
 config.adap_neuron = True  # whether use adaptive neuron or not
-config.energy_alpha = 1  # - config.clf_alpha
+config.clf_alpha = 1
+config.energy_alpha = 10  # - config.clf_alpha
 config.num_readout = 10
 config.onetoone = True
 config.lr = 1e-3
@@ -50,7 +51,7 @@ K = config.k_updates  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 10
-epochs = 30
+epochs = 10
 
 config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_pmean_voltageE'
 

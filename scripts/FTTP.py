@@ -99,7 +99,7 @@ def train_fptt(epoch, batch_size, log_interval,
                 regularizer = get_regularizer_named_params(named_params, _lambda=1.0)
 
                 # mem potential loss take l1 norm / num of neurons /batch size
-                energy = (torch.sum(model.error1) + torch.sum(model.error2)) / B / sum(model.hidden_dims)
+                energy = (torch.norm(model.error1, p=2) + torch.norm(model.error2, p=2)) / B / sum(model.hidden_dims)
 
                 # overall loss
                 loss = clf_alpha * clf_loss + regularizer + energy_alpha * energy
