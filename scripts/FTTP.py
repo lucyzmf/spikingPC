@@ -52,11 +52,12 @@ def reset_named_params(named_params):
 def train_fptt(epoch, batch_size, log_interval,
                train_loader, model, named_params,
                time_steps, k_updates, omega, optimizer,
-               clf_alpha, energy_alpha, clip, lr):
+               clf_alpha, energy_alpha, spike_alpha, clip, lr):
     train_loss = 0
     total_clf_loss = 0
     total_regularizaton_loss = 0
     total_energy_loss = 0
+    total_spike_loss = 0
     correct = 0
     model.train()
 
@@ -99,10 +100,16 @@ def train_fptt(epoch, batch_size, log_interval,
                 regularizer = get_regularizer_named_params(named_params, _lambda=1.0)
 
                 # mem potential loss take l1 norm / num of neurons /batch size
-                energy = (torch.norm(model.error1, p=2) + torch.norm(model.error2, p=2)) / B / sum(model.hidden_dims)
+                if len(model.hidden_dims) == 2:
+                    energy = (torch.sum(model.error1 ** 2) + torch.sum(model.error2 ** 2)) / B / sum(model.hidden_dims)
+                    spike_loss = (torch.sum(h[1]) + torch.sum(h[5])) / B / sum(model.hidden_dims)
+                elif len(model.hidden_dims) == 3:
+                    energy = (torch.sum(model.error1 ** 2) + torch.sum(model.error2 ** 2) + torch.sum(model.error3 ** 2)) / B / sum(model.hidden_dims)
+                    spike_loss = (torch.sum(h[1]) + torch.sum(h[5]) + torch.sum(h[9])) / B / sum(model.hidden_dims)
+
 
                 # overall loss
-                loss = clf_alpha * clf_loss + regularizer + energy_alpha * energy
+                loss = clf_alpha * clf_loss + regularizer + energy_alpha * energy + spike_alpha * spike_loss
 
                 loss.backward()
 
@@ -116,9 +123,18 @@ def train_fptt(epoch, batch_size, log_interval,
                 total_clf_loss += clf_loss.item()
                 total_regularizaton_loss += regularizer  # .item()
                 total_energy_loss += energy.item()
+                total_spike_loss += spike_loss.item()
+
+                wandb.log({
+                    'layer1 error':(model.error1.detach().cpu().numpy() ** 2).mean(), 
+                    'layer2 error':(model.error2.detach().cpu().numpy() ** 2).mean(), 
+                })                    
 
                 model.error1 = 0
                 model.error2 = 0
+                if len(model.hidden_dims) == 3:
+                    model.error3 = 0
+
 
         if batch_idx > 0 and batch_idx % log_interval == (log_interval - 1):
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
@@ -135,18 +151,25 @@ def train_fptt(epoch, batch_size, log_interval,
                 'train_acc': 100 * correct / (log_interval * B),
                 'regularisation_loss': total_regularizaton_loss / log_interval / k_updates,
                 'energy_loss': total_energy_loss / log_interval / k_updates,
+                'spike loss': total_spike_loss / log_interval / k_updates,
                 'total_loss': train_loss / log_interval / k_updates,
-                'pred spiking freq': model.fr_layer2 / time_steps / log_interval,  # firing per time step
-                'rep spiking fr': model.fr_layer1 / time_steps / log_interval,
+                'l2 fr': model.fr_layer2 / time_steps / log_interval,  # firing per time step
+                'l1 fr': model.fr_layer1 / time_steps / log_interval,
             })
+
+            if len(model.hidden_dims) == 3:
+                wandb.log({'l3 fr': model.fr_layer3  / time_steps / log_interval})
+                model.fr_layer3 = 0
+
 
             train_loss = 0
             total_clf_loss = 0
             total_regularizaton_loss = 0
             total_energy_loss = 0
+            total_spike_loss = 0
             correct = 0
-        # model.network.fr = 0
-        model.fr_layer2 = 0
-        model.fr_layer1 = 0
+            # model.network.fr = 0
+            model.fr_layer2 = 0
+            model.fr_layer1 = 0
 
 

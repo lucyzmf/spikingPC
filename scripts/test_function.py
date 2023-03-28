@@ -34,6 +34,8 @@ def test(model, test_loader, time_steps):
         correct += pred.eq(target.data.view_as(pred)).cpu().sum()
         torch.cuda.empty_cache()
 
+    # wandb.log({'spike sequence': plot_spiking_sequence(hidden, target)})
+
     test_loss /= len(test_loader.dataset)
     test_acc = 100. * correct / len(test_loader.dataset)
     wandb.log({

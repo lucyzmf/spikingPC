@@ -241,28 +241,37 @@ def shift_input(i, T, data):
 
 # %%
 # get all hidden states
-def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T, conv=None):
+def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T, conv=None, batch_no=None, occlusion_p = None, log=True, gaussian_noise=True):
     trained_model.eval()
     test_loss = 0
     correct = 0
 
-    hiddens_all_ = []
+    if log == True:
+        hiddens_all_ = []
+        data_all_ = []  # get transformed data 
+
     preds_all_ = []  # predictions at all timesptes
-    data_all_ = []  # get transformed data 
 
     # for data, target in test_loader:
     for i, (data, target) in enumerate(test_loader):
-        data_all_.append(data.data)
+        if batch_no == i:
+            break
+
+        if log == True:
+            data_all_.append(data.data)
         data, target = data.to(device), target.to(device)
         if conv is None:
             data = data.view(-1, IN_dim)
+            if occlusion_p is not None:
+                data[:, int(occlusion_p*IN_dim):] = 0
 
         with torch.no_grad():
             trained_model.eval()
             hidden = trained_model.init_hidden(data.size(0))
 
             log_softmax_outputs, hidden = trained_model.inference(data, hidden, T)
-            hiddens_all_.append(hidden)
+            if log == True:
+                hiddens_all_.append(hidden)
 
             test_loss += F.nll_loss(log_softmax_outputs[-1], target, reduction='sum').data.item()
 
@@ -279,10 +288,15 @@ def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T, conv=No
         test_loss, correct, len(test_loader.dataset),
         test_acc))
 
-    data_all_ = torch.stack(data_all_).reshape(10000, 28, 28)
     preds_all_ = torch.stack(preds_all_).flatten().cpu().numpy()
 
-    return hiddens_all_, preds_all_, data_all_, test_acc
+    if log == True:
+        data_all_ = torch.stack(data_all_).reshape(data.size(0)*batch_no, 28, 28)
+        r = [hiddens_all_, preds_all_, data_all_, test_acc]
+    else: 
+        r = [preds_all_, test_acc]
+
+    return r
 
 
 # %%
@@ -325,19 +339,25 @@ def plot_spiking_sequence(hidden, target, sample_no=0):
     :param target: b*t target for image
     :return: fig object for logging in wandb
     """
-    fig, axes = plt.subplots(2, len(hidden), figsize=(40, 3))
-    for t in range(len(hidden)):  # num of time steps
-        r_spks = hidden[t][1][sample_no].detach().cpu().numpy()
-        p_spks = hidden[t][5][sample_no].detach().cpu().numpy()
+    fig, axes = plt.subplots(3, 10, figsize=(40, 3))
+    for t in range(10):  # num of time steps
+        layer1_spk = hidden[t][1][sample_no].detach().cpu().numpy()
+        layer2_spk = hidden[t][5][sample_no].detach().cpu().numpy()
+        out_mem = hidden[t][-1][sample_no].detach().cpu().numpy()
 
         # plot p spiking
-        axes[0][t].imshow(p_spks.reshape(10, int(p_spks.size / 10)))
+        axes[0][t].imshow(layer1_spk.reshape(28, 28))
         axes[0][t].axis('off')
-        axes[0][t].set_title('target: %i' % target[sample_no, t].item())
+        axes[0][t].set_title('target: %i' % target[sample_no].item())
 
         # plot r spiking
-        axes[1][t].imshow(r_spks.reshape(28, 28))
+        axes[1][t].imshow(layer2_spk.reshape(16, 16))
         axes[1][t].axis('off')
+
+        # plot out mem potential 
+        pos2 = axes[2][t].imshow(out_mem.reshape(2, 5))
+        axes[2][t].axis('off')
+        fig.colorbar(pos2, ax=axes[2][t], shrink=0.5)
     
     plt.tight_layout()
 

@@ -36,24 +36,26 @@ wandb.init(project="spikingPC_voltageloss", entity="lucyzmf")
 config = wandb.config
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.clf_alpha = 1
-config.energy_alpha = 10  # - config.clf_alpha
+config.energy_alpha = 5e-2  # - config.clf_alpha
+config.spike_alpha = 0.  # energy loss on spikes 
 config.num_readout = 10
 config.onetoone = True
 config.lr = 1e-3
 config.alg = 'fptt'
 alg = config.alg
-config.k_updates = 20
+config.k_updates = 10
 config.dp = 0.4
+config.is_rec = False
 
 # training parameters
-T = 20
+T = 50
 K = config.k_updates  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
-log_interval = 10
-epochs = 10
+log_interval = 20
+epochs = 20
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_pmean_voltageE'
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_taux2_scaledinput05_dt0.5_exptau05'
 
 # experiment name 
 exp_name = config.exp_name
@@ -105,12 +107,12 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 # set input and t param
 IN_dim = 784
-hidden_dim = [784, 256]
+hidden_dim = [784, 512, 512]
 n_classes = 10
 
 # define network
-model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=config.adap_neuron, one_to_one=config.onetoone,
-                   dp_rate=config.dp)
+model = SnnNetwork2Layer(IN_dim, hidden_dim, n_classes, is_adapt=config.adap_neuron, one_to_one=config.onetoone,
+                   dp_rate=config.dp, is_rec=config.is_rec)
 model.to(device)
 print(model)
 
@@ -142,7 +144,7 @@ wandb.watch(model, log_freq=100)
 for epoch in range(epochs):
     train_fptt(epoch, batch_size, log_interval, train_loader,
                model, named_params, T, K, omega, optimizer,
-               config.clf_alpha, config.energy_alpha, clip, config.lr)
+               config.clf_alpha, config.energy_alpha, config.spike_alpha, clip, config.lr)
 
     reset_named_params(named_params)
 
