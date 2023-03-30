@@ -46,21 +46,19 @@ transform = transforms.Compose(
     [transforms.ToTensor(),
      transforms.Normalize((0.5), (0.5))])
 
-batch_size = 200
-
 # load data
 testdata = torchvision.datasets.MNIST(root='./data', train=False,
                                       download=True, transform=transform)
 
-images = torch.stack([img for img, _ in testdata])
+images = torch.stack([img for img, _ in testdata]).squeeze()
 targets = testdata.targets
 
 # get all images as tensors
-n_per_class = 100
-n_classes = 10
+n_per_class = 10
+n_classes = 5
 # per n_per_class contain index to that class of images
-normal_set_idx = torch.zeros(n_per_class * n_classes)
-change_set_idx = torch.zeros(n_per_class * n_classes)
+normal_set_idx = torch.zeros(n_per_class * n_classes).long()
+change_set_idx = torch.zeros(n_per_class * n_classes).long()
 for i in range(n_classes):
     indices1 = (testdata.targets == i).nonzero(as_tuple=True)[0]
     normal_set_idx[i * n_per_class: (i + 1) * n_per_class] = indices1[: n_per_class]
@@ -68,6 +66,7 @@ for i in range(n_classes):
     indices2 = (testdata.targets != i).nonzero(as_tuple=True)[0]
     change_set_idx[i * n_per_class: (i + 1) * n_per_class] = indices2[: n_per_class]
 
+# targets[normal_set_idx]
 
 # %%
 ###############################################################
@@ -85,7 +84,7 @@ def get_pred_per_t(log_softmaxs):
     for i in range(t):
         pred = log_softmaxs[i].data.max(1, keepdim=True)[1]
         preds.append(pred)
-    return torch.transpose(torch.stack(preds), 0, 1)
+    return torch.transpose(torch.stack(preds), 0, 1).squeeze()
 
 
 def inference(model, data_indices: list, is_change: bool, T: int, p: float):
@@ -111,7 +110,7 @@ def inference(model, data_indices: list, is_change: bool, T: int, p: float):
 
             preds = get_pred_per_t(log_sm)  # should be shape n * T
 
-        target_byt = targets[data_indices[0]].repeat(1, T)  # shape n*T
+        target_byt = torch.tile(target, (1, T)).reshape(-1, T)  # shape n*T
 
     else:
         data1, target1 = images[data_indices[0]].to(device), targets[data_indices[0]]
@@ -121,7 +120,6 @@ def inference(model, data_indices: list, is_change: bool, T: int, p: float):
         data2 = data2.view(-1, model.in_dim)
 
         h = []
-        preds = []
 
         with torch.no_grad():
             model.eval()
@@ -131,20 +129,18 @@ def inference(model, data_indices: list, is_change: bool, T: int, p: float):
             log_sm1, h1 = model.inference(data1, h_i, int(T * p))
             preds1 = get_pred_per_t(log_sm1)
             h += h1
-            preds += preds1
 
             log_sm2, h2 = model.inference(data2, h1[-1], (T - int(T * p)))
             preds2 = get_pred_per_t(log_sm2)
             h += h2
-            preds += preds2
 
-        preds = torch.stack(preds)
+        preds = torch.concatenate([preds1, preds2], dim=1)
 
-        target_byt1 = targets[data_indices[0]].repeat(1, int(T * p))
-        target_byt2 = targets[data_indices[0]].repeat(1, (T - int(T * p)))
-        target_byt = torch.stack(target_byt1, target_byt2, dim=1)  # shape n*T
+        target_byt1 = torch.tile(target1, (1, int(T * p))).reshape(-1, int(T * p))
+        target_byt2 = torch.tile(target2, (1, (T - int(T * p)))).reshape(-1, (T - int(T * p)))
+        target_byt = torch.concatenate([target_byt1, target_byt2], dim=1)  # shape n*T
 
-    return preds, target_byt, h
+    return preds.cpu().numpy(), target_byt.cpu().numpy(), h
 
 
 # %%
@@ -152,6 +148,17 @@ def inference(model, data_indices: list, is_change: bool, T: int, p: float):
 # make dfs
 # #############################################################
 # acc df
+def downcast(df):
+    fcols = df.select_dtypes('float').columns
+    icols = df.select_dtypes('integer').columns
+
+    df[fcols] = df[fcols].apply(pd.to_numeric, downcast='float')
+    df[icols] = df[icols].apply(pd.to_numeric, downcast='integer')
+
+    return df
+
+
+
 def make_acc_df(preds_, targets_, model_type: str, condition: str):
     """
     make df with per t model pred and target
@@ -161,8 +168,8 @@ def make_acc_df(preds_, targets_, model_type: str, condition: str):
     :param condition: for labeling
     :return:
     """
-    T = preds_.size(1)  # get seq len
-    n_sample = preds_.size(0)
+    T = preds_.shape[1]  # get seq len
+    n_sample = preds_.shape[0]
 
     df = pd.DataFrame({
         'pred': preds_.flatten(),
@@ -171,6 +178,8 @@ def make_acc_df(preds_, targets_, model_type: str, condition: str):
         'model_type': [model_type] * (n_sample * T),
         'condition': [condition] * (n_sample * T)
     })
+    
+    df = downcast(df)
 
     return df
 
@@ -179,52 +188,53 @@ def get_error(h, layer, n_samples, b_size, T):
     a = get_states(h, 2 + 4 * layer, hidden_dim[layer], b_size, num_samples=n_samples, T=T)
     s = get_states(h, 0 + 4 * layer, hidden_dim[layer], b_size, num_samples=n_samples, T=T)
 
-    return (a - s) ** 2
+    return a
 
 
 # epsilon df
 
-def make_epsilon_df(hidden: list, targets, model_type: str, condition: str, first_stim_p, hidden_dim):
+def make_epsilon_df(hidden: list, targets_, model_type: str, condition: str, first_stim_p, hidden_dim):
     df_all = pd.DataFrame(columns=['neuron', 'layer', 't', 'epsilon', 'filtered epsi', 'de/e',
                                    'model type', 'condition', 'target'])
 
-    n = targets.size(0)
-    T = targets.size(1)
+    n = targets_.shape[0]
+    T = targets_.shape[1]
 
     # iterate over layers
-    for layer in range(len(hidden_dim)):
-        epsilon = get_error(hidden, layer, n, n, T)  # n * T * neurons
+    for layer in np.arange(1, len(hidden_dim)):
+        epsilon = get_error([hidden], layer, n, n, T)  # n * T * neurons
         filtered_epsilon = median_filter(epsilon, size=(1, 3, 1), cval=0, mode='constant')
 
         baseline_e = filtered_epsilon[:, :int(T * first_stim_p), :].mean(axis=1)  # n*neuron
-        baseline_e = np.tile(baseline_e, (1, T, 1))  # n*T*neuron
+        baseline_e = np.tile(np.expand_dims(baseline_e, axis=1), (1, T, 1))  # n*T*neuron
 
-        deltae_e = (filtered_epsilon / baseline_e) / baseline_e
+        deltae_e = (filtered_epsilon - baseline_e) / baseline_e
+        # print('build df')
 
         df_layer = pd.DataFrame({
             'neuron': np.tile(np.arange(hidden_dim[layer]), (n, T, 1)).flatten(),
             'layer': np.full(n * T * hidden_dim[layer], layer),
-            't': np.tile(np.arange(T), (n, 1, hidden_dim[layer])).flatten(),
+            't': np.tile(np.repeat(np.arange(T), hidden_dim[layer]), (n, 1)).flatten(),
             'epsilon': epsilon.flatten(),
             'filtered epsi': filtered_epsilon.flatten(),
             'de/e': deltae_e.flatten(),
             'model type': [model_type] * (n * T * hidden_dim[layer]),
             'condition': [condition] * (n * T * hidden_dim[layer]),
-            'target': np.tile(targets.numpy(), (1, T, hidden_dim[layer])).flatten()
+            'target': np.tile(np.expand_dims(targets_, axis=-1), (1, 1, hidden_dim[layer])).flatten()
         })
 
+        # print('cat df')
         df_all = pd.concat([df_all, df_layer])
+        # print('downcast')
+        df_all = downcast(df_all)
 
     return df_all
 
-    # %%
-
-
+# %%
 # set input and t param
 ###############################################################
 # DEFINE NETWORK
 ###############################################################
-n_classes = 10
 num_readout = 10
 adap_neuron = True
 onetoone = True
@@ -241,12 +251,12 @@ is_rec = False
 
 # for i in range(len(dp)):
 # define network
-model_wE = SnnNetwork2Layer(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone, dp_rate=0.4,
+model_wE = SnnNetwork2Layer(IN_dim, hidden_dim, 10, is_adapt=adap_neuron, one_to_one=onetoone, dp_rate=0.4,
                             is_rec=is_rec)
 model_wE.to(device)
 
 # define network
-model_woE = SnnNetwork2Layer(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=onetoone, dp_rate=0.4,
+model_woE = SnnNetwork2Layer(IN_dim, hidden_dim, 10, is_adapt=adap_neuron, one_to_one=onetoone, dp_rate=0.4,
                              is_rec=is_rec)
 model_woE.to(device)
 
@@ -267,8 +277,8 @@ conditions = ['normal', 'change']
 ischange = [False, True]
 models = [model_wE, model_woE]
 model_type = ['E', 'w/o E']
-T = 150
-p = 1 / 3
+T = 100
+p = 1 / 2
 
 acc_all = pd.DataFrame()
 epsi_all = pd.DataFrame()
@@ -279,12 +289,13 @@ for i in range(len(conditions)):
         df_model_epsi = pd.DataFrame()
 
         for k in range(n_classes):
-            preds, targets, hidden = inference(models[j], [normal_set_idx, change_set_idx], ischange[i], T, p)
-            df_acc = make_acc_df(preds, targets, model_type[j], conditions[i])
-            df_epsi = make_epsilon_df(hidden, targets, model_type[j], conditions[i], first_stim_p=p,
+            print(k)
+            preds, tar, hidden = inference(models[j], [normal_set_idx[k * n_per_class: (k + 1) * n_per_class], change_set_idx[k * n_per_class: (k + 1) * n_per_class]], ischange[i], T, p)
+            df_acc = make_acc_df(preds, tar, model_type[j], conditions[i])
+            df_epsi = make_epsilon_df(hidden, tar, model_type[j], conditions[i], first_stim_p=p,
                                       hidden_dim=hidden_dim)
 
-            if iter == 0:
+            if k == 0:
                 df_model_acc = df_acc
                 df_model_epsi = df_epsi
             else:
@@ -298,5 +309,21 @@ for i in range(len(conditions)):
             acc_all = pd.concat([acc_all, df_model_acc])
             epsi_all = pd.concat([epsi_all, df_model_epsi])
 
+        print(conditions[i] + ' ' + model_type[j])
+
 acc_all.head()
 epsi_all.head()
+
+# %%
+sns.lineplot(epsi_all[epsi_all['layer']==1], x='t', y='epsilon', hue='model type', style='condition')
+plt.show()
+# %%
+sns.lineplot(epsi_all[epsi_all['layer']==1], x='t', y='filtered epsi', hue='model type', style='condition')
+plt.show()
+# %%
+sns.lineplot(epsi_all[epsi_all['layer']==1], x='t', y='de/e', hue='model type', style='condition')
+plt.show()
+# %%
+epsi_all[epsi_all['layer']==1][epsi_all['condition']=='normal'][epsi_all['model type']=='E'].head()
+
+# %%
