@@ -306,6 +306,7 @@ soma_l3_woE, a_curr_l3_woE, error_l3_woE = get_a_s_e(hiddens_woE, 2, batch_size,
 # get enery signal for stimulus change sequence
 ###############################
 first_stim_t = 50
+size_lim = 200
 
 # plot energy consumption in network with two consecutive images
 continuous_seq_hiddens_E = []
@@ -315,20 +316,20 @@ with torch.no_grad():
     model_wE.eval()
     model_woE.eval()
 
-    hidden_i = model_wE.init_hidden(images[normal_set_idx].view(-1, IN_dim).size(0))
+    hidden_i = model_wE.init_hidden(images[normal_set_idx[:size_lim]].view(-1, IN_dim).size(0))
 
-    log_sm_E1, hidden1_E = model_wE.inference(images[normal_set_idx].view(-1, IN_dim).to(device),
+    log_sm_E1, hidden1_E = model_wE.inference(images[normal_set_idx[:size_lim]].view(-1, IN_dim).to(device),
                                               hidden_i, first_stim_t)
-    log_sm_nE1, hidden1_nE = model_woE.inference(images[normal_set_idx].view(-1, IN_dim).to(device),
+    log_sm_nE1, hidden1_nE = model_woE.inference(images[normal_set_idx[:size_lim]].view(-1, IN_dim).to(device),
                                                  hidden_i, first_stim_t)
     continuous_seq_hiddens_E += hidden1_E
     continuous_seq_hiddens_nE += hidden1_nE
 
     # present second stimulus without reset
     # hidden1[-1] = model.init_hidden(images[sample_image_nos[0], :, :].view(-1, IN_dim).size(0))
-    log_sm_E2, hidden2_E = model_wE.inference(images[change_set_idx].view(-1, IN_dim).to(device),
+    log_sm_E2, hidden2_E = model_wE.inference(images[change_set_idx[:size_lim]].view(-1, IN_dim).to(device),
                                               hidden1_E[-1], (T - first_stim_t))
-    log_sm_nE2, hidden2_nE = model_woE.inference(images[change_set_idx].view(-1, IN_dim).to(device),
+    log_sm_nE2, hidden2_nE = model_woE.inference(images[change_set_idx[:size_lim]].view(-1, IN_dim).to(device),
                                                  hidden1_nE[-1], (T - first_stim_t))
 
     continuous_seq_hiddens_E += hidden2_E
@@ -336,20 +337,17 @@ with torch.no_grad():
 torch.cuda.empty_cache()
 
 # get data
-conti_soma_l1_wE, conti_a_curr_l1_wE, conti_error_l1_wE = get_a_s_e([continuous_seq_hiddens_E], 0, n_samples, n_samples,
+conti_soma_l1_wE, conti_a_curr_l1_wE, conti_error_l1_wE = get_a_s_e([continuous_seq_hiddens_E], 0, size_lim, size_lim,
                                                                     T)
-conti_soma_l1_woE, conti_a_curr_l1_woE, conti_error_l1_woE = get_a_s_e([continuous_seq_hiddens_nE], 0, n_samples,
-                                                                       n_samples, T)
+conti_soma_l1_woE, conti_a_curr_l1_woE, conti_error_l1_woE = get_a_s_e([continuous_seq_hiddens_nE], 0, size_lim, size_lim, T)
 
-conti_soma_l2_wE, conti_a_curr_l2_wE, conti_error_l2_wE = get_a_s_e([continuous_seq_hiddens_E], 1, n_samples, n_samples,
+conti_soma_l2_wE, conti_a_curr_l2_wE, conti_error_l2_wE = get_a_s_e([continuous_seq_hiddens_E], 1, size_lim, size_lim,
                                                                     T)
-conti_soma_l2_woE, conti_a_curr_l2_woE, conti_error_l2_woE = get_a_s_e([continuous_seq_hiddens_nE], 1, n_samples,
-                                                                       n_samples, T)
+conti_soma_l2_woE, conti_a_curr_l2_woE, conti_error_l2_woE = get_a_s_e([continuous_seq_hiddens_nE], 1, size_lim, size_lim, T)
 
-conti_soma_l3_wE, conti_a_curr_l3_wE, conti_error_l3_wE = get_a_s_e([continuous_seq_hiddens_E], 2, n_samples, n_samples,
+conti_soma_l3_wE, conti_a_curr_l3_wE, conti_error_l3_wE = get_a_s_e([continuous_seq_hiddens_E], 2, size_lim, size_lim,
                                                                     T)
-conti_soma_l3_woE, conti_a_curr_l3_woE, conti_error_l3_woE = get_a_s_e([continuous_seq_hiddens_nE], 2, n_samples,
-                                                                       n_samples, T)
+conti_soma_l3_woE, conti_a_curr_l3_woE, conti_error_l3_woE = get_a_s_e([continuous_seq_hiddens_nE], 2, size_lim, size_lim, T)
 
 
 # %%
@@ -363,8 +361,8 @@ def usi(expected_curr, unexpected_curr, layer_idx):
     df['condition'] = ['normal seq'] * hidden_dim[layer_idx] + ['stim change seq'] * hidden_dim[layer_idx]
 
     # compute USI
-    df['mean a'] = df.loc[:, 't0': 't199'].mean(axis=1)
-    df['var a'] = df.loc[:, 't0': 't199'].var(axis=1)
+    df['mean a'] = df.loc[:, 't10': 't199'].mean(axis=1)
+    df['var a'] = df.loc[:, 't10': 't199'].var(axis=1)
 
     df_usi = pd.DataFrame({
         'neuron idx': np.arange(hidden_dim[layer_idx]),
@@ -381,7 +379,7 @@ def usi(expected_curr, unexpected_curr, layer_idx):
     idx = df_usi.index[df_usi['usi'] < -1.5].tolist()
     print(len(idx))
 
-    plt.plot(expected_curr[target_all == 0].mean(axis=0)[:, idx].mean(axis=1), label='normal')
+    plt.plot(expected_curr.mean(axis=0)[:, idx].mean(axis=1), label='normal')
     plt.plot(unexpected_curr.mean(axis=0)[:, idx].mean(axis=1), label='change')
     plt.legend()
     plt.show()
@@ -389,8 +387,9 @@ def usi(expected_curr, unexpected_curr, layer_idx):
     return df, df_usi
 
 
-df_l2_a, df_usi_l2_a = usi(a_curr_l2_wE, conti_a_curr_l2_wE, 1)
-df_l2_s, df_usi_l2_s = usi(soma_l2_wE, conti_soma_l2_wE, 1)
+# %%
+df_l2_a, df_usi_l2_a = usi(a_curr_l2_wE[:size_lim], conti_a_curr_l2_wE, 1)
+df_l2_s, df_usi_l2_s = usi(soma_l2_wE[:size_lim], conti_soma_l2_wE, 1)
 
 # %%
 high_usi_index = df_usi_l2_s.sort_values(by='usi')['neuron idx'][0]
@@ -399,16 +398,25 @@ high_usi_index = df_usi_l2_s.sort_values(by='usi')['neuron idx'][0]
 def df_single_neuron(expected_curr, unexpected_curr, neuron_idx):
     df_ = pd.DataFrame(np.vstack((expected_curr[:, :, neuron_idx], unexpected_curr[:, :, neuron_idx])),
                       columns=['t%i' % i for i in range(T)])
-    df_['condition'] = ['normal seq'] * n_samples + ['stim change seq'] * n_samples
+    df_['condition'] = ['normal seq'] * size_lim + ['stim change seq'] * size_lim
     df_ = pd.melt(df_, id_vars=['condition'], value_vars=['t%i' % i for i in range(T)],
                  var_name='t', value_name='volt')
-    return df
+    return df_
 
 
-df_single_s = df_single_neuron(soma_l2_wE, conti_soma_l2_wE, high_usi_index)
+df_single_s = df_single_neuron(soma_l2_wE[:size_lim], conti_soma_l2_wE[:size_lim], high_usi_index)
 sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
 plt.title('high usi neuron soma voltage during seq')
 plt.show()
+
+# %%
+low_usi_index = df_usi_l2_s.sort_values(by='usi')['neuron idx'][256]
+
+df_single_s = df_single_neuron(soma_l2_wE[:size_lim], conti_soma_l2_wE[:size_lim], low_usi_index)
+sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
+plt.title('low usi neuron soma voltage during seq')
+plt.show()
+
 
 # %%
 ###############################
