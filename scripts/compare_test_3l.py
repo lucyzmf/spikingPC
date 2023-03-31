@@ -354,15 +354,18 @@ conti_soma_l3_woE, conti_a_curr_l3_woE, conti_error_l3_woE = get_a_s_e([continuo
 ###############################
 # usi analysis
 ###############################
-def usi(expected_curr, unexpected_curr, layer_idx):
+def usi(expected_curr, unexpected_curr, layer_idx, ts=None):
     df = pd.DataFrame(np.vstack((expected_curr.mean(axis=0).T, unexpected_curr.mean(axis=0).T)),
                       columns=['t%i' % i for i in range(T)])
     df['neuron idx'] = np.concatenate((np.arange(hidden_dim[layer_idx]), np.arange(hidden_dim[layer_idx])))
     df['condition'] = ['normal seq'] * hidden_dim[layer_idx] + ['stim change seq'] * hidden_dim[layer_idx]
 
     # compute USI
-    df['mean a'] = df.loc[:, 't10': 't50'].mean(axis=1)
-    df['var a'] = df.loc[:, 't0': 't199'].var(axis=1)
+    if ts is not None:
+        df['mean a'] = df.loc[:, 't'+str(ts[0]):'t'+str(ts[1])].mean(axis=1)
+    else:
+        df['mean a'] = df.loc[:, 't10': 't50'].mean(axis=1)
+    df['var a'] = df.loc[:, 't10': 't199'].var(axis=1)
 
     df_usi = pd.DataFrame({
         'neuron idx': np.arange(hidden_dim[layer_idx]),
@@ -373,32 +376,57 @@ def usi(expected_curr, unexpected_curr, layer_idx):
 
     return df, df_usi
 
-
+# %%
 df_l2_a_E, df_usi_l2_a_E = usi(a_curr_l2_wE, conti_a_curr_l2_wE, 1)
 df_l2_s_E, df_usi_l2_s_E = usi(soma_l2_wE, conti_soma_l2_wE, 1)
 
-df_l2_a_woE, df_usi_l2_a_oE = usi(a_curr_l2_wE, conti_a_curr_l2_wE, 1)
-df_l2_s_woE, df_usi_l2_s_oE = usi(soma_l2_wE, conti_soma_l2_wE, 1)
+df_l2_a_woE, df_usi_l2_a_woE = usi(a_curr_l2_woE, conti_a_curr_l2_woE, 1)
+df_l2_s_woE, df_usi_l2_s_woE = usi(soma_l2_woE, conti_soma_l2_woE, 1)
 
 # %%
-df_usi_compare = pd.concat([df_usi_l2_s_E, df_usi_l2_s_oE])
+df_usi_compare = pd.concat([df_usi_l2_s_E, df_usi_l2_s_woE])
 df_usi_compare['model type'] = ['E'] * hidden_dim[1] + ['w/o E'] * hidden_dim[1]
 
-sns.histplot(df_usi_compare, x='usi', hue='model type')
+sns.histplot(df_usi_compare, x='usi', hue='model type', element="step", stat="density")
 plt.title('compare usi of change exp layer2 by model type (soma)')
 plt.show()
 
 # %%
 high_usi_index = df_usi_l2_s_E.sort_values(by='usi')['neuron idx'][0]
 
+from scipy.ndimage import median_filter, gaussian_filter
 
-def df_single_neuron(expected_curr, unexpected_curr, neuron_idx):
-    df_ = pd.DataFrame(np.vstack((expected_curr[:, :, neuron_idx], unexpected_curr[:, :, neuron_idx])),
-                       columns=['t%i' % i for i in range(T)])
-    df_['condition'] = ['normal seq'] * n_samples + ['stim change seq'] * n_samples
-    df_ = pd.melt(df_, id_vars=['condition'], value_vars=['t%i' % i for i in range(T)],
+def compute_delta(signal):
+    """compute delta of signal of a single neuron from multiple samples 
+
+    Args:
+        signal (_type_): n * T
+
+    """
+    _, T = signal.shape
+    delta = signal[:, 1:] - signal[:, :T-1]
+    return delta 
+
+def df_single_neuron(expected_curr, unexpected_curr, neuron_idx, delta=None):
+    steps = T-1
+    if delta:
+        # filtered_exp = median_filter(expected_curr[:, :, neuron_idx], (1, 3))
+        # filtered_unexp = median_filter(unexpected_curr[:, :, neuron_idx], (1, 3))
+        filtered_exp = gaussian_filter(expected_curr[:, :, neuron_idx], (0, 3))
+        filtered_unexp = gaussian_filter(unexpected_curr[:, :, neuron_idx], (0, 3))
+
+        delta_exp = compute_delta(filtered_exp)
+        delta_unexp = compute_delta(filtered_unexp)
+        df_ = pd.DataFrame(np.vstack((delta_exp, delta_unexp)),
+                       columns=['t%i' % i for i in range(steps)])
+    else:
+        df_ = pd.DataFrame(np.vstack((expected_curr[:, :steps, neuron_idx], unexpected_curr[:, :steps, neuron_idx])),
+                       columns=['t%i' % i for i in range(steps)])
+
+    df_['condition'] = ['normal seq'] * len(expected_curr) + ['stim change seq'] * len(expected_curr)
+    df_ = pd.melt(df_, id_vars=['condition'], value_vars=['t%i' % i for i in range(steps)],
                   var_name='t', value_name='volt')
-    return df
+    return df_
 
 
 df_single_s = df_single_neuron(soma_l2_wE[:size_lim], conti_soma_l2_wE[:size_lim], high_usi_index)
@@ -419,9 +447,12 @@ plt.show()
 ###################################                 BU TD MISMATCH EXP              ###################################
 #######################################################################################################################
 match_dig = 1
+mismatch_dig = 7
 mismatch_dig = np.delete(np.arange(0, 10), match_dig)
 
-zeros = images_all[target_all == match_dig].to(device)
+sample_size = 50
+zeros = images[targets == match_dig][:sample_size].to(device)
+
 no_inputs = torch.zeros((zeros.size(0), hidden_dim[0])).to(device)
 
 blank_t = 50
@@ -433,7 +464,7 @@ def match_mismatch_ex(match_condition):
     h_E = []
     h_nE = []
 
-    clamp_class = match_dig if match_condition else np.random.choice(mismatch_dig)
+    clamp_class = match_dig if match_condition else mismatch_dig
 
     with torch.no_grad():
         model_wE.eval()
@@ -467,32 +498,32 @@ h_mismatch_E, h_mismatch_nE = match_mismatch_ex(False)
 
 # %%
 # get data from match
-match_soma_l1_wE, match_a_curr_l1_wE, match_error_l1_wE = get_a_s_e(h_match_E, 0, batch_size, n_samples, T)
-match_soma_l1_woE, match_a_curr_l1_woE, match_error_l1_woE = get_a_s_e(h_match_nE, 0, batch_size, n_samples, T)
+match_soma_l1_wE, match_a_curr_l1_wE, match_error_l1_wE = get_a_s_e([h_match_E], 0, sample_size, sample_size, T)
+match_soma_l1_woE, match_a_curr_l1_woE, match_error_l1_woE = get_a_s_e([h_match_nE], 0, sample_size, sample_size, T)
 
-match_soma_l2_wE, match_a_curr_l2_wE, match_error_l2_wE = get_a_s_e(h_match_E, 1, batch_size, n_samples, T)
-match_soma_l2_woE, match_a_curr_l2_woE, match_error_l2_woE = get_a_s_e(h_match_nE, 1, batch_size, n_samples, T)
+match_soma_l2_wE, match_a_curr_l2_wE, match_error_l2_wE = get_a_s_e([h_match_E], 1, sample_size, sample_size, T)
+match_soma_l2_woE, match_a_curr_l2_woE, match_error_l2_woE = get_a_s_e([h_match_nE], 1, sample_size, sample_size, T)
 
-match_soma_l3_wE, match_a_curr_l3_wE, match_error_l3_wE = get_a_s_e(h_match_E, 2, batch_size, n_samples, T)
-match_soma_l3_woE, match_a_curr_l3_woE, match_error_l3_woE = get_a_s_e(h_match_nE, 2, batch_size, n_samples, T)
+match_soma_l3_wE, match_a_curr_l3_wE, match_error_l3_wE = get_a_s_e([h_match_E], 2, sample_size, sample_size, T)
+match_soma_l3_woE, match_a_curr_l3_woE, match_error_l3_woE = get_a_s_e([h_match_nE], 2, sample_size, sample_size, T)
 
 # %%
 # get data from mismatch
-mis_soma_l1_woE, mis_a_curr_l1_woE, mis_error_l1_woE = get_a_s_e(h_mismatch_nE, 0, batch_size, n_samples, T)
-mis_soma_l1_wE, mis_a_curr_l1_wE, mis_error_l1_wE = get_a_s_e(h_mismatch_E, 0, batch_size, n_samples, T)
+mis_soma_l1_woE, mis_a_curr_l1_woE, mis_error_l1_woE = get_a_s_e([h_mismatch_nE], 0, sample_size, sample_size, T)
+mis_soma_l1_wE, mis_a_curr_l1_wE, mis_error_l1_wE = get_a_s_e([h_mismatch_E], 0, sample_size, sample_size, T)
 
-mis_soma_l2_wE, mis_a_curr_l2_wE, mis_error_l2_wE = get_a_s_e(h_mismatch_E, 1, batch_size, n_samples, T)
-mis_soma_l2_woE, mis_a_curr_l2_woE, mis_error_l2_woE = get_a_s_e(h_mismatch_nE, 1, batch_size, n_samples, T)
+mis_soma_l2_wE, mis_a_curr_l2_wE, mis_error_l2_wE = get_a_s_e([h_mismatch_E], 1, sample_size, sample_size, T)
+mis_soma_l2_woE, mis_a_curr_l2_woE, mis_error_l2_woE = get_a_s_e([h_mismatch_nE], 1, sample_size, sample_size, T)
 
-mis_soma_l3_wE, mis_a_curr_l3_wE, mis_error_l3_wE = get_a_s_e(h_mismatch_E, 2, batch_size, n_samples, T)
-mis_soma_l3_woE, mis_a_curr_l3_woE, mis_error_l3_woE = get_a_s_e(h_mismatch_nE, 2, batch_size, n_samples, T)
+mis_soma_l3_wE, mis_a_curr_l3_wE, mis_error_l3_wE = get_a_s_e([h_mismatch_E], 2, sample_size, sample_size, T)
+mis_soma_l3_woE, mis_a_curr_l3_woE, mis_error_l3_woE = get_a_s_e([h_mismatch_nE], 2, sample_size, sample_size, T)
 
 # %%
-df_l2_a_matchexp_E, df_usi_l2_a_matchexp_E = usi(match_a_curr_l2_wE, mis_a_curr_l2_wE, 1)
-df_l2_s_matchexp_E, df_usi_l2_s_matchexp_E = usi(match_soma_l2_wE, mis_soma_l2_wE, 1)
+df_l2_a_matchexp_E, df_usi_l2_a_matchexp_E = usi(match_a_curr_l2_wE, mis_a_curr_l2_wE, 1, ts=[50, 150])
+df_l2_s_matchexp_E, df_usi_l2_s_matchexp_E = usi(match_soma_l2_wE, mis_soma_l2_wE, 1, ts=[50, 150])
 
-df_l2_a_matchexp_woE, df_usi_l2_a_matchexp_woE = usi(match_a_curr_l2_woE, mis_a_curr_l2_woE, 1)
-df_l2_s_matchexp_woE, df_usi_l2_s_matchexp_woE = usi(match_soma_l2_woE, mis_soma_l2_woE, 1)
+df_l2_a_matchexp_woE, df_usi_l2_a_matchexp_woE = usi(match_a_curr_l2_woE, mis_a_curr_l2_woE, 1, ts=[50, 150])
+df_l2_s_matchexp_woE, df_usi_l2_s_matchexp_woE = usi(match_soma_l2_woE, mis_soma_l2_woE, 1, ts=[50, 150])
 
 # %%
 df_usi_compare = pd.concat([df_usi_l2_s_matchexp_E, df_usi_l2_s_matchexp_woE])
@@ -502,8 +533,29 @@ sns.histplot(df_usi_compare, x='usi', hue='model type')
 plt.title('compare usi of match mismatch layer2 by model type (soma)')
 plt.show()
 
+# %%
+low_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][256]
 
+df_single_s = df_single_neuron(match_soma_l2_wE[:size_lim], mis_soma_l2_wE[:size_lim], low_usi_index)
+sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
+plt.title('low usi neuron soma voltage during seq match mismatch')
+plt.show()
 
+# %%
+high_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][0]
+
+df_single_s = df_single_neuron(match_soma_l2_wE[:size_lim], mis_soma_l2_wE[:size_lim], high_usi_index)
+sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
+plt.title('high usi neuron soma voltage during seq match mismatch')
+plt.show()
+# %%
+
+high_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][0]
+
+df_single_s = df_single_neuron(match_soma_l2_wE[:size_lim], mis_soma_l2_wE[:size_lim], high_usi_index, delta=True)
+sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
+plt.title('high usi neuron delta soma voltage during seq match mismatch')
+plt.show()
 
 
 
