@@ -339,15 +339,18 @@ torch.cuda.empty_cache()
 # get data
 conti_soma_l1_wE, conti_a_curr_l1_wE, conti_error_l1_wE = get_a_s_e([continuous_seq_hiddens_E], 0, size_lim, size_lim,
                                                                     T)
-conti_soma_l1_woE, conti_a_curr_l1_woE, conti_error_l1_woE = get_a_s_e([continuous_seq_hiddens_nE], 0, size_lim, size_lim, T)
+conti_soma_l1_woE, conti_a_curr_l1_woE, conti_error_l1_woE = get_a_s_e([continuous_seq_hiddens_nE], 0, size_lim,
+                                                                       size_lim, T)
 
 conti_soma_l2_wE, conti_a_curr_l2_wE, conti_error_l2_wE = get_a_s_e([continuous_seq_hiddens_E], 1, size_lim, size_lim,
                                                                     T)
-conti_soma_l2_woE, conti_a_curr_l2_woE, conti_error_l2_woE = get_a_s_e([continuous_seq_hiddens_nE], 1, size_lim, size_lim, T)
+conti_soma_l2_woE, conti_a_curr_l2_woE, conti_error_l2_woE = get_a_s_e([continuous_seq_hiddens_nE], 1, size_lim,
+                                                                       size_lim, T)
 
 conti_soma_l3_wE, conti_a_curr_l3_wE, conti_error_l3_wE = get_a_s_e([continuous_seq_hiddens_E], 2, size_lim, size_lim,
                                                                     T)
-conti_soma_l3_woE, conti_a_curr_l3_woE, conti_error_l3_woE = get_a_s_e([continuous_seq_hiddens_nE], 2, size_lim, size_lim, T)
+conti_soma_l3_woE, conti_a_curr_l3_woE, conti_error_l3_woE = get_a_s_e([continuous_seq_hiddens_nE], 2, size_lim,
+                                                                       size_lim, T)
 
 
 # %%
@@ -362,7 +365,7 @@ def usi(expected_curr, unexpected_curr, layer_idx, ts=None):
 
     # compute USI
     if ts is not None:
-        df['mean a'] = df.loc[:, 't'+str(ts[0]):'t'+str(ts[1])].mean(axis=1)
+        df['mean a'] = df.loc[:, 't' + str(ts[0]):'t' + str(ts[1])].mean(axis=1)
     else:
         df['mean a'] = df.loc[:, 't10': 't50'].mean(axis=1)
     df['var a'] = df.loc[:, 't10': 't199'].var(axis=1)
@@ -375,6 +378,7 @@ def usi(expected_curr, unexpected_curr, layer_idx, ts=None):
     })
 
     return df, df_usi
+
 
 # %%
 df_l2_a_E, df_usi_l2_a_E = usi(a_curr_l2_wE, conti_a_curr_l2_wE, 1)
@@ -396,6 +400,7 @@ high_usi_index = df_usi_l2_s_E.sort_values(by='usi')['neuron idx'][0]
 
 from scipy.ndimage import median_filter, gaussian_filter
 
+
 def compute_delta(signal):
     """compute delta of signal of a single neuron from multiple samples 
 
@@ -404,11 +409,12 @@ def compute_delta(signal):
 
     """
     _, T = signal.shape
-    delta = signal[:, 1:] - signal[:, :T-1]
-    return delta 
+    delta = signal[:, 1:] - signal[:, :T - 1]
+    return delta
+
 
 def df_single_neuron(expected_curr, unexpected_curr, neuron_idx, delta=None):
-    steps = T-1
+    steps = T - 1
     if delta:
         # filtered_exp = median_filter(expected_curr[:, :, neuron_idx], (1, 3))
         # filtered_unexp = median_filter(unexpected_curr[:, :, neuron_idx], (1, 3))
@@ -418,10 +424,10 @@ def df_single_neuron(expected_curr, unexpected_curr, neuron_idx, delta=None):
         delta_exp = compute_delta(filtered_exp)
         delta_unexp = compute_delta(filtered_unexp)
         df_ = pd.DataFrame(np.vstack((delta_exp, delta_unexp)),
-                       columns=['t%i' % i for i in range(steps)])
+                           columns=['t%i' % i for i in range(steps)])
     else:
         df_ = pd.DataFrame(np.vstack((expected_curr[:, :steps, neuron_idx], unexpected_curr[:, :steps, neuron_idx])),
-                       columns=['t%i' % i for i in range(steps)])
+                           columns=['t%i' % i for i in range(steps)])
 
     df_['condition'] = ['normal seq'] * len(expected_curr) + ['stim change seq'] * len(expected_curr)
     df_ = pd.melt(df_, id_vars=['condition'], value_vars=['t%i' % i for i in range(steps)],
@@ -557,8 +563,29 @@ sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
 plt.title('high usi neuron delta soma voltage during seq match mismatch')
 plt.show()
 
+# %%
+# compare spk rate in these conditions
+spk_l2_E_match = get_states([h_match_E], 5, hidden_dim[1], sample_size, T, sample_size)
+spk_l2_E_mis = get_states([h_mismatch_E], 5, hidden_dim[1], sample_size, T, sample_size)
+
+spk_l2_nE_match = get_states([h_match_nE], 5, hidden_dim[1], sample_size, T, sample_size)
+spk_l2_nE_mis = get_states([h_mismatch_nE], 5, hidden_dim[1], sample_size, T, sample_size)
 
 
+def make_df_matchexp_spk(spk_match, spk_mismatch):
+    n, t, _ = spk_match.shape
+    df_ = pd.DataFrame(np.vstack((spk_match.mean(axis=-1), spk_mismatch.mean(axis=-1))),
+                       columns=['t%i' % i for i in range(t)])
+    df_['condition'] = ['match'] * n + ['mismatch'] * n
+    df_ = pd.melt(df_, id_vars=['condition'], value_vars=['t%i' % i for i in range(t)],
+                  var_name='t', value_name='spk rate')
+    return df_
+
+
+spk_mismatch_l2_E = make_df_matchexp_spk(spk_l2_E_match, spk_l2_E_mis)
+
+sns.lineplot(spk_mismatch_l2_E, x='t', y='spk rate', hue='condition')
+plt.show()
 
 
 # %%
