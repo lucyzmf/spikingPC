@@ -220,8 +220,8 @@ class SnnConvNet(nn.Module):
 
         # hidden layer
         # h_input = x_t + self.deconv1(h[5])
-        soma_h, spk_h, a_curr_h, b_h = self.h_layer(ff=x_t, fb=self.deconv1(h[5]), mem_t=h[0], spk_t=h[1], curr_t=h[2],
-                                                    b_t=h[3])
+        soma_h, spk_h, a_curr_h, b_h = self.h_layer(ff=x_t, fb=self.deconv1(h[5]).view(batch_dim, -1),
+                                                    soma_t=h[0], spk_t=h[1], a_curr_t=h[2], b_t=h[3])
         self.error_h = a_curr_h - soma_h
 
         spk_h = spk_h.reshape(batch_dim, c, height, width)
