@@ -52,9 +52,11 @@ def train_fptt_conv(epoch, batch_size, log_interval,
 
                 # mem potential loss take l1 norm / num of neurons /batch size
                 if len(model.hidden_channels) == 1:
-                    energy = (torch.sum(model.error1 ** 2) + torch.sum(model.error2 ** 2)) / B / model.neuron_count
+                    energy = (torch.sum(model.error_h ** 2) + torch.sum(model.error1 ** 2) +
+                              torch.sum(model.error2 ** 2)) / B / model.neuron_count
                 elif len(model.hidden_channels) == 2:  # convs + popenc
-                    energy = (torch.sum(model.error1 ** 2) + torch.sum(model.error2 ** 2) + torch.sum(model.error3 ** 2)) / B / model.neuron_count
+                    energy = (torch.sum(model.error_h ** 2) + torch.sum(model.error1 ** 2) +
+                              torch.sum(model.error2 ** 2) + torch.sum(model.error3 ** 2)) / B / model.neuron_count
 
                 # overall loss
                 loss = clf_alpha * clf_loss + regularizer + energy_alpha * energy
@@ -99,7 +101,7 @@ def train_fptt_conv(epoch, batch_size, log_interval,
                 'total_loss': train_loss / log_interval / k_updates,
                 'conv1 spk fr': model.fr_conv1 / time_steps / log_interval, 
                 'conv2 spk fr': model.fr_conv2 / time_steps / log_interval, 
-                # 'h layer spk fr': model.fr_h / time_steps / log_interval,
+                'h layer spk fr': model.fr_h / time_steps / log_interval,
                 'pop layer spk fr': model.fr_pop / time_steps / log_interval, 
             })
 
