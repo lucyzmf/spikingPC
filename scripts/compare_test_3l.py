@@ -50,7 +50,7 @@ transform = transforms.Compose(
 
 batch_size = 200
 
-testdata = torchvision.datasets.MNIST(root='./data', train=False,
+testdata = torchvision.datasets.FashionMNIST(root='./data', train=False,
                                       download=True, transform=transform)
 
 images = torch.stack([img for img, _ in testdata]).squeeze()
@@ -107,12 +107,12 @@ model_woE = SnnNetwork2Layer(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron
 model_woE.to(device)
 
 # load different models
-exp_dir_wE = '/home/lucy/spikingPC/results/Mar-28-2023/fptt_ener0.05_taux2_scaledinput05_dt0.5_exptau05/'
+exp_dir_wE = '/home/lucy/spikingPC/results/Apr-01-2023/fptt_ener0.05_taux2_scaledinput05_dt0.5_exptau05_fashion/'
 saved_dict1 = model_result_dict_load(exp_dir_wE + 'onelayer_rec_best.pth.tar')
 
 model_wE.load_state_dict(saved_dict1['state_dict'])
 
-exp_dir_woE = '/home/lucy/spikingPC/results/Mar-28-2023/fptt_ener0_taux2_scaledinput05_dt0.5_exptau05/'
+exp_dir_woE = '/home/lucy/spikingPC/results/Mar-31-2023/fptt_ener0_taux2_scaledinput05_dt0.5_exptau05_fashion/'
 saved_dict2 = model_result_dict_load(exp_dir_woE + 'onelayer_rec_best.pth.tar')
 
 model_woE.load_state_dict(saved_dict2['state_dict'])
@@ -452,8 +452,8 @@ plt.show()
 #######################################################################################################################
 ###################################                 BU TD MISMATCH EXP              ###################################
 #######################################################################################################################
-match_dig = 1
-mismatch_dig = 7
+match_dig = 3
+mismatch_dig = 4
 mismatch_dig = np.delete(np.arange(0, 10), match_dig)
 
 sample_size = 50
