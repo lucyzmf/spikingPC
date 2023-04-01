@@ -35,7 +35,7 @@ wandb.init(project="spikingPC_conv_voltloss", entity="lucyzmf")
 config = wandb.config
 config.adap_neuron = True  # whether use adaptive conv neuron or not
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 0  # - config.clf_alpha
+config.energy_alpha = 5e-2  # - config.clf_alpha
 config.onetoone = True
 config.lr = 1e-3
 config.alg = 'conv_fptt'
@@ -52,7 +52,7 @@ log_interval = 40
 epochs = 30
 n_classes = 10
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_conv_2l_pmean'
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_conv_2l_50pop'
 
 # experiment name
 exp_name = config.exp_name
@@ -114,7 +114,7 @@ config.stride = [1, 1]
 config.paddings = [0, 0]
 config.is_rec = [False, False]
 config.pooling = None
-config.num_readout = 10
+config.num_readout = 50
 config.conv_adp = False
 config.spiking_conv = True
 spiking_conv = config.spiking_conv

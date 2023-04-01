@@ -222,12 +222,12 @@ class SnnConvNet(nn.Module):
         #                                          b_t=h[3])
         # spk_h = spk_h.reshape(batch_dim, c, height, width)
 
-        soma_conv1, spk_conv1, a_curr_conv1, b_conv1 = self.conv1(ff=x_t, fb=self.deconv1(h[5]), soma_t=h[0], spk_t=h[1],
+        soma_conv1, spk_conv1, a_curr_conv1, b_conv1 = self.conv1(ff=x_t, fb=self.deconv2(h[5]), soma_t=h[0], spk_t=h[1],
                                                                a_curr_t=h[2], b_t=h[3])
 
         self.error1 = a_curr_conv1 - soma_conv1
 
-        soma_conv2, spk_conv2, a_curr_conv2, b_conv2 = self.conv2(ff=spk_conv1, fb=self.deconv2(h[9]), soma_t=h[4],
+        soma_conv2, spk_conv2, a_curr_conv2, b_conv2 = self.conv2(ff=spk_conv1, fb=self.pop_to_conv(h[9]), soma_t=h[4],
                                                                spk_t=h[5], a_curr_t=h[6], b_t=h[7])
 
         self.error2 = a_curr_conv2 - soma_conv2
