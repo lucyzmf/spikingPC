@@ -96,7 +96,7 @@ class SnnLayer(nn.Module):
 
         # nn.init.constant_(self.tau_adp, tau_adap_init)
         # nn.init.constant_(self.tau_m, tau_m_init)
-        # nn.init.constant_(self.tau_a, tau_i_init)
+        # nn.init.constant_(self.tau_a, tau_a_init)
 
         # nn.init.normal_(self.tau_adp, 200., 20.)
         # nn.init.normal_(self.tau_m, 20., .5)
@@ -209,9 +209,9 @@ class OutputLayer(nn.Module):
         else:
             x_t = x_t.view(-1, 10, int(self.in_dim / 10)).mean(dim=2)  # sum up population spike
 
-        # d_mem = -mem_t + x_t
+        # d_mem = -soma_t + x_t
         mem = (mem_t + x_t) * alpha
-        # mem = alpha * mem_t + (1 - alpha) * x_t
+        # mem = alpha * soma_t + (1 - alpha) * x_t
         return mem
 
 

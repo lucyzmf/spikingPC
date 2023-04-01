@@ -126,7 +126,7 @@ class OutputLayer(nn.Module):
         else:
             x_t = x_t.view(-1, 10, int(self.in_dim / 10)).sum(dim=2)  # sum up population spike
 
-        # d_mem = -mem_t + x_t
+        # d_mem = -soma_t + x_t
         mem = (mem_t + x_t) * self.tau_m
         return mem
 
