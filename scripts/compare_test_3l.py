@@ -370,11 +370,16 @@ def usi(expected_curr, unexpected_curr, layer_idx, ts=None):
         df['mean a'] = df.loc[:, 't10': 't50'].mean(axis=1)
     df['var a'] = df.loc[:, 't10': 't199'].var(axis=1)
 
+    # df_usi = pd.DataFrame({
+    #     'neuron idx': np.arange(hidden_dim[layer_idx]),
+    #     'usi': (df['mean a'][df['condition'] == 'normal seq'].to_numpy() - df['mean a'][
+    #         df['condition'] == 'stim change seq'].to_numpy()) /
+    #            np.sqrt(df['var a'][df['condition'] == 'normal seq'].to_numpy())
+    # })
     df_usi = pd.DataFrame({
         'neuron idx': np.arange(hidden_dim[layer_idx]),
-        'usi': (df['mean a'][df['condition'] == 'normal seq'].to_numpy() - df['mean a'][
-            df['condition'] == 'stim change seq'].to_numpy()) /
-               np.sqrt(df['var a'][df['condition'] == 'normal seq'].to_numpy())
+        'usi': np.abs((df[df['condition'] == 'normal seq'].loc[:, 't0':'t199'].to_numpy() - df[
+            df['condition'] == 'stim change seq'].loc[:, 't0':'t199'].to_numpy())).sum(axis=1) 
     })
 
     return df, df_usi
@@ -541,7 +546,7 @@ plt.title('compare usi of match mismatch layer2 by model type (soma)')
 plt.show()
 
 # %%
-low_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][250]
+low_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][0]
 
 df_single_s = df_single_neuron(match_soma_l2_wE[:sample_size], mis_soma_l2_wE[:sample_size], low_usi_index)
 sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
@@ -549,7 +554,7 @@ plt.title('low usi neuron soma voltage during seq match mismatch')
 plt.show()
 
 # %%
-high_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][0]
+high_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][499]
 
 df_single_s = df_single_neuron(match_soma_l2_wE[:sample_size], mis_soma_l2_wE[:sample_size], high_usi_index)
 sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
@@ -557,12 +562,12 @@ plt.title('high usi neuron soma voltage during seq match mismatch')
 plt.show()
 # %%
 
-high_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][250]
+# high_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][499]
 
-df_single_s = df_single_neuron(match_soma_l2_wE[:size_lim], mis_soma_l2_wE[:size_lim], high_usi_index, delta=True)
-sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
-plt.title('high usi neuron delta soma voltage during seq match mismatch')
-plt.show()
+# df_single_s = df_single_neuron(match_soma_l2_wE[:size_lim], mis_soma_l2_wE[:size_lim], high_usi_index, delta=True)
+# sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
+# plt.title('high usi neuron delta soma voltage during seq match mismatch')
+# plt.show()
 
 # %%
 # compare spk rate in these conditions
