@@ -50,7 +50,7 @@ transform = transforms.Compose(
 
 batch_size = 200
 
-testdata = torchvision.datasets.FashionMNIST(root='./data', train=False,
+testdata = torchvision.datasets.MNIST(root='./data', train=False,
                                       download=True, transform=transform)
 
 images = torch.stack([img for img, _ in testdata]).squeeze()
@@ -87,7 +87,7 @@ onetoone = True
 
 # %%
 IN_dim = 784
-hidden_dim = [784, 512, 512]
+hidden_dim = [600, 500, 500]
 T = 200  # sequence length, reading from the same image time_steps times
 
 dp = 0.4
@@ -107,12 +107,12 @@ model_woE = SnnNetwork2Layer(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron
 model_woE.to(device)
 
 # load different models
-exp_dir_wE = '/home/lucy/spikingPC/results/Apr-01-2023/fptt_ener0.05_taux2_scaledinput05_dt0.5_exptau05_fashion/'
+exp_dir_wE = '/home/lucy/spikingPC/results/Apr-03-2023/fptt_ener0.1_taux2_dt0.5_exptau05_threeh_absloss/'
 saved_dict1 = model_result_dict_load(exp_dir_wE + 'onelayer_rec_best.pth.tar')
 
 model_wE.load_state_dict(saved_dict1['state_dict'])
 
-exp_dir_woE = '/home/lucy/spikingPC/results/Mar-31-2023/fptt_ener0_taux2_scaledinput05_dt0.5_exptau05_fashion/'
+exp_dir_woE = '/home/lucy/spikingPC/results/Apr-03-2023/fptt_ener0_taux2_dt0.5_exptau05_threeh/'
 saved_dict2 = model_result_dict_load(exp_dir_woE + 'onelayer_rec_best.pth.tar')
 
 model_woE.load_state_dict(saved_dict2['state_dict'])
@@ -398,6 +398,7 @@ plt.show()
 # %%
 high_usi_index = df_usi_l2_s_E.sort_values(by='usi')['neuron idx'][0]
 
+# %%
 from scipy.ndimage import median_filter, gaussian_filter
 
 
@@ -453,13 +454,13 @@ plt.show()
 ###################################                 BU TD MISMATCH EXP              ###################################
 #######################################################################################################################
 match_dig = 3
-mismatch_dig = 4
+# mismatch_dig = 4
 mismatch_dig = np.delete(np.arange(0, 10), match_dig)
 
 sample_size = 50
 zeros = images[targets == match_dig][:sample_size].to(device)
 
-no_inputs = torch.zeros((zeros.size(0), hidden_dim[0])).to(device)
+no_inputs = torch.zeros((zeros.size(0), IN_dim)).to(device)
 
 blank_t = 50
 match_t = 100
@@ -470,7 +471,7 @@ def match_mismatch_ex(match_condition):
     h_E = []
     h_nE = []
 
-    clamp_class = match_dig if match_condition else mismatch_dig
+    clamp_class = match_dig if match_condition else np.random.choice(mismatch_dig)
 
     with torch.no_grad():
         model_wE.eval()
@@ -483,9 +484,9 @@ def match_mismatch_ex(match_condition):
         h_E += h1_E
         h_nE += h1_nE
 
-        _, h2_E = model_wE.clamped_generate(clamp_class, zeros.view(-1, hidden_dim[0]), h1_E[-1], match_t,
+        _, h2_E = model_wE.clamped_generate(clamp_class, zeros.view(-1, IN_dim), h1_E[-1], match_t,
                                             clamp_value=1, batch=True)
-        _, h2_nE = model_woE.clamped_generate(clamp_class, zeros.view(-1, hidden_dim[0]), h1_nE[-1], match_t,
+        _, h2_nE = model_woE.clamped_generate(clamp_class, zeros.view(-1, IN_dim), h1_nE[-1], match_t,
                                               clamp_value=1, batch=True)
         h_E += h2_E
         h_nE += h2_nE
@@ -525,11 +526,11 @@ mis_soma_l3_wE, mis_a_curr_l3_wE, mis_error_l3_wE = get_a_s_e([h_mismatch_E], 2,
 mis_soma_l3_woE, mis_a_curr_l3_woE, mis_error_l3_woE = get_a_s_e([h_mismatch_nE], 2, sample_size, sample_size, T)
 
 # %%
-df_l2_a_matchexp_E, df_usi_l2_a_matchexp_E = usi(match_a_curr_l2_wE, mis_a_curr_l2_wE, 1, ts=[50, 150])
-df_l2_s_matchexp_E, df_usi_l2_s_matchexp_E = usi(match_soma_l2_wE, mis_soma_l2_wE, 1, ts=[50, 150])
+df_l2_a_matchexp_E, df_usi_l2_a_matchexp_E = usi(match_a_curr_l2_wE, mis_a_curr_l2_wE, 1)
+df_l2_s_matchexp_E, df_usi_l2_s_matchexp_E = usi(match_soma_l2_wE, mis_soma_l2_wE, 1)
 
-df_l2_a_matchexp_woE, df_usi_l2_a_matchexp_woE = usi(match_a_curr_l2_woE, mis_a_curr_l2_woE, 1, ts=[50, 150])
-df_l2_s_matchexp_woE, df_usi_l2_s_matchexp_woE = usi(match_soma_l2_woE, mis_soma_l2_woE, 1, ts=[50, 150])
+df_l2_a_matchexp_woE, df_usi_l2_a_matchexp_woE = usi(match_a_curr_l2_woE, mis_a_curr_l2_woE, 1)
+df_l2_s_matchexp_woE, df_usi_l2_s_matchexp_woE = usi(match_soma_l2_woE, mis_soma_l2_woE, 1)
 
 # %%
 df_usi_compare = pd.concat([df_usi_l2_s_matchexp_E, df_usi_l2_s_matchexp_woE])
@@ -540,9 +541,9 @@ plt.title('compare usi of match mismatch layer2 by model type (soma)')
 plt.show()
 
 # %%
-low_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][256]
+low_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][250]
 
-df_single_s = df_single_neuron(match_soma_l2_wE[:size_lim], mis_soma_l2_wE[:size_lim], low_usi_index)
+df_single_s = df_single_neuron(match_soma_l2_wE[:sample_size], mis_soma_l2_wE[:sample_size], low_usi_index)
 sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
 plt.title('low usi neuron soma voltage during seq match mismatch')
 plt.show()
@@ -550,13 +551,13 @@ plt.show()
 # %%
 high_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][0]
 
-df_single_s = df_single_neuron(match_soma_l2_wE[:size_lim], mis_soma_l2_wE[:size_lim], high_usi_index)
+df_single_s = df_single_neuron(match_soma_l2_wE[:sample_size], mis_soma_l2_wE[:sample_size], high_usi_index)
 sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
 plt.title('high usi neuron soma voltage during seq match mismatch')
 plt.show()
 # %%
 
-high_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][0]
+high_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][250]
 
 df_single_s = df_single_neuron(match_soma_l2_wE[:size_lim], mis_soma_l2_wE[:size_lim], high_usi_index, delta=True)
 sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
@@ -812,7 +813,7 @@ plt.show()
 # test generative capacity of network with clamping 
 ##############################################################
 dig = 0
-no_input = torch.zeros((1, hidden_dim[0])).to(device)
+no_input = torch.zeros((1, IN_dim)).to(device)
 with torch.no_grad():
     model_wE.eval()
     model_woE.eval()
@@ -870,6 +871,9 @@ plt.show()
 
 # %%
 # compute mean l2, l3 reps from E and nE model with clamped mode 
+l1_norm_E = np.zeros((10, hidden_dim[0]))
+l1_norm_nE = np.zeros((10, hidden_dim[0]))
+
 l2_norm_E = np.zeros((10, hidden_dim[1]))
 l3_norm_E = np.zeros((10, hidden_dim[2]))
 
@@ -890,6 +894,9 @@ for i, (data, target) in enumerate(test_loader):
         _, h_E = model_wE.inference(data, hidden, T)
         _, h_nE = model_woE.inference(data, hidden, T)
 
+        l1_E = get_states([h_E], 1, hidden_dim[0], batch_size, T=60, num_samples=batch_size)
+        l1_nE = get_states([h_nE], 1, hidden_dim[0], batch_size, T=60, num_samples=batch_size)
+
         l2_E = get_states([h_E], 5, hidden_dim[1], batch_size, T=60, num_samples=batch_size)
         l2_nE = get_states([h_nE], 5, hidden_dim[1], batch_size, T=60, num_samples=batch_size)
 
@@ -897,6 +904,9 @@ for i, (data, target) in enumerate(test_loader):
         l3_nE = get_states([h_nE], 9, hidden_dim[2], batch_size, T=60, num_samples=batch_size)
 
         for i in range(n_classes):
+            l1_norm_E[i] += l1_E[target.cpu() == i].mean(axis=1).sum(axis=0)  # avg over t and sum over all samples 
+            l1_norm_nE[i] += l1_nE[target.cpu() == i].mean(axis=1).sum(axis=0)
+
             l2_norm_E[i] += l2_E[target.cpu() == i].mean(axis=1).sum(axis=0)  # avg over t and sum over all samples 
             l2_norm_nE[i] += l2_nE[target.cpu() == i].mean(axis=1).sum(axis=0)
 
@@ -906,6 +916,9 @@ for i, (data, target) in enumerate(test_loader):
     torch.cuda.empty_cache()
 
 # avg all samples 
+l1_norm_E = l1_norm_E / 10000
+l1_norm_nE = l1_norm_nE / 10000
+
 l2_norm_E = l2_norm_E / 10000
 l2_norm_nE = l2_norm_nE / 10000
 
@@ -914,6 +927,9 @@ l3_norm_nE = l3_norm_nE / 10000
 
 # %%
 # clamped condition
+l1_clamp_E = np.zeros((10, hidden_dim[0]))
+l1_clamp_nE = np.zeros((10, hidden_dim[0]))
+
 l2_clamp_E = np.zeros((10, hidden_dim[1]))
 l3_clamp_E = np.zeros((10, hidden_dim[2]))
 
@@ -931,12 +947,19 @@ for i in range(10):
         _, hidden_gen_E_ = model_wE.clamped_generate(i, no_input, hidden_i, T * 2, clamp_value=10)
         _, hidden_gen_nE_ = model_woE.clamped_generate(i, no_input, hidden_i, T * 2, clamp_value=10)
 
+        # 
+        l1_E = get_states([hidden_gen_E_], 1, hidden_dim[0], 1, T * 2, num_samples=1)
+        l1_nE = get_states([hidden_gen_nE_], 1, hidden_dim[0], 1, T * 2, num_samples=1)
+
         # get gen 
         l2_E = get_states([hidden_gen_E_], 5, hidden_dim[1], 1, T * 2, num_samples=1)
         l2_nE = get_states([hidden_gen_nE_], 5, hidden_dim[1], 1, T * 2, num_samples=1)
 
         l3_E = get_states([hidden_gen_E_], 9, hidden_dim[2], 1, T * 2, num_samples=1)
         l3_nE = get_states([hidden_gen_nE_], 9, hidden_dim[2], 1, T * 2, num_samples=1)
+
+        l1_clamp_E[i] += np.squeeze(l1_E.mean(axis=1))
+        l1_clamp_nE[i] += np.squeeze(l1_nE.mean(axis=1))
 
         l2_clamp_E[i] += np.squeeze(l2_E.mean(axis=1))
         l2_clamp_nE[i] += np.squeeze(l2_nE.mean(axis=1))
@@ -949,11 +972,11 @@ for i in range(10):
 # %%
 fig, axes = plt.subplots(2, 10, figsize=(25, 6))
 for i in range(10):
-    pos = axes[0][i].imshow((param_dict_wE['layer2to1.weight'] @ l2_clamp_E[i]).reshape(28, 28))
+    pos = axes[0][i].imshow(((param_dict_wE['layer2to1.weight']@l2_clamp_E[i]) @ param_dict_wE['input_fc.weight'] ).reshape(28, 28))
     fig.colorbar(pos, ax=axes[0][i], shrink=0.5)
     axes[0][i].set_title('w E l2 > l1 class%i' % i)
 
-    pos = axes[1][i].imshow((param_dict_woE['layer2to1.weight'] @ l2_clamp_nE[i]).reshape(28, 28))
+    pos = axes[1][i].imshow(((param_dict_woE['layer2to1.weight']@l2_clamp_nE[i]) @ param_dict_woE['input_fc.weight'] ).reshape(28, 28))
     fig.colorbar(pos, ax=axes[1][i], shrink=0.5)
     axes[1][i].set_title('w/o E l2 > l1 class%i' % i)
 
