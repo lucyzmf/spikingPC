@@ -55,7 +55,7 @@ clip = 1.
 log_interval = 20
 epochs = 20
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_taux2_scaledinput05_dt0.5_exptau05_fashion'
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_taux2_dt0.5_exptau05_absloss_1to1in'
 
 # experiment name 
 exp_name = config.exp_name
@@ -83,10 +83,10 @@ transform = transforms.Compose(
 
 batch_size = 256
 
-traindata = torchvision.datasets.FashionMNIST(root='./data', train=True,
+traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
 
-testdata = torchvision.datasets.FashionMNIST(root='./data', train=False,
+testdata = torchvision.datasets.MNIST(root='./data', train=False,
                                       download=True, transform=transform)
 
 # data loading 

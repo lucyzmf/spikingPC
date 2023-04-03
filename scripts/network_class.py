@@ -405,14 +405,18 @@ class SnnNetwork2Layer(SnnNetwork):
 
         self.error3 = 0
 
+        self.input_fc = nn.Linear(in_dim, hidden_dims[0])
+        nn.init.xavier_uniform_(self.input_fc.weight)
+
 
     def forward(self, x_t, h):
         batch_dim, input_size = x_t.shape
 
         x_t = x_t.reshape(batch_dim, input_size).float()
-        x_t = self.dp(x_t*0.5)
+        x_t = self.dp(x_t)
         # poisson 
         # x_t = x_t.gt(0.7).float()
+        x_t = self.input_fc(x_t)
 
         soma_1, spk_1, a_curr_1, b_1 = self.layer1(ff=x_t, fb=self.layer2to1(h[5]), soma_t=h[0], spk_t=h[1],
                                                    a_curr_t=h[2], b_t=h[3])
