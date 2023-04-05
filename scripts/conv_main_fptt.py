@@ -35,7 +35,7 @@ wandb.init(project="spikingPC_conv_voltloss", entity="lucyzmf")
 config = wandb.config
 config.adap_neuron = True  # whether use adaptive conv neuron or not
 config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 5e-2  # - config.clf_alpha
+config.energy_alpha = 0  # - config.clf_alpha
 config.onetoone = True
 config.lr = 1e-3
 config.alg = 'conv_fptt'
@@ -52,7 +52,7 @@ log_interval = 40
 epochs = 30
 n_classes = 10
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_conv_2l_50pop'
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_2lconv_absloss_nonadp_chann4_4'
 
 # experiment name
 exp_name = config.exp_name
@@ -77,7 +77,7 @@ else:
 
 transform = transforms.Compose(
     [transforms.ToTensor(),
-     # transforms.Resize(16),
+    #  transforms.Resize(16),
      transforms.Normalize((0.5), (0.5))])
 
 batch_size = 256
@@ -108,13 +108,13 @@ for batch_idx, (data, target) in enumerate(train_loader):
 # set input and t param
 
 IN_dim = [c, h, w]
-config.hidden_channels = [8, 8]
+config.hidden_channels = [4, 4]
 config.kernel_size = [7, 7]
 config.stride = [1, 1]
 config.paddings = [0, 0]
 config.is_rec = [False, False]
 config.pooling = None
-config.num_readout = 50
+config.num_readout = 20
 config.conv_adp = False
 config.spiking_conv = True
 spiking_conv = config.spiking_conv

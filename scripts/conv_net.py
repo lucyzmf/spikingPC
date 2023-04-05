@@ -68,6 +68,9 @@ class SNNConvCell(nn.Module):
         self.tau_m = nn.Parameter(torch.Tensor(self.output_shape))
         self.tau_adp = nn.Parameter(torch.Tensor(self.output_shape))
         self.tau_a = nn.Parameter(torch.Tensor(self.output_shape))
+        # self.tau_m = nn.Parameter(torch.Tensor([1]))
+        # self.tau_adp = nn.Parameter(torch.Tensor([1]))
+        # self.tau_a = nn.Parameter(torch.Tensor([1]))
 
         # nn.init.kaiming_normal_(self.conv1_x.weight
         nn.init.xavier_normal_(self.conv_in.weight)
@@ -77,8 +80,11 @@ class SNNConvCell(nn.Module):
         nn.init.normal_(self.tau_adp, tau_adap_init, .1)
         nn.init.normal_(self.tau_m, tau_m_init, .1)
         nn.init.normal_(self.tau_a, tau_a_init, 0.1)
+        # nn.init.constant_(self.tau_adp, tau_adap_init)
+        # nn.init.constant_(self.tau_m, tau_m_init)
+        # nn.init.constant_(self.tau_a, tau_a_init)
 
-    def mem_update(self, ff, fb, soma, spike, a_curr, b, is_adapt, dt=1, baseline_thre=b_j0, r_m=3):
+    def mem_update(self, ff, fb, soma, spike, a_curr, b, is_adapt, dt=0.5, baseline_thre=b_j0, r_m=3):
         # alpha = self.sigmoid(self.tau_m)
         # rho = self.sigmoid(self.tau_adp)
         # eta = self.sigmoid(self.tau_a)
@@ -151,7 +157,7 @@ class SnnConvNet(nn.Module):
             dp_rate=0.3,
             p_size=10,  # num prediction neurons
             num_classes=10,
-            pooling=None
+            pooling=None, 
     ):
         super(SnnConvNet, self).__init__()
 
@@ -164,9 +170,9 @@ class SnnConvNet(nn.Module):
         self.classify_population_sz = out_dim * p_size
 
         # ff weights
-        self.h_layer = SnnLayer(input_size[1] * input_size[2], input_size[1] * input_size[2], is_rec=False,
-                                is_adapt=False,
-                                one_to_one=True)
+        # self.h_layer = SnnLayer(input_size[1] * input_size[2], input_size[1] * input_size[2], is_rec=False,
+        #                         is_adapt=False,
+        #                         one_to_one=True)
 
         self.conv1 = SNNConvCell(input_size[0], hidden_channels[0], kernel_size[0], stride[0], paddings[0],
                                  self.input_size, is_adapt=is_adapt_conv, pooling_type=None, is_rec=is_rec[0])
@@ -199,8 +205,8 @@ class SnnConvNet(nn.Module):
 
         self.output_layer = OutputLayer(p_size * num_classes, out_dim, is_fc=False, tau_fixed=0.2)
 
-        self.neuron_count = self.conv1.output_size + self.pop_enc.hidden_dim + self.conv2.output_size + \
-                            self.h_layer.hidden_dim
+        self.neuron_count = self.conv1.output_size + self.pop_enc.hidden_dim + self.conv2.output_size #+ \
+                            #self.h_layer.hidden_dim
 
         self.fr_conv1 = 0
         self.fr_conv2 = 0
@@ -210,7 +216,7 @@ class SnnConvNet(nn.Module):
         self.error1 = 0
         self.error2 = 0
         self.error3 = 0
-        self.error_h = 0
+        # self.error_h = 0
 
     def forward(self, x_t, h):
         batch_dim, c, height, width = x_t.size()
@@ -220,20 +226,20 @@ class SnnConvNet(nn.Module):
 
         # hidden layer
         # h_input = x_t + self.deconv1(h[5])
-        soma_h, spk_h, a_curr_h, b_h = self.h_layer(ff=x_t, fb=self.deconv1(h[5]).view(batch_dim, -1),
-                                                    soma_t=h[0], spk_t=h[1], a_curr_t=h[2], b_t=h[3])
-        self.error_h = a_curr_h - soma_h
+        # soma_h, spk_h, a_curr_h, b_h = self.h_layer(ff=x_t.view(batch_dim, -1), fb=self.deconv1(h[5]).view(batch_dim, -1),
+        #                                             soma_t=h[0], spk_t=h[1], a_curr_t=h[2], b_t=h[3])
+        # self.error_h = a_curr_h - soma_h
 
-        spk_h = spk_h.reshape(batch_dim, c, height, width)
+        # spk_h = spk_h.reshape(batch_dim, c, height, width)
 
-        soma_conv1, spk_conv1, a_curr_conv1, b_conv1 = self.conv1(ff=spk_h, fb=self.deconv2(h[9]), soma_t=h[4],
-                                                                  spk_t=h[5],
-                                                                  a_curr_t=h[6], b_t=h[7])
+        soma_conv1, spk_conv1, a_curr_conv1, b_conv1 = self.conv1(ff=x_t, fb=self.deconv2(h[5]), soma_t=h[0],
+                                                                  spk_t=h[1],
+                                                                  a_curr_t=h[2], b_t=h[3])
 
         self.error1 = a_curr_conv1 - soma_conv1
 
-        soma_conv2, spk_conv2, a_curr_conv2, b_conv2 = self.conv2(ff=spk_conv1, fb=self.pop_to_conv(h[13]), soma_t=h[8],
-                                                                  spk_t=h[9], a_curr_t=h[10], b_t=h[11])
+        soma_conv2, spk_conv2, a_curr_conv2, b_conv2 = self.conv2(ff=spk_conv1, fb=self.pop_to_conv(h[9]), soma_t=h[4],
+                                                                  spk_t=h[5], a_curr_t=h[6], b_t=h[7])
 
         self.error2 = a_curr_conv2 - soma_conv2
 
@@ -241,13 +247,13 @@ class SnnConvNet(nn.Module):
         # in_to_pc = spk2.view(batch_dim, -1)
 
         soma_pop, spk_pop, a_curr_pop, b_pop = self.pop_enc(ff=in_to_pop, fb=self.out2pop(F.normalize(h[-1], dim=1)),
-                                                            soma_t=h[12], spk_t=h[13], a_curr_t=h[14], b_t=h[15])
+                                                            soma_t=h[8], spk_t=h[9], a_curr_t=h[10], b_t=h[11])
 
         self.error3 = a_curr_pop - soma_pop
 
         mem_out = self.output_layer(spk_pop, h[-1])
 
-        h = (soma_h, spk_h.view(batch_dim, -1), a_curr_h, b_h,
+        h = (#soma_h, spk_h.view(batch_dim, -1), a_curr_h, b_h,
              soma_conv1, spk_conv1, a_curr_conv1, b_conv1,
              soma_conv2, spk_conv2, a_curr_conv2, b_conv2,
              soma_pop, spk_pop, a_curr_pop, b_pop,
