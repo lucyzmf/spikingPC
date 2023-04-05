@@ -210,7 +210,7 @@ class SNNLocalConvCell(nn.Module):
         return out.shape[1:]
 
 
-class SnnConvNet(nn.Module):
+class SnnLocalConvNet(nn.Module):
     def __init__(
             self,
             input_size,  # data size
@@ -226,7 +226,7 @@ class SnnConvNet(nn.Module):
             num_classes=10,
             pooling=None,
     ):
-        super(SnnConvNet, self).__init__()
+        super(SnnLocalConvNet, self).__init__()
 
         self.hidden_channels = hidden_channels
         self.out_dim = out_dim
