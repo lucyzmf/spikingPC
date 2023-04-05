@@ -36,7 +36,7 @@ class LocalConv2d(nn.Module):
 
 
 class LocalConvTrans2d(nn.Module):
-    def __init__(self, in_channels, out_channels, input_size, output_size, kernel_size, stride, bias=False):
+    def __init__(self, in_channels, out_channels, input_size, output_size, kernel_size, bias=False):
         super(LocalConvTrans2d, self).__init__()
         input_size = _pair(input_size)
         output_size = _pair(output_size)
@@ -50,7 +50,6 @@ class LocalConvTrans2d(nn.Module):
         else:
             self.register_parameter('bias', None)
         self.kernel_size = _pair(kernel_size)
-        self.stride = _pair(stride)
         self.fold = nn.Fold(output_size=output_size, kernel_size=kernel_size)
         self.out_channels = out_channels
 
@@ -115,11 +114,12 @@ class SNNLocalConvCell(nn.Module):
         else:
             self.pooling = None
 
-        self.local_conv = LocalConv2d(self.in_channels, self.out_channels, kernel_size=self.kernel_size,
-                                      stride=self.strides, bias=bias)
-
         self.output_shape = self.compute_output_shape()
         print('output shape ' + str(self.output_shape))
+
+        self.local_conv = LocalConv2d(self.in_channels, self.out_channels, output_size=self.output_shape[1], 
+                                      kernel_size=self.kernel_size, stride=self.strides, bias=bias)
+
         self.output_size = self.output_shape[0] * self.output_shape[1] * self.output_shape[2]
         print('output size %i' % self.output_size)
 
@@ -204,7 +204,8 @@ class SNNLocalConvCell(nn.Module):
 
     def compute_output_shape(self):
         x_emp = torch.randn([1, self.input_size[0], self.input_size[1], self.input_size[2]])
-        out = self.local_conv(x_emp)
+        temp_conv = nn.Conv2d(self.in_channels, self.out_channels, self.kernel_size, self.strides, self.padding)
+        out = temp_conv(x_emp)
         if self.pooling is not None:
             out = self.pooling(out)
         return out.shape[1:]
