@@ -285,7 +285,7 @@ class SnnLocalConvNet(nn.Module):
         # poisson 
         # x_t = x_t.gt(0.5).float()
 
-        soma_conv1, spk_conv1, a_curr_conv1, b_conv1 = self.conv1(ff=x_t, fb=self.deconv2(h[5]), soma_t=h[0],
+        soma_conv1, spk_conv1, a_curr_conv1, b_conv1 = self.conv1(ff=x_t, fb=self.deconv1(h[5]), soma_t=h[0],
                                                                   spk_t=h[1],
                                                                   a_curr_t=h[2], b_t=h[3])
 
