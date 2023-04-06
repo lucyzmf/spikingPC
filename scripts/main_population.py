@@ -34,9 +34,9 @@ wandb.init(project="spikingPC_voltageloss", entity="lucyzmf")
 
 # add wandb.config
 config = wandb.config
-config.adap_neuron = True  # whether use adaptive neuron or not
+config.adap_neuron = False  # whether use adaptive neuron or not
 config.clf_alpha = 1
-config.energy_alpha = 5e-2  # - config.clf_alpha
+config.energy_alpha = 0.1  # - config.clf_alpha
 config.spike_alpha = 0.  # energy loss on spikes 
 config.num_readout = 10
 config.onetoone = True
@@ -55,7 +55,7 @@ clip = 1.
 log_interval = 20
 epochs = 20
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_taux2_dt0.5_exptau05_absloss_1to1in'
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_taux2_dt0.5_exptau05_absloss_unadp'
 
 # experiment name 
 exp_name = config.exp_name

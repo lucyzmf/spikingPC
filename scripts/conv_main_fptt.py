@@ -24,7 +24,7 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-s', '--randomeseed', default=999, type=int, help='set torch manual seed')
 parser.add_argument('-a', '--energyalpha', default=0., type=float, help='set energy loss')
-parser.add_argument('-e', '--epoch', default=20, type=int, help='number of training epochs')
+parser.add_argument('-e', '--epoch', default=10, type=int, help='number of training epochs')
 parser.add_argument('-c', '--channels', nargs='*', default=[10, 10], type=int, help='number of channels per layer')
 args = vars(parser.parse_args())
 
@@ -66,7 +66,7 @@ clip = 1.
 log_interval = 40
 n_classes = 10
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_2llocalcov_chann' + str(hidden_channels)
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_2lcov_chann' + str(hidden_channels)
 
 # experiment name
 exp_name = config.exp_name
@@ -94,7 +94,7 @@ transform = transforms.Compose(
     #  transforms.Resize(16),
      transforms.Normalize((0.5), (0.5))])
 
-batch_size = 256
+batch_size = 128
 
 traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
@@ -134,7 +134,7 @@ config.spiking_conv = True
 spiking_conv = config.spiking_conv
 
 # define network
-model = SnnLocalConvNet(IN_dim, config.hidden_channels, config.kernel_size, config.stride,
+model = SnnConvNet(IN_dim, config.hidden_channels, config.kernel_size, config.stride,
                    config.paddings, n_classes, is_adapt_conv=config.conv_adp,
                    dp_rate=config.dp, p_size=config.num_readout,
                    pooling=config.pooling, is_rec=config.is_rec)

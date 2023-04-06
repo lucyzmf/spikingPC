@@ -13,6 +13,7 @@ class LocalConv2d(nn.Module):
         self.weight = nn.Parameter(
             torch.randn(1, out_channels, in_channels, output_size[0], output_size[1], kernel_size ** 2)
         )
+        nn.init.xavier_uniform_(self.weight)
         if bias:
             self.bias = nn.Parameter(
                 torch.randn(1, out_channels, output_size[0], output_size[1])
@@ -43,6 +44,7 @@ class LocalConvTrans2d(nn.Module):
         self.weight = nn.Parameter(
             torch.randn(input_size[0]*input_size[1], in_channels, out_channels * kernel_size**2)
         )
+        nn.init.xavier_uniform_(self.weight)
         if bias:
             self.bias = nn.Parameter(
                 torch.randn(out_channels, output_size[0], output_size[1])
@@ -58,9 +60,10 @@ class LocalConvTrans2d(nn.Module):
         kh, kw = self.kernel_size
 
         x = x.flatten(start_dim=2).transpose(2, 1).unsqueeze(2)
-        patches = torch.zeros((bs, h*w, self.out_channels*kh*kw))  # n, w_in*h_in, c_out*k**2
-        for s in range(bs):
-            patches[s] = torch.bmm(x[s], self.weight).squeeze()
+        patches = torch.zeros((bs, h*w, self.out_channels*kh*kw)).to(device)  # n, w_in*h_in, c_out*k**2
+        # for s in range(bs):
+        #     patches[s] = torch.bmm(x[s], self.weight).squeeze()
+        patches = torch.matmul(x, self.weight).squeeze()
         out = self.fold(patches.transpose(2, 1))
         if self.bias is not None:
             out += self.bias
@@ -357,3 +360,5 @@ class SnnLocalConvNet(nn.Module):
             # layer out
             weight.new(bsz, self.out_dim).zero_()
         )
+
+# %%

@@ -6,7 +6,6 @@ import torch.optim as optim
 import torchaudio
 
 from torch.nn.parameter import Parameter
-from torch.nn import init
 from torch.autograd import Variable
 import torchvision.transforms as transforms
 import torchvision
@@ -15,14 +14,10 @@ import wandb
 from datetime import date
 import os
 
-import matplotlib.pyplot as plt
-import IPython.display as ipd
-
-from tqdm import tqdm
 
 from network_class import *
 from utils import *
-from FTTP import *
+from bptt_train import *
 from test_function import test
 
 # %%
@@ -34,26 +29,33 @@ torch.manual_seed(999)
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC_onelayer", entity="lucyzmf")
+wandb.init(project="spikingPC_voltageloss", entity="lucyzmf")
 # wandb.init(mode="disabled")
 
 # add wandb.config
 config = wandb.config
 config.adap_neuron = True  # whether use adaptive neuron or not
-config.clf_alpha = 1  # proportion of clf loss
-config.energy_alpha = 1  # - config.clf_alpha
+config.clf_alpha = 1
+config.energy_alpha = 0.  # - config.clf_alpha
+config.spike_alpha = 0  # energy loss on spikes 
 config.num_readout = 10
 config.onetoone = True
+config.lr = 1e-3
 config.alg = 'bptt'
 alg = config.alg
-config.lr = 1e-3
 config.dp = 0.4
-config.exp_name = config.alg + '_ener_dp04_psum'
+config.is_rec = False
+
+# training parameters
+T = 40
+clip = 1.
+log_interval = 10
+epochs = 20
+
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_taux2_scaledinput05_dt0.5_outnorm_3layer'
 
 # experiment name 
 exp_name = config.exp_name
-energy_penalty = True
-adap_neuron = config.adap_neuron
 # checkpoint file name
 check_fn = 'onelayer_rec_best.pth.tar'
 # experiment date and name 
@@ -95,121 +97,18 @@ for batch_idx, (data, target) in enumerate(train_loader):
     print(data.shape)
     break
 
-
-###############################################################################################
-##########################          Train function             ###############################
-###############################################################################################
-# training parameters
-T = 20
-K = T  # K is num updates per sequence
-omega = int(T / K)  # update frequency
-clip = 1.
-log_interval = 10
-lr = config.lr
-epoch = 10
-n_classes = 10
-
-
-# train function for one epoch
-def train_bptt(train_loader, n_classes, model, named_params):
-
-    train_loss = 0
-    total_clf_loss = 0
-    total_regularizaton_loss = 0
-    total_energy_loss = 0
-    total_l1_loss = 0
-    correct = 0
-    model.train()
-
-    # for each batch 
-    for batch_idx, (data, target) in enumerate(train_loader):
-
-        loss = 0
-
-        # to device and reshape
-        data, target = data.to(device), target.to(device)
-        data = data.view(-1, IN_dim)
-
-        B = target.size()[0]
-
-        optimizer.zero_grad()
-
-        for p in range(T):
-
-            if p == 0:
-                h = model.init_hidden(data.size(0))
-
-            o, h = model.forward(data, h)
-
-            if p % omega == 0 and p > 0:
-
-                # classification loss
-                clf_loss = (p + 1) / (K) * F.nll_loss(o, target)
-                # clf_loss = snr*F.cross_entropy(output, target,reduction='none')
-                # clf_loss = torch.mean(clf_loss)
-
-                # mem potential loss take l1 norm / num of neurons /batch size
-                energy = (torch.norm(h[1], p=1) + torch.norm(h[5], p=1)) / B / sum(model.hidden_dims)
-
-                loss += config.clf_alpha * clf_loss + config.energy_alpha * energy
-
-            # get prediction 
-            if p == (T - 1):
-                pred = o.data.max(1, keepdim=True)[1]
-                correct += pred.eq(target.data.view_as(pred)).cpu().sum()
-
-        loss.backward()
-
-        if clip > 0:
-            torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
-
-        optimizer.step()
-
-        train_loss += loss.item()
-        total_clf_loss += clf_loss.item()
-        total_energy_loss += energy.item()
-
-        if batch_idx > 0 and batch_idx % log_interval == (log_interval-1):
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tlr: {:.6f}\ttrain acc:{:.4f}\tLoss: {:.6f}\
-                \tClf: {:.6f}\tReg: {:.6f}\tFr_p: {:.6f}\tFr_r: {:.6f}'.format(
-                epoch, batch_idx * batch_size, len(train_loader.dataset),
-                       100. * batch_idx / len(train_loader), lr, 100 * correct / (log_interval * B),
-                       train_loss / log_interval,
-                       total_clf_loss / log_interval, total_regularizaton_loss / log_interval,
-                       model.fr_layer2 / T / log_interval,
-                       model.fr_layer1 / T / log_interval))
-
-            wandb.log({
-                'clf_loss': total_clf_loss / log_interval / K,
-                'train_acc': 100 * correct / (log_interval * B),
-                'regularisation_loss': total_regularizaton_loss / log_interval / K,
-                'energy_loss': total_energy_loss / log_interval / K,
-                'total_loss': train_loss / log_interval / K,
-                'pred spiking freq': model.fr_layer2 / T / log_interval,  # firing per time step
-                'rep spiking fr': model.fr_layer1 / T / log_interval,
-            })
-
-            train_loss = 0
-            total_clf_loss = 0
-            total_energy_loss = 0
-            total_l1_loss = 0
-            correct = 0
-
-        model.fr_layer2 = 0
-        model.fr_layer1 = 0
-
-
 # %%
 ###############################################################
 # DEFINE NETWORK
 ###############################################################
 # set input and t param
 IN_dim = 784
-hidden_dim = [10 * config.num_readout, 784]
-T = 20  # sequence length, reading from the same image T times
+hidden_dim = [784, 512, 512]
+n_classes = 10
 
 # define network
-model = SnnNetwork(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron, one_to_one=config.onetoone, dp_rate=config.dp)
+model = SnnNetwork2Layer(IN_dim, hidden_dim, n_classes, is_adapt=config.adap_neuron, one_to_one=config.onetoone,
+                   dp_rate=config.dp, is_rec=config.is_rec)
 model.to(device)
 print(model)
 
@@ -218,7 +117,7 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 
 # define optimiser
-optimizer = optim.Adamax(model.parameters(), lr=lr, weight_decay=0.0001)
+optimizer = optim.Adamax(model.parameters(), lr=config.lr, weight_decay=0.0001)
 # reduce the learning after 20 epochs by a factor of 10
 scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
 
@@ -232,18 +131,15 @@ test_loss, acc1 = test(model, test_loader, T)
 
 # %%
 
-epochs = 20
-named_params = get_stats_named_params(model)
 all_test_losses = []
 best_acc1 = 20
 
 wandb.watch(model, log_freq=100)
 
-estimate_class_distribution = torch.zeros(n_classes, T, n_classes, dtype=torch.float)
 for epoch in range(epochs):
-    train_bptt(train_loader, n_classes, model, named_params)
-
-    # reset_named_params(named_params)
+    train_bptt(epoch, batch_size, log_interval, train_loader,
+               model, T, optimizer,
+               config.clf_alpha, config.energy_alpha, config.spike_alpha, clip, config.lr)
 
     test_loss, acc1 = test(model, test_loader, T)
 

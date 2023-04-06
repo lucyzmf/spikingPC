@@ -107,7 +107,7 @@ model_woE = SnnNetwork2Layer(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron
 model_woE.to(device)
 
 # load different models
-exp_dir_wE = '/home/lucy/spikingPC/results/Apr-03-2023/fptt_ener0.1_taux2_dt0.5_exptau05_threeh_absloss/'
+exp_dir_wE = '/home/lucy/spikingPC/results/Apr-03-2023/fptt_ener0.05_taux2_dt0.5_exptau05_threeh/'
 saved_dict1 = model_result_dict_load(exp_dir_wE + 'onelayer_rec_best.pth.tar')
 
 model_wE.load_state_dict(saved_dict1['state_dict'])
@@ -140,7 +140,7 @@ print(param_names_woE)
 # %%
 weights = [x for x in param_names_wE if ('weight' in x) and ('bias' not in x)]
 
-plt.style.use('seaborn-v0_8-deep')
+# plt.style.use('seaborn-v0_8-deep')
 
 fig, axes = plt.subplots(1, len(weights), figsize=(len(weights) * 3, 3))
 for i in range(len(weights)):
@@ -200,6 +200,25 @@ for i in range(n_classes):
 plt.legend()
 plt.show()
 
+# %%
+# breakdown of exci vs inhi during inference averaged over T
+def exci_inhi_breakdown(spk_log, weights):
+    exci = []
+    inhi = []
+
+    for t in range(T): 
+        topdown = spk_log[:, t, :] @ weights.T
+        exci.append(((topdown>0)*topdown).mean())
+        inhi.append(-((topdown<0)*topdown).mean())
+    
+    return exci, inhi 
+
+exci_l2E, inhi_l2E = exci_inhi_breakdown(spk_l2_E, param_dict_wE['layer2to1.weight'])
+
+plt.plot(np.arange(T), exci_l2E, label='exci topdown')
+plt.plot(np.arange(T), inhi_l2E, label='inhi topdown')
+plt.legend()
+plt.show()
 
 # %%
 def get_error(h, layer, n_samples=n_samples, b_size=batch_size):
@@ -288,7 +307,7 @@ if occlusion_p is not None:
 def get_a_s_e(hidden, layer, batch_size, n_samples, T):
     a = get_states(hidden, 2 + layer * 4, hidden_dim[layer], batch_size, num_samples=n_samples, T=T)
     s = get_states(hidden, 0 + layer * 4, hidden_dim[layer], batch_size, num_samples=n_samples, T=T)
-    e = (a - s) ** 2
+    e = np.abs(a-s) 
     return s, a, e
 
 
@@ -357,7 +376,7 @@ conti_soma_l3_woE, conti_a_curr_l3_woE, conti_error_l3_woE = get_a_s_e([continuo
 ###############################
 # usi analysis
 ###############################
-def usi(expected_curr, unexpected_curr, layer_idx, ts=None):
+def usi(expected_curr, unexpected_curr, layer_idx, ts=[0, 199]):
     df = pd.DataFrame(np.vstack((expected_curr.mean(axis=0).T, unexpected_curr.mean(axis=0).T)),
                       columns=['t%i' % i for i in range(T)])
     df['neuron idx'] = np.concatenate((np.arange(hidden_dim[layer_idx]), np.arange(hidden_dim[layer_idx])))
@@ -378,8 +397,8 @@ def usi(expected_curr, unexpected_curr, layer_idx, ts=None):
     # })
     df_usi = pd.DataFrame({
         'neuron idx': np.arange(hidden_dim[layer_idx]),
-        'usi': np.abs((df[df['condition'] == 'normal seq'].loc[:, 't0':'t199'].to_numpy() - df[
-            df['condition'] == 'stim change seq'].loc[:, 't0':'t199'].to_numpy())).sum(axis=1) 
+        'usi': np.abs((df[df['condition'] == 'normal seq'].loc[:, 't' + str(ts[0]):'t' + str(ts[1])].to_numpy() - df[
+            df['condition'] == 'stim change seq'].loc[:, 't' + str(ts[0]):'t' + str(ts[1])].to_numpy())).mean(axis=1) 
     })
 
     return df, df_usi
@@ -531,11 +550,11 @@ mis_soma_l3_wE, mis_a_curr_l3_wE, mis_error_l3_wE = get_a_s_e([h_mismatch_E], 2,
 mis_soma_l3_woE, mis_a_curr_l3_woE, mis_error_l3_woE = get_a_s_e([h_mismatch_nE], 2, sample_size, sample_size, T)
 
 # %%
-df_l2_a_matchexp_E, df_usi_l2_a_matchexp_E = usi(match_a_curr_l2_wE, mis_a_curr_l2_wE, 1)
-df_l2_s_matchexp_E, df_usi_l2_s_matchexp_E = usi(match_soma_l2_wE, mis_soma_l2_wE, 1)
+df_l2_a_matchexp_E, df_usi_l2_a_matchexp_E = usi(match_a_curr_l2_wE, mis_a_curr_l2_wE, 1, ts=[blank_t, blank_t+match_t])
+df_l2_s_matchexp_E, df_usi_l2_s_matchexp_E = usi(match_soma_l2_wE, mis_soma_l2_wE, 1, ts=[blank_t, blank_t+match_t])
 
-df_l2_a_matchexp_woE, df_usi_l2_a_matchexp_woE = usi(match_a_curr_l2_woE, mis_a_curr_l2_woE, 1)
-df_l2_s_matchexp_woE, df_usi_l2_s_matchexp_woE = usi(match_soma_l2_woE, mis_soma_l2_woE, 1)
+df_l2_a_matchexp_woE, df_usi_l2_a_matchexp_woE = usi(match_a_curr_l2_woE, mis_a_curr_l2_woE, 1, ts=[blank_t, blank_t+match_t])
+df_l2_s_matchexp_woE, df_usi_l2_s_matchexp_woE = usi(match_soma_l2_woE, mis_soma_l2_woE, 1, ts=[blank_t, blank_t+match_t])
 
 # %%
 df_usi_compare = pd.concat([df_usi_l2_s_matchexp_E, df_usi_l2_s_matchexp_woE])
@@ -557,9 +576,117 @@ plt.show()
 high_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][499]
 
 df_single_s = df_single_neuron(match_soma_l2_wE[:sample_size], mis_soma_l2_wE[:sample_size], high_usi_index)
+fig = plt.figure(figsize=(2.5, 1.5))
 sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
-plt.title('high usi neuron soma voltage during seq match mismatch')
+ax = plt.gca()
+ax.spines['bottom'].set_position('zero')
+ax.spines['top'].set_visible(False)
+ax.spines['right'].set_visible(False)
+ax.fill_between(np.arange(T), -0.6, 0.6, where=np.logical_and(np.arange(T)>blank_t, (np.arange(T)<(blank_t+match_t))),
+ alpha=0.2, facecolor='grey')
+
+ax.set_xticks([])
+ax.set_xlabel('')
+ax.get_legend().remove()
+# plt.title('high usi neuron soma voltage during seq match mismatch')
 plt.show()
+
+# %%
+# plot grid of example neurons responding similar or different to exp vs unexp stimuli 
+low_usi_idx = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][:3].to_list()
+high_usi_idx = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][400:403].to_list()
+
+def plot_single_neuron_ax(idx, ax, match_curr, mismatch_curr):
+    df = df_single_neuron(match_curr[:sample_size], mismatch_curr[:sample_size], idx)
+    sns.lineplot(df, x='t', y='volt', hue='condition', ax=ax)
+
+    ax.spines['bottom'].set_position('zero')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.fill_between(np.arange(T), -0.6, 0.6, where=np.logical_and(np.arange(T)>blank_t, (np.arange(T)<(blank_t+match_t))),
+    alpha=0.25, facecolor='grey')
+
+    ax.set_xticks([])
+    ax.set_xlabel('')
+    ax.set_title('idx %i' %idx)
+    ax.get_legend().remove()
+
+
+fig, axs = plt.subplots(2, 3, figsize=(10, 5))
+for i in range(len(low_usi_idx)):
+    plot_single_neuron_ax(low_usi_idx[i], axs[0][i], match_soma_l2_wE, mis_soma_l2_wE)
+    plot_single_neuron_ax(high_usi_idx[i], axs[1][i], match_soma_l2_wE, mis_soma_l2_wE)
+axs[0, 2].legend().set_visible(True)
+
+rows = ['low diff', 'high diff']
+
+pad = 20
+
+for ax, row in zip(axs[:, 0], rows):
+    ax.annotate(row, xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - pad / 2, 0),
+                xycoords=ax.yaxis.label, textcoords='offset points',
+                size='large', ha='right', va='center')
+
+plt.show()
+
+# %%
+# compare error 
+# %%
+df_l2_e_matchexp_E, df_usi_l2_e_matchexp_E = usi(match_error_l2_wE, mis_error_l2_wE, 1, ts=[blank_t, blank_t+match_t])
+df_l2_e_matchexp_woE, df_usi_l2_e_matchexp_woE = usi(match_error_l2_woE, mis_error_l2_woE, 1, ts=[blank_t, blank_t+match_t])
+
+# %%
+df_usi_compare = pd.concat([df_usi_l2_e_matchexp_E, df_usi_l2_e_matchexp_woE])
+df_usi_compare['model type'] = ['E'] * hidden_dim[1] + ['w/o E'] * hidden_dim[1]
+
+sns.histplot(df_usi_compare, x='usi', hue='model type')
+plt.title('compare usi of match mismatch layer2 by model type (error)')
+plt.show()
+
+# %%
+## with energy model 
+low_usi_idx = df_usi_l2_e_matchexp_E.sort_values(by='usi')['neuron idx'][:3].to_list()
+high_usi_idx = df_usi_l2_e_matchexp_E.sort_values(by='usi')['neuron idx'][450:453].to_list()
+
+fig, axs = plt.subplots(2, 3, figsize=(10, 5))
+for i in range(len(low_usi_idx)):
+    plot_single_neuron_ax(low_usi_idx[i], axs[0][i], match_error_l2_wE, mis_error_l2_wE)
+    plot_single_neuron_ax(high_usi_idx[i], axs[1][i], match_error_l2_wE, mis_error_l2_wE)
+axs[0, 2].legend().set_visible(True)
+
+rows = ['low diff', 'high diff']
+
+pad = 20
+
+for ax, row in zip(axs[:, 0], rows):
+    ax.annotate(row, xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - pad / 2, 0),
+                xycoords=ax.yaxis.label, textcoords='offset points',
+                size='large', ha='right', va='center')
+
+plt.show()
+
+# %%
+## w/o energy model 
+low_usi_idx = df_usi_l2_e_matchexp_woE.sort_values(by='usi')['neuron idx'][:3].to_list()
+high_usi_idx = df_usi_l2_e_matchexp_woE.sort_values(by='usi')['neuron idx'][450:453].to_list()
+
+fig, axs = plt.subplots(2, 3, figsize=(10, 5))
+for i in range(len(low_usi_idx)):
+    plot_single_neuron_ax(low_usi_idx[i], axs[0][i], match_error_l2_wE, mis_error_l2_wE)
+    plot_single_neuron_ax(high_usi_idx[i], axs[1][i], match_error_l2_wE, mis_error_l2_wE)
+axs[0, 2].legend().set_visible(True)
+
+rows = ['low diff', 'high diff']
+
+pad = 20
+
+for ax, row in zip(axs[:, 0], rows):
+    ax.annotate(row, xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - pad / 2, 0),
+                xycoords=ax.yaxis.label, textcoords='offset points',
+                size='large', ha='right', va='center')
+plt.title('error in single neurons during match mismatch woE l2')
+plt.show()
+
 # %%
 
 # high_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][499]
