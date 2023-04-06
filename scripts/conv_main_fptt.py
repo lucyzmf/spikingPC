@@ -34,6 +34,7 @@ epochs = args['epoch']
 hidden_channels = args['channels']
 
 # %%
+lr = args['learningrate']
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
