@@ -67,7 +67,7 @@ clip = 1.
 log_interval = 40
 n_classes = 10
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_2lcov_chann' + str(hidden_channels)
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_2lcov_chann' + str(hidden_channels) + '_lr' + str(lr)
 
 # experiment name
 exp_name = config.exp_name
