@@ -26,15 +26,17 @@ parser.add_argument('-s', '--randomeseed', default=999, type=int, help='set torc
 parser.add_argument('-a', '--energyalpha', default=0., type=float, help='set energy loss')
 parser.add_argument('-e', '--epoch', default=10, type=int, help='number of training epochs')
 parser.add_argument('-c', '--channels', nargs='*', default=[10, 10], type=int, help='number of channels per layer')
+parser.add_argument('-lr', '--learningrate', default=1e-3, type=float, help='learning rate')
+
 args = vars(parser.parse_args())
 
 seed = args['randomeseed']
 energy_alpha = args['energyalpha']
 epochs = args['epoch']
 hidden_channels = args['channels']
+lr = args['learningrate']
 
 # %%
-lr = args['learningrate']
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
@@ -53,7 +55,7 @@ config.adap_neuron = True  # whether use adaptive conv neuron or not
 config.clf_alpha = 1  # proportion of clf loss
 config.energy_alpha = energy_alpha  # - config.clf_alpha
 config.onetoone = True
-config.lr = 1e-3
+config.lr = lr
 config.alg = 'conv_fptt'
 alg = config.alg
 config.k_updates = 10
