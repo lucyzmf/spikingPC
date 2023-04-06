@@ -361,4 +361,35 @@ class SnnLocalConvNet(nn.Module):
             weight.new(bsz, self.out_dim).zero_()
         )
 
+    def clamped_generate(self, test_class, zeros, h_clamped, T, clamp_value=0.5, batch=False):
+        """
+        generate representations with mem of read out clamped
+        :param test_class: which class is clamped
+        :param zeros: input containing zeros, absence of input
+        :param h: hidden states
+        :param T: sequence length
+        :return:
+        """
+
+        log_softmax_hist = []
+        h_hist = []
+
+        for t in range(T):
+            if not batch:
+                h_clamped[-1][0] = -clamp_value
+                h_clamped[-1][0, test_class] = clamp_value
+            else:
+                h_clamped[-1][:, :] = torch.full(h_clamped[-1].size(), -clamp_value).to(device)
+                h_clamped[-1][:, test_class] = clamp_value
+
+            # if t==0:
+            #     print(h_clamped[-1])
+
+            log_softmax, h_clamped = self.forward(zeros, h_clamped)
+
+            log_softmax_hist.append(log_softmax)
+            h_hist.append(h_clamped)
+
+        return log_softmax_hist, h_hist
+
 # %%
