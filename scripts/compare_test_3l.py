@@ -140,11 +140,12 @@ for name, param in model_woE.named_parameters():
 print(param_names_woE)
 
 # %%
-weights = [x for x in param_names_wE if ('weight' in x) and ('bias' not in x)]
+weights = [x for x in param_names_wE if ('weight' in x) and ('bias' not in x) and 
+           ('fc_weights' not in x) and ('out2layer2' not in x)]
 
 # plt.style.use('seaborn-v0_8-deep')
 
-fig, axes = plt.subplots(1, len(weights), figsize=(len(weights) * 3, 3))
+fig, axes = plt.subplots(1, len(weights), figsize=(len(weights) * 4, 4))
 for i in range(len(weights)):
     axes[i].hist(param_dict_wE[weights[i]].flatten(), label='w E', histtype='step')
     axes[i].hist(param_dict_woE[weights[i]].flatten(), label='w/o E', histtype='step')
@@ -153,6 +154,9 @@ for i in range(len(weights)):
 
 plt.tight_layout()
 plt.show()
+
+# %%
+
 
 # %%
 taus = [x for x in param_names_wE if ('tau' in x)]
@@ -710,7 +714,7 @@ plt.show()
 added_value = np.arange(-2, 0.1, 0.5)
 
 
-def occu_test(occ_p, layer=0):
+def add_pixel_test(occ_p, layer=0):
     spk_E = []
     spk_nE = []
 
@@ -739,7 +743,7 @@ def occu_test(occ_p, layer=0):
     return spk_E, spk_nE, acc_E, acc_nE
 
 
-spk_addpix_E, spk_addpix_nE, acc_E, acc_nE = occu_test(added_value)
+spk_addpix_E, spk_addpix_nE, acc_E, acc_nE = add_pixel_test(added_value)
 
 # %%
 for i in range(len(added_value)):
@@ -947,6 +951,8 @@ l3_norm_nE = l3_norm_nE / len(images_all)
 
 # %%
 # clamped condition
+no_input = torch.zeros((1, IN_dim)).to(device)
+
 l1_clamp_E = np.zeros((10, hidden_dim[0]))
 l1_clamp_nE = np.zeros((10, hidden_dim[0]))
 
@@ -1088,6 +1094,144 @@ for ax, row in zip(axes[:, 0], rows):
                 size='large', ha='right', va='center')
 
 # plt.tight_layout()
+plt.show()
+
+# %%
+##############################################################
+# decode from clamped representations 
+##############################################################
+
+MSE_loss = nn.MSELoss()
+
+test_loader2 = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
+                                          shuffle=True, num_workers=2)
+
+def plot_projection(rep, label, weights, bias):
+    img = (weights @ rep + bias).reshape(28, 28)
+    # plt.imshow(img)
+    # plt.title(str(label))
+    # plt.show()
+    return img
+
+def train_linear_proj(layer, model):
+    linear_layer = nn.Linear(hidden_dim[layer], IN_dim, device=device)
+    optimiser = optim.Adam(linear_layer.parameters(), lr=0.001, weight_decay=0.0001)
+
+    loss_log = []
+
+    for e in range(20): 
+        for i, (data, target) in enumerate(test_loader2):
+            data, target = data.to(device), target.to(device)
+            data = data.view(-1, model_wE.in_dim)
+
+            with torch.no_grad():
+                model.eval()
+
+                hidden = model.init_hidden(data.size(0))
+
+                _, h = model.inference(data, hidden, T)
+
+            spks = get_states([h], 1+layer*4, hidden_dim[layer], batch_size, T, batch_size)
+
+            train_data = torch.tensor(spks.mean(axis=1)).to(device) 
+            # print(train_data.size())
+
+            optimiser.zero_grad()
+
+            out = linear_layer(train_data)
+            loss = MSE_loss(out, data)
+            loss_log.append(loss.data.cpu())
+
+            loss.backward()
+            optimiser.step()
+
+        print('%i train loss: %.4f' % (e, loss))
+
+    plt.plot(np.arange(len(loss_log)), [i.cpu() for i in loss_log])
+    plt.title('train loss')
+    plt.show()
+
+    linear_layer.eval()
+
+    return linear_layer
+
+# %%
+layer = 1
+l2_E_decoder = train_linear_proj(layer, model_wE)
+l2_nE_decoder = train_linear_proj(layer, model_woE)
+
+# %%
+fig, axes = plt.subplots(2, 10, figsize=(10, 2))
+decoders = [l2_E_decoder, l2_nE_decoder]
+
+with torch.no_grad():
+    for proj_class in range(n_classes):
+        img1 = plot_projection(l2_clamp_E[proj_class], proj_class, 
+                    decoders[0].weight.data.cpu().numpy(), 
+                    decoders[0].bias.data.cpu().numpy())
+        axes[0][proj_class].imshow(img1)
+        axes[0, proj_class].set_title(str(proj_class))
+        # axes[0][proj_class].axis('off')
+        axes[0, proj_class].tick_params(left = False, right = False , labelleft = False ,
+                labelbottom = False, bottom = False)
+
+        img2 = plot_projection(l2_clamp_nE[proj_class], proj_class, 
+                    decoders[1].weight.data.cpu().numpy(), 
+                    decoders[1].bias.data.cpu().numpy())
+        axes[1][proj_class].imshow(img2)
+        axes[1, proj_class].tick_params(left = False, right = False , labelleft = False ,
+                labelbottom = False, bottom = False)
+        # axes[1][proj_class].axis('off')
+
+fig.suptitle('projection from clampled rep back to image plane layer %i' % layer)
+axes[0, 0].set_ylabel('w E', rotation=0, labelpad=20)
+axes[1, 0].set_ylabel('w/o E', rotation=0, labelpad=20)
+
+plt.tight_layout()
+plt.show()
+
+
+# %%
+##############################################################
+# spk rate by layer comparison 
+##############################################################
+mean_spk_bylayer_E = np.zeros(len(hidden_dim))
+mean_spk_bylayer_nE = np.zeros(len(hidden_dim))
+
+for i, (data, target) in enumerate(test_loader2):
+    data, target = data.to(device), target.to(device)
+    data = data.view(-1, model_wE.in_dim)
+
+    with torch.no_grad():
+        model_wE.eval()
+        model_woE.eval()
+
+
+        hidden = model_wE.init_hidden(data.size(0))
+
+        _, h_e = model_wE.inference(data, hidden, T)
+        _, h_ne = model_woE.inference(data, hidden, T)
+
+    for i in range(len(hidden_dim)):
+        spks_e = get_states([h_e], 1+layer*4, hidden_dim[layer], batch_size, T, batch_size)
+        mean_spk_bylayer_E[i] += spks_e.mean()
+
+        spks_ne = get_states([h_ne], 1+layer*4, hidden_dim[layer], batch_size, T, batch_size)
+        mean_spk_bylayer_nE[i] += spks_ne.mean()
+
+mean_spk_bylayer_E /= len(test_loader2)
+mean_spk_bylayer_nE /= len(test_loader2)
+
+# %%
+df = pd.DataFrame({
+    'mean spk': np.concatenate((mean_spk_bylayer_E, mean_spk_bylayer_nE)), 
+    'layer': np.concatenate((range(len(hidden_dim)), range(len(hidden_dim)))), 
+    'model': ['E'] * len(hidden_dim) + ['nE'] * len(hidden_dim)
+})
+
+sns.barplot(df, x='layer', hue='model', y='mean spk')
+sns.despine()
+plt.title('mean spk rate per layer')
 plt.show()
 
 # %%
