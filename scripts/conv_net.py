@@ -21,7 +21,8 @@ class SNNConvCell(nn.Module):
                  tau_adap_init=20.,
                  tau_a_init=15.,
                  is_adapt=False,
-                 synaptic_curr=None
+                 synaptic_curr=None, 
+                 dt=0.5
                  ):
         super(SNNConvCell, self).__init__()
 
@@ -32,6 +33,7 @@ class SNNConvCell(nn.Module):
         self.kernel_size = kernel_size
         self.strides = strides
         self.padding = padding
+        self.dt=dt
 
         self.input_size = input_size
 
@@ -84,13 +86,13 @@ class SNNConvCell(nn.Module):
         # nn.init.constant_(self.tau_m, tau_m_init)
         # nn.init.constant_(self.tau_a, tau_a_init)
 
-    def mem_update(self, ff, fb, soma, spike, a_curr, b, is_adapt, dt=0.5, baseline_thre=b_j0, r_m=3):
+    def mem_update(self, ff, fb, soma, spike, a_curr, b, is_adapt, baseline_thre=b_j0, r_m=3):
         # alpha = self.sigmoid(self.tau_m)
         # rho = self.sigmoid(self.tau_adp)
         # eta = self.sigmoid(self.tau_a)
-        alpha = torch.exp(-dt / self.tau_m)
-        rho = torch.exp(-dt / self.tau_adp)
-        eta = torch.exp(-dt / self.tau_a)
+        alpha = torch.exp(-self.dt / self.tau_m)
+        rho = torch.exp(-self.dt / self.tau_adp)
+        eta = torch.exp(-self.dt / self.tau_a)
 
         if is_adapt:
             beta = 1.8
@@ -111,7 +113,8 @@ class SNNConvCell(nn.Module):
         return soma_new, spike, a_new, new_thre, b
 
     def forward(self, ff, fb, soma_t, spk_t, a_curr_t, b_t, top_down_sig=None):
-        ff = self.BN(self.conv_in(ff.float()))
+        # ff = self.BN(self.conv_in(ff.float()))
+        ff = self.conv_in(ff.float())
         b, _, _, _ = ff.size()
         # conv_bnx = self.conv1_x(x_t.float())
 
@@ -158,6 +161,7 @@ class SnnConvNet(nn.Module):
             p_size=10,  # num prediction neurons
             num_classes=10,
             pooling=None, 
+            dt=0.5
     ):
         super(SnnConvNet, self).__init__()
 
@@ -175,11 +179,12 @@ class SnnConvNet(nn.Module):
         #                         one_to_one=True)
 
         self.conv1 = SNNConvCell(input_size[0], hidden_channels[0], kernel_size[0], stride[0], paddings[0],
-                                 self.input_size, is_adapt=is_adapt_conv, pooling_type=None, is_rec=is_rec[0])
+                                 self.input_size, is_adapt=is_adapt_conv, pooling_type=pooling, 
+                                 is_rec=is_rec[0], dt=dt)
 
         self.conv2 = SNNConvCell(hidden_channels[0], hidden_channels[1], kernel_size[1], stride[1], paddings[1],
                                  self.conv1.output_shape, is_adapt=is_adapt_conv, pooling_type=pooling,
-                                 is_rec=is_rec[1])
+                                 is_rec=is_rec[1], dt=dt)
 
         self.input_to_pc_sz = self.conv2.output_shape[0] * self.conv2.output_shape[1] * self.conv2.output_shape[2]
         # self.input_to_pc_sz = self.conv1.output_shape[0] * self.conv1.output_shape[1] * self.conv1.output_shape[2]
@@ -188,7 +193,7 @@ class SnnConvNet(nn.Module):
         nn.init.xavier_uniform_(self.conv_to_pop.weight)
 
         self.pop_enc = SnnLayer(p_size * num_classes, p_size * num_classes, is_rec=True,
-                                is_adapt=True, one_to_one=True)
+                                is_adapt=True, one_to_one=True, dt=dt)
 
         # feedback weights
         self.out2pop = nn.Linear(num_classes, p_size * num_classes)
@@ -203,7 +208,7 @@ class SnnConvNet(nn.Module):
         self.deconv1 = nn.ConvTranspose2d(hidden_channels[0], input_size[0], kernel_size=kernel_size[0],
                                           stride=stride[0], padding=paddings[0])
 
-        self.output_layer = OutputLayer(p_size * num_classes, out_dim, is_fc=False, tau_fixed=0.2)
+        self.output_layer = OutputLayer(p_size * num_classes, out_dim, is_fc=False)
 
         self.neuron_count = self.conv1.output_size + self.pop_enc.hidden_dim + self.conv2.output_size #+ \
                             #self.h_layer.hidden_dim
@@ -309,6 +314,38 @@ class SnnConvNet(nn.Module):
             # layer out
             weight.new(bsz, self.out_dim).zero_()
         )
+    
+    def clamped_generate(self, test_class, zeros, h_clamped, T, clamp_value=0.5, batch=False):
+        """
+        generate representations with mem of read out clamped
+        :param test_class: which class is clamped
+        :param zeros: input containing zeros, absence of input
+        :param h: hidden states
+        :param T: sequence length
+        :return:
+        """
+
+        log_softmax_hist = []
+        h_hist = []
+
+        for t in range(T):
+            if not batch:
+                h_clamped[-1][0] = -clamp_value
+                h_clamped[-1][0, test_class] = clamp_value
+            else:
+                h_clamped[-1][:, :] = torch.full(h_clamped[-1].size(), -clamp_value).to(device)
+                h_clamped[-1][:, test_class] = clamp_value
+
+            # if t==0:
+            #     print(h_clamped[-1])
+
+            log_softmax, h_clamped = self.forward(zeros, h_clamped)
+
+            log_softmax_hist.append(log_softmax)
+            h_hist.append(h_clamped)
+
+        return log_softmax_hist, h_hist
+
 
 
 class SnnConvNet1Layer(nn.Module):
@@ -440,37 +477,7 @@ class SnnConvNet1Layer(nn.Module):
             weight.new(bsz, self.out_dim).zero_()
         )
 
-    def clamped_generate(self, test_class, zeros, h_clamped, T, clamp_value=0.5, batch=False):
-        """
-        generate representations with mem of read out clamped
-        :param test_class: which class is clamped
-        :param zeros: input containing zeros, absence of input
-        :param h: hidden states
-        :param T: sequence length
-        :return:
-        """
-
-        log_softmax_hist = []
-        h_hist = []
-
-        for t in range(T):
-            if not batch:
-                h_clamped[-1][0] = -clamp_value
-                h_clamped[-1][0, test_class] = clamp_value
-            else:
-                h_clamped[-1][:, :] = torch.full(h_clamped[-1].size(), -clamp_value).to(device)
-                h_clamped[-1][:, test_class] = clamp_value
-
-            # if t==0:
-            #     print(h_clamped[-1])
-
-            log_softmax, h_clamped = self.forward(zeros, h_clamped)
-
-            log_softmax_hist.append(log_softmax)
-            h_hist.append(h_clamped)
-
-        return log_softmax_hist, h_hist
-
+    
 
 # %%
 class SnnConvNet3Layer(SnnConvNet):

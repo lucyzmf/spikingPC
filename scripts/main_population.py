@@ -19,6 +19,17 @@ from network_class import *
 from utils import *
 from FTTP import *
 from test_function import test
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+
+
+parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+parser.add_argument('-a', '--energyalpha', default=0., type=float, help='set energy loss')
+parser.add_argument('-e', '--epoch', default=10, type=int, help='number of training epochs')
+
+args = vars(parser.parse_args())
+
+energy_alpha = args['energyalpha']
+
 
 # %%
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -36,7 +47,7 @@ wandb.init(project="spikingPC_voltageloss", entity="lucyzmf")
 config = wandb.config
 config.adap_neuron = False  # whether use adaptive neuron or not
 config.clf_alpha = 1
-config.energy_alpha = 0.1  # - config.clf_alpha
+config.energy_alpha = energy_alpha  # - config.clf_alpha
 config.spike_alpha = 0.  # energy loss on spikes 
 config.num_readout = 10
 config.onetoone = True
@@ -53,9 +64,9 @@ K = config.k_updates  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 20
-epochs = 20
+epochs = args['epoch']
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_taux2_dt0.5_exptau05_absloss_unadp'
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_taux2_dt0.5_exptau05_absloss_bias0_adpF' + str(epochs)
 
 # experiment name 
 exp_name = config.exp_name
@@ -107,7 +118,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 # set input and t param
 IN_dim = 784
-hidden_dim = [784, 512, 512]
+hidden_dim = [600, 500, 500]
 n_classes = 10
 
 # define network

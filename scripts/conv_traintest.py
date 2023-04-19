@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+import numpy as np
 import wandb
 from FTTP import *
 
@@ -49,19 +50,45 @@ def train_fptt_conv(epoch, batch_size, log_interval,
 
                 # regularizer loss
                 regularizer = get_regularizer_named_params(named_params, _lambda=1.0)
+                if torch.isnan(regularizer):
+                    print('reg nan')
 
                 # mem potential loss take l1 norm / num of neurons /batch size
                 if len(model.hidden_channels) == 1:
-                    energy = (torch.sum(model.error_h ** 2) + torch.sum(model.error1 ** 2) +
-                              torch.sum(model.error2 ** 2)) / B / model.neuron_count
+                    energy = energy = (torch.sum(torch.abs(model.error1)) +
+                              torch.sum(torch.abs(model.error2))) / B / model.neuron_count
                 elif len(model.hidden_channels) == 2:  # convs + popenc
                     energy = (torch.sum(torch.abs(model.error1)) +
                               torch.sum(torch.abs(model.error2)) + torch.sum(torch.abs(model.error3))) / B / model.neuron_count
+                    if torch.isnan(energy):
+                        print('ener nan')
+                    # energy = (torch.sum(model.error1 ** 2)+
+                    #           torch.sum(model.error2 ** 2) + torch.sum(model.error3 ** 2)) / B / model.neuron_count
+
+                # per neuron fre
+                if len(model.hidden_channels) == 2:
+                    spike_loss = (torch.mean(h[1]) + torch.mean(h[5]) + torch.mean(h[9])) 
+                    wandb.log({
+                        'per neuron fr whole net': spike_loss.detach().cpu().numpy()
+                    })
 
                 # overall loss
                 loss = clf_alpha * clf_loss + regularizer + energy_alpha * energy
 
                 loss.backward()
+
+                # log softmax map and weight dist
+                wandb.log({
+                    # 'conv1 softmax map': model.conv1.local_conv.softmax_map_dist.detach().cpu().numpy(),
+                    # 'conv2 conv softmax map': model.conv2.local_conv.softmax_map_dist.detach().cpu().numpy(), 
+                    'conv to pop weight': model.conv_to_pop.weight.detach().cpu().numpy(), 
+                    'pop to conv weight': model.pop_to_conv.weight.detach().cpu().numpy(), 
+                })
+
+                # clamp lateral weights 
+                # for name, param in model.named_parameters():
+                #     if 'local_rec' in name:
+                #         param.data = torch.clamp(param.data, max=0)
 
                 if clip > 0:
                     torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
@@ -75,8 +102,13 @@ def train_fptt_conv(epoch, batch_size, log_interval,
                 total_energy_loss += energy.item()
 
                 wandb.log({
-                    'layer1 error': (model.error1.detach().cpu().numpy() ** 2).mean(),
-                    'layer2 error': (model.error2.detach().cpu().numpy() ** 2).mean(),
+                    'layer1 error': np.abs(model.error1.detach().cpu().numpy()).mean(),
+                    'layer2 error': np.abs(model.error2.detach().cpu().numpy()).mean(),
+                    # 'pop layer error': np.abs(model.error3.detach().cpu().numpy()).mean(),
+                    # 'normalised out mem': model.norm_outmem.detach().cpu().numpy(), 
+                    # 'fb pop to conv': model.fb1.detach().cpu().numpy(), 
+                    # 'fb out to pop': model.fb2.detach().cpu().numpy(), 
+                    # 'out mem': h[-1].detach().cpu().numpy()
                 })
                 model.error1 = 0
                 model.error2 = 0

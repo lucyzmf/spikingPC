@@ -256,6 +256,7 @@ def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T, conv=No
     for i, (data, target) in enumerate(test_loader):
         if batch_no == i:
             break
+        b, c, h, w = data.size()
 
         if log == True:
             data_all_.append(data.data)
@@ -263,7 +264,8 @@ def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T, conv=No
         if conv is None:
             data = data.view(-1, IN_dim)
             if occlusion_p is not None:
-                data[:, int(occlusion_p*IN_dim):] = 0
+                data += occlusion_p
+                # print(data.mean())
 
         with torch.no_grad():
             trained_model.eval()
@@ -291,7 +293,7 @@ def get_all_analysis_data(trained_model, test_loader, device, IN_dim, T, conv=No
     preds_all_ = torch.stack(preds_all_).flatten().cpu().numpy()
 
     if log == True:
-        data_all_ = torch.stack(data_all_).reshape(data.size(0)*batch_no, 28, 28)
+        data_all_ = torch.stack(data_all_).reshape(data.size(0)*batch_no, h, w)
         r = [hiddens_all_, preds_all_, data_all_, test_acc]
     else: 
         r = [preds_all_, test_acc]

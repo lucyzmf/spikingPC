@@ -8,11 +8,9 @@ import torch.nn.functional as F
 b_j0 = 0.1  # neural threshold baseline
 
 R_m = 3  # membrane resistance
-dt = 1
 gamma = .5  # gradient scale
 lens = 0.5
 
-bias_bool=True
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -59,7 +57,9 @@ class SnnLayer(nn.Module):
             one_to_one: bool,
             tau_m_init=15.,
             tau_adap_init=20,
-            tau_a_init=15.
+            tau_a_init=15., 
+            dt = 0.5, 
+            bias = True
     ):
         super(SnnLayer, self).__init__()
 
@@ -68,17 +68,22 @@ class SnnLayer(nn.Module):
         self.is_rec = is_rec
         self.is_adapt = is_adapt
         self.one_to_one = one_to_one
+        self.dt = dt
 
         if is_rec:
-            self.rec_w = nn.Linear(hidden_dim, hidden_dim, bias=bias_bool)
+            self.rec_w = nn.Linear(hidden_dim, hidden_dim, bias=bias)
             # init weights
+            if bias:
+                nn.init.constant_(self.rec_w.bias, 0)
             nn.init.xavier_uniform_(self.rec_w.weight)
 
             p = torch.full(self.rec_w.weight.size(), fill_value=0.5).to(device)
             self.weight_mask = torch.bernoulli(p)
 
         else:
-            self.fc_weights = nn.Linear(in_dim, hidden_dim, bias=bias_bool)
+            self.fc_weights = nn.Linear(in_dim, hidden_dim, bias=bias)
+            if bias:
+                nn.init.constant_(self.fc_weights.bias, 0)
             nn.init.xavier_uniform_(self.fc_weights.weight)
 
         # define param for time constants
@@ -103,7 +108,7 @@ class SnnLayer(nn.Module):
 
         self.sigmoid = nn.Sigmoid()
 
-    def mem_update(self, ff, fb, soma, spike, a_curr, b, is_adapt, dt=0.5, baseline_thre=b_j0, r_m=3):
+    def mem_update(self, ff, fb, soma, spike, a_curr, b, is_adapt, baseline_thre=b_j0, r_m=3):
         """
         mem update for each layer of neurons
         :param ff: feedforward signal
@@ -117,9 +122,9 @@ class SnnLayer(nn.Module):
         # alpha = self.sigmoid(self.tau_m)
         # rho = self.sigmoid(self.tau_adp)
         # eta = self.sigmoid(self.tau_a)
-        alpha = torch.exp(-dt/self.tau_m)
-        rho = torch.exp(-dt/self.tau_adp)
-        eta = torch.exp(-dt/self.tau_a)
+        alpha = torch.exp(-self.dt/self.tau_m)
+        rho = torch.exp(-self.dt/self.tau_adp)
+        eta = torch.exp(-self.dt/self.tau_a)
 
         if is_adapt:
             beta = 1.8
@@ -171,7 +176,9 @@ class OutputLayer(nn.Module):
             in_dim: int,
             out_dim: int,
             is_fc: bool,
-            tau_fixed=None
+            tau_fixed=None, 
+            bias = True, 
+            dt=0.5
     ):
         """
         output layer class
@@ -182,9 +189,12 @@ class OutputLayer(nn.Module):
         self.in_dim = in_dim
         self.out_dim = out_dim
         self.is_fc = is_fc
+        self.dt = dt
 
         if is_fc:
-            self.fc = nn.Linear(in_dim, out_dim, bias=bias_bool)
+            self.fc = nn.Linear(in_dim, out_dim, bias=bias)
+            if bias: 
+                nn.init.constant_(self.fc.bias, 0)
             nn.init.xavier_uniform_(self.fc.weight)
 
         # tau_m
@@ -197,11 +207,11 @@ class OutputLayer(nn.Module):
 
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x_t, mem_t, dt=1):
+    def forward(self, x_t, mem_t):
         """
         integrator neuron without spikes
         """
-        alpha = torch.exp(-1/self.tau_m)
+        alpha = torch.exp(-self.dt/self.tau_m)
         # alpha = self.sigmoid(self.tau_m)
 
         if self.is_fc:
@@ -224,7 +234,8 @@ class SnnNetwork(nn.Module):
             is_adapt: bool,
             one_to_one: bool,
             dp_rate: float, 
-            is_rec: bool
+            is_rec: bool, 
+            bias = True
     ):
         super(SnnNetwork, self).__init__()
 
@@ -238,23 +249,30 @@ class SnnNetwork(nn.Module):
         self.dp = nn.Dropout(dp_rate)
 
         self.layer1 = SnnLayer(hidden_dims[0], hidden_dims[0], is_rec=is_rec, is_adapt=is_adapt,
-                               one_to_one=one_to_one)
+                               one_to_one=one_to_one, bias=bias)
 
         # r in to r out
-        self.layer1to2 = nn.Linear(hidden_dims[0], hidden_dims[1], bias=bias_bool)
+        self.layer1to2 = nn.Linear(hidden_dims[0], hidden_dims[1], bias=bias)
         nn.init.xavier_uniform_(self.layer1to2.weight)
 
         # r out to r in
-        self.layer2to1 = nn.Linear(hidden_dims[1], hidden_dims[0], bias=bias_bool)
+        self.layer2to1 = nn.Linear(hidden_dims[1], hidden_dims[0], bias=bias)
         nn.init.xavier_uniform_(self.layer2to1.weight)
 
         self.layer2 = SnnLayer(hidden_dims[1], hidden_dims[1], is_rec=is_rec, is_adapt=is_adapt,
-                               one_to_one=one_to_one)
+                               one_to_one=one_to_one, bias=bias)
 
-        self.output_layer = OutputLayer(hidden_dims[1], out_dim, is_fc=True)
+        self.output_layer = OutputLayer(hidden_dims[1], out_dim, is_fc=True, bias=bias)
 
-        self.out2layer2 = nn.Linear(out_dim, hidden_dims[1], bias=bias_bool)
+        self.out2layer2 = nn.Linear(out_dim, hidden_dims[1], bias=bias)
         nn.init.xavier_uniform_(self.out2layer2.weight)
+
+        if bias:
+            nn.init.constant_(self.layer1to2.bias, 0)
+            nn.init.constant_(self.layer2to1.bias, 0)
+            nn.init.constant_(self.out2layer2.bias, 0)
+
+
 
         self.fr_layer2 = 0
         self.fr_layer1 = 0
@@ -382,32 +400,39 @@ class SnnNetwork2Layer(SnnNetwork):
             is_adapt: bool,
             one_to_one: bool,
             dp_rate: float,
-            is_rec: bool
+            is_rec: bool, 
+            bias = True
     ):
         super().__init__(in_dim, hidden_dims, out_dim, is_adapt, one_to_one, dp_rate, is_rec)
 
         self.layer3 = SnnLayer(hidden_dims[2], hidden_dims[2], is_rec=is_rec, is_adapt=is_adapt,
-                               one_to_one=one_to_one)
+                               one_to_one=one_to_one, bias=bias)
 
-        self.layer2to3 = nn.Linear(hidden_dims[1], hidden_dims[2], bias=bias_bool)
+        self.layer2to3 = nn.Linear(hidden_dims[1], hidden_dims[2], bias=bias)
         nn.init.xavier_uniform_(self.layer2to3.weight)
 
         # r out to r in
-        self.layer3to2 = nn.Linear(hidden_dims[2], hidden_dims[1], bias=bias_bool)
+        self.layer3to2 = nn.Linear(hidden_dims[2], hidden_dims[1], bias=bias)
         nn.init.xavier_uniform_(self.layer3to2.weight)
 
         self.output_layer = OutputLayer(hidden_dims[2], out_dim, is_fc=True)
 
-        self.out2layer3 = nn.Linear(out_dim, hidden_dims[2], bias=bias_bool)
+        self.out2layer3 = nn.Linear(out_dim, hidden_dims[2], bias=bias)
         nn.init.xavier_uniform_(self.out2layer3.weight)
 
         self.fr_layer3 = 0
 
         self.error3 = 0
 
-        self.input_fc = nn.Linear(in_dim, hidden_dims[0])
+        self.input_fc = nn.Linear(in_dim, hidden_dims[0], bias=bias)
         nn.init.xavier_uniform_(self.input_fc.weight)
 
+        if bias:
+            nn.init.constant_(self.layer2to3.bias, 0)
+            nn.init.constant_(self.layer3to2.bias, 0)
+            nn.init.constant_(self.out2layer3.bias, 0)
+            nn.init.constant_(self.input_fc.bias, 0)
+            print('bias set to 0')
 
     def forward(self, x_t, h):
         batch_dim, input_size = x_t.shape

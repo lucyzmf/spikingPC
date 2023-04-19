@@ -27,6 +27,11 @@ parser.add_argument('-a', '--energyalpha', default=0., type=float, help='set ene
 parser.add_argument('-e', '--epoch', default=10, type=int, help='number of training epochs')
 parser.add_argument('-c', '--channels', nargs='*', default=[10, 10], type=int, help='number of channels per layer')
 parser.add_argument('-lr', '--learningrate', default=1e-3, type=float, help='learning rate')
+parser.add_argument('-ca', '--convadp', default=False, type=bool, help='adaptive neurons for conv layers')
+parser.add_argument('-k', '--kernelsize', default=3, type=int, help='kernel size')
+parser.add_argument('-ro', '--readout', default=50, type=int, help='num readout per class')
+parser.add_argument('-dt', '--deltat', default=50, type=int, help='dt for simulation')
+
 
 args = vars(parser.parse_args())
 
@@ -35,6 +40,11 @@ energy_alpha = args['energyalpha']
 epochs = args['epoch']
 hidden_channels = args['channels']
 lr = args['learningrate']
+conv_adp = args['convadp']
+ks = args['kernelsize']
+ro = args['readout']
+dt = args['deltat']
+bias = True
 
 # %%
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -58,18 +68,21 @@ config.onetoone = True
 config.lr = lr
 config.alg = 'conv_fptt'
 alg = config.alg
-config.k_updates = 10
+config.k_updates = 5
 config.dp = 0.2
+config.dt = dt
 
 # training parameters
-T = 50
+T = 20
 K = config.k_updates  # k_updates is num updates per sequence
 omega = int(T / K)  # update frequency
 clip = 1.
 log_interval = 40
 n_classes = 10
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_2lcov_chann' + str(hidden_channels) + '_lr' + str(lr)
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_1llocalcov_chann' + str(hidden_channels) + '_lr' + str(lr) + '_batch256' + '_convadp'+str(conv_adp) + \
+    'ksize' + str(ks) + '_readout' + str(ro) + 'decay1e-4' + 'dt' + str(dt) + \
+    '_nobn_' + 'tauouttrainable_nosoftmax_withbias_pad4' + str(epochs)
 
 # experiment name
 exp_name = config.exp_name
@@ -94,10 +107,12 @@ else:
 
 transform = transforms.Compose(
     [transforms.ToTensor(),
+     transforms.Pad(5, fill=0),
+    #  transforms.RandomRotation(degrees=(0, 20)), 
     #  transforms.Resize(16),
      transforms.Normalize((0.5), (0.5))])
 
-batch_size = 128
+batch_size = 256
 
 traindata = torchvision.datasets.MNIST(root='./data', train=True,
                                        download=True, transform=transform)
@@ -126,21 +141,21 @@ for batch_idx, (data, target) in enumerate(train_loader):
 
 IN_dim = [c, h, w]
 config.hidden_channels = hidden_channels
-config.kernel_size = [3, 3]
+config.kernel_size = [ks, ks]
 config.stride = [1, 1]
 config.paddings = [0, 0]
 config.is_rec = [False, False]
 config.pooling = None
-config.num_readout = 10
-config.conv_adp = False
+config.num_readout = ro
+config.conv_adp = conv_adp
 config.spiking_conv = True
 spiking_conv = config.spiking_conv
 
 # define network
-model = SnnConvNet(IN_dim, config.hidden_channels, config.kernel_size, config.stride,
+model = SnnLocalConvNet1Layer(IN_dim, config.hidden_channels, config.kernel_size, config.stride,
                    config.paddings, n_classes, is_adapt_conv=config.conv_adp,
                    dp_rate=config.dp, p_size=config.num_readout,
-                   pooling=config.pooling, is_rec=config.is_rec)
+                   pooling=config.pooling, is_rec=config.is_rec, dt=config.dt, bias=bias)
 model.to(device)
 print(model)
 
@@ -152,9 +167,9 @@ total_params = count_parameters(model)
 print('total param count %i' % total_params)
 
 # define optimiser
-optimizer = optim.Adamax(model.parameters(), lr=config.lr, weight_decay=0.0001)
+optimizer = optim.Adamax(model.parameters(), lr=config.lr, weight_decay=1e-4)
 # reduce the learning after 20 epochs by a factor of 10
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
 
 # %%
 ###############################################################################################

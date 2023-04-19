@@ -4,10 +4,15 @@ import torch.nn as nn
 from network_class import *
 from network_class import SnnNetwork, SnnLayer, OutputLayer
 from torch.nn.modules.utils import _pair
+import matplotlib.pyplot as plt
+
+
+def shifted_sigmoid_conv(currents):
+    return (1 / (1 + torch.exp(-currents)) - 0.5)/2
 
 
 class LocalConv2d(nn.Module):
-    def __init__(self, in_channels, out_channels, output_size, kernel_size, stride, bias=False):
+    def __init__(self, in_channels, out_channels, output_size, kernel_size, stride, pad_size, bias=False):
         super(LocalConv2d, self).__init__()
         output_size = _pair(output_size)
         self.weight = nn.Parameter(
@@ -16,14 +21,17 @@ class LocalConv2d(nn.Module):
         nn.init.xavier_uniform_(self.weight)
         if bias:
             self.bias = nn.Parameter(
-                torch.randn(1, out_channels, output_size[0], output_size[1])
+                torch.zeros(1, out_channels, output_size[0], output_size[1])
             )
         else:
             self.register_parameter('bias', None)
         self.kernel_size = _pair(kernel_size)
         self.stride = _pair(stride)
+        self.softmax_map_dist = 0
+        self.pad = (pad_size, pad_size, pad_size, pad_size)
 
     def forward(self, x):
+        x = F.pad(x, self.pad, 'constant', 0)
         _, c, h, w = x.size()
         kh, kw = self.kernel_size
         dh, dw = self.stride
@@ -33,40 +41,54 @@ class LocalConv2d(nn.Module):
         out = (x.unsqueeze(1) * self.weight).sum([2, -1])
         if self.bias is not None:
             out += self.bias
+        # softmax_map = torch.softmax(out, dim=1) # channel dim softmax 
+        # self.softmax_map_dist = softmax_map
+        # # softmax_map = F.normalize(out, dim=1) # channel dim softmax 
+        # out = out * softmax_map
         return out
 
 
 class LocalConvTrans2d(nn.Module):
-    def __init__(self, in_channels, out_channels, input_size, output_size, kernel_size, bias=False):
+    def __init__(self, in_channels, out_channels, input_size, output_size, kernel_size, out_padsize, bias=False):
+        """out pad size is padding that was added to the output this convtrans layer"""
         super(LocalConvTrans2d, self).__init__()
         input_size = _pair(input_size)
-        output_size = _pair(output_size)
+        output_size = _pair(output_size + out_padsize*2)
         self.weight = nn.Parameter(
             torch.randn(input_size[0]*input_size[1], in_channels, out_channels * kernel_size**2)
         )
         nn.init.xavier_uniform_(self.weight)
         if bias:
             self.bias = nn.Parameter(
-                torch.randn(out_channels, output_size[0], output_size[1])
+                torch.zeros(out_channels, output_size[0], output_size[1])
             )
         else:
             self.register_parameter('bias', None)
         self.kernel_size = _pair(kernel_size)
         self.fold = nn.Fold(output_size=output_size, kernel_size=kernel_size)
         self.out_channels = out_channels
+        self.out_padsize = out_padsize
+        self.output_size = output_size[0]
 
     def forward(self, x):
         bs, c, h, w = x.size()
         kh, kw = self.kernel_size
 
         x = x.flatten(start_dim=2).transpose(2, 1).unsqueeze(2)
-        patches = torch.zeros((bs, h*w, self.out_channels*kh*kw)).to(device)  # n, w_in*h_in, c_out*k**2
+        # patches = torch.zeros((bs, h*w, self.out_channels*kh*kw)).to(device)  # n, w_in*h_in, c_out*k**2
         # for s in range(bs):
         #     patches[s] = torch.bmm(x[s], self.weight).squeeze()
         patches = torch.matmul(x, self.weight).squeeze()
-        out = self.fold(patches.transpose(2, 1))
+        if bs == 1: 
+            patches = patches.unsqueeze(dim=0)
+        if c == 1:
+            patches = patches.unsqueeze(dim=-1)
+        out = self.fold(patches.transpose(2, 1), )
         if self.bias is not None:
             out += self.bias
+        if self.out_padsize !=0:
+            # if out put to transconv is padded, then slice off output to the padded regions
+            out = out[:, :, self.out_padsize:(self.output_size-self.out_padsize), self.out_padsize:(self.output_size-self.out_padsize)]
         return out
 
 
@@ -89,7 +111,8 @@ class SNNLocalConvCell(nn.Module):
                  tau_adap_init=20.,
                  tau_a_init=15.,
                  is_adapt=False,
-                 synaptic_curr=None
+                 synaptic_curr=None, 
+                 dt=0.5
                  ):
         super(SNNLocalConvCell, self).__init__()
 
@@ -100,6 +123,7 @@ class SNNLocalConvCell(nn.Module):
         self.kernel_size = kernel_size
         self.strides = strides
         self.padding = padding
+        self.dt = dt
 
         self.input_size = input_size
 
@@ -121,7 +145,7 @@ class SNNLocalConvCell(nn.Module):
         print('output shape ' + str(self.output_shape))
 
         self.local_conv = LocalConv2d(self.in_channels, self.out_channels, output_size=self.output_shape[1], 
-                                      kernel_size=self.kernel_size, stride=self.strides, bias=bias)
+                                      kernel_size=self.kernel_size, stride=self.strides, bias=bias, pad_size=padding)
 
         self.output_size = self.output_shape[0] * self.output_shape[1] * self.output_shape[2]
         print('output size %i' % self.output_size)
@@ -130,6 +154,10 @@ class SNNLocalConvCell(nn.Module):
             self.local_rec = nn.Parameter(
                 torch.Tensor(self.output_shape[1] * self.output_shape[2], self.out_channels, self.out_channels))
             nn.init.xavier_uniform_(self.local_rec)
+            # lateral = torch.eye(self.out_channels)
+            # lateral[lateral==0] = -1
+            # self.local_rec = lateral.unsqueeze(0).repeat(self.output_shape[1]*self.output_shape[2], 1, 1).to(device)
+            # print(self.local_rec[0, :, :])
 
         self.sigmoid = nn.Sigmoid()
 
@@ -154,13 +182,13 @@ class SNNLocalConvCell(nn.Module):
         # nn.init.constant_(self.tau_m, tau_m_init)
         # nn.init.constant_(self.tau_a, tau_a_init)
 
-    def mem_update(self, ff, fb, soma, spike, a_curr, b, is_adapt, dt=0.5, baseline_thre=b_j0, r_m=3):
+    def mem_update(self, ff, fb, soma, spike, a_curr, b, is_adapt, baseline_thre=b_j0, r_m=3):
         # alpha = self.sigmoid(self.tau_m)
         # rho = self.sigmoid(self.tau_adp)
         # eta = self.sigmoid(self.tau_a)
-        alpha = torch.exp(-dt / self.tau_m)
-        rho = torch.exp(-dt / self.tau_adp)
-        eta = torch.exp(-dt / self.tau_a)
+        alpha = torch.exp(-self.dt / self.tau_m)
+        rho = torch.exp(-self.dt / self.tau_adp)
+        eta = torch.exp(-self.dt / self.tau_a)
 
         if is_adapt:
             beta = 1.8
@@ -172,7 +200,7 @@ class SNNLocalConvCell(nn.Module):
 
         a_new = eta * a_curr + fb  # fb into apical tuft
 
-        soma_new = alpha * soma + shifted_sigmoid(a_new) + ff - new_thre * spike
+        soma_new = alpha * soma + shifted_sigmoid_conv(a_new) + ff - new_thre * spike
         inputs_ = soma_new - new_thre
 
         spike = act_fun_adp(inputs_)  # act_fun : approximation firing function
@@ -181,7 +209,9 @@ class SNNLocalConvCell(nn.Module):
         return soma_new, spike, a_new, new_thre, b
 
     def forward(self, ff, fb, soma_t, spk_t, a_curr_t, b_t, top_down_sig=None):
-        ff = self.BN(self.local_conv(ff.float()))
+        # ff = self.BN(self.local_conv(ff.float()))
+        ff = self.local_conv(ff.float())
+
         b, _, _, _ = ff.size()
         # conv_bnx = self.conv1_x(x_t.float())
 
@@ -229,7 +259,10 @@ class SnnLocalConvNet(nn.Module):
             p_size=10,  # num prediction neurons
             num_classes=10,
             pooling=None,
+            dt = 0.5, 
+            bias = True
     ):
+        """if bias is true, train with bias but init to 0"""
         super(SnnLocalConvNet, self).__init__()
 
         self.hidden_channels = hidden_channels
@@ -241,33 +274,41 @@ class SnnLocalConvNet(nn.Module):
         self.classify_population_sz = out_dim * p_size
 
         self.conv1 = SNNLocalConvCell(input_size[0], hidden_channels[0], kernel_size[0], stride[0], paddings[0],
-                                      self.input_size, is_adapt=is_adapt_conv, pooling_type=None, is_rec=is_rec[0])
+                                      self.input_size, is_adapt=is_adapt_conv, pooling_type=None, is_rec=is_rec[0], 
+                                      dt=dt, bias=bias)
 
         self.conv2 = SNNLocalConvCell(hidden_channels[0], hidden_channels[1], kernel_size[1], stride[1], paddings[1],
                                       self.conv1.output_shape, is_adapt=is_adapt_conv, pooling_type=pooling,
-                                      is_rec=is_rec[1])
+                                      is_rec=is_rec[1], dt=dt, bias=bias)
 
         self.input_to_pc_sz = self.conv2.output_shape[0] * self.conv2.output_shape[1] * self.conv2.output_shape[2]
         # self.input_to_pc_sz = self.conv1.output_shape[0] * self.conv1.output_shape[1] * self.conv1.output_shape[2]
 
-        self.conv_to_pop = nn.Linear(self.input_to_pc_sz, p_size * num_classes)
+        self.conv_to_pop = nn.Linear(self.input_to_pc_sz, p_size * num_classes, bias=bias)
         nn.init.xavier_uniform_(self.conv_to_pop.weight)
 
         self.pop_enc = SnnLayer(p_size * num_classes, p_size * num_classes, is_rec=True,
-                                is_adapt=True, one_to_one=True)
+                                is_adapt=is_adapt_conv, one_to_one=True, dt=dt)
 
         # feedback weights
-        self.out2pop = nn.Linear(num_classes, p_size * num_classes)
+        self.out2pop = nn.Linear(num_classes, p_size * num_classes, bias=bias)
         nn.init.xavier_uniform_(self.out2pop.weight)
 
-        self.pop_to_conv = nn.Linear(p_size * num_classes, self.input_to_pc_sz)
+        self.pop_to_conv = nn.Linear(p_size * num_classes, self.input_to_pc_sz, bias=bias)
         nn.init.xavier_uniform_(self.pop_to_conv.weight)
+
+        if bias:
+            nn.init.constant_(self.conv_to_pop.bias, 0)
+            nn.init.constant_(self.out2pop.bias, 0)
+            nn.init.constant_(self.pop_to_conv.bias, 0)
+
+
 
         self.deconv1 = LocalConvTrans2d(in_channels=hidden_channels[1], out_channels=hidden_channels[0],
                                         input_size=self.conv2.output_shape[1], output_size=self.conv1.output_shape[1],
-                                        kernel_size=kernel_size[0])
+                                        kernel_size=kernel_size[0], bias=bias, out_padsize=paddings[1])
 
-        self.output_layer = OutputLayer(p_size * num_classes, out_dim, is_fc=False, tau_fixed=0.2)
+        self.output_layer = OutputLayer(p_size * num_classes, out_dim, is_fc=False)
 
         self.neuron_count = self.conv1.output_size + self.pop_enc.hidden_dim + self.conv2.output_size  # + \
         # self.h_layer.hidden_dim
@@ -352,6 +393,188 @@ class SnnLocalConvNet(nn.Module):
             weight.new(bsz, sz2[0], sz2[1], sz2[2]).zero_(),
             weight.new(bsz, sz2[0], sz2[1], sz2[2]).zero_(),
             weight.new(bsz, sz2[0], sz2[1], sz2[2]).fill_(b_j0),
+            # pop encode
+            weight.new(bsz, self.pop_enc.hidden_dim).uniform_(),
+            weight.new(bsz, self.pop_enc.hidden_dim).zero_(),
+            weight.new(bsz, self.pop_enc.hidden_dim).zero_(),
+            weight.new(bsz, self.pop_enc.hidden_dim).fill_(b_j0),
+            # layer out
+            weight.new(bsz, self.out_dim).zero_()
+        )
+
+    def clamped_generate(self, test_class, zeros, h_clamped, T, clamp_value=0.5, batch=False):
+        """
+        generate representations with mem of read out clamped
+        :param test_class: which class is clamped
+        :param zeros: input containing zeros, absence of input
+        :param h: hidden states
+        :param T: sequence length
+        :return:
+        """
+
+        log_softmax_hist = []
+        h_hist = []
+
+        for t in range(T):
+            if not batch:
+                h_clamped[-1][0] = -clamp_value
+                h_clamped[-1][0, test_class] = clamp_value
+            else:
+                h_clamped[-1][:, :] = torch.full(h_clamped[-1].size(), -clamp_value).to(device)
+                h_clamped[-1][:, test_class] = clamp_value
+
+            # if t==0:
+            #     print(h_clamped[-1])
+
+            log_softmax, h_clamped = self.forward(zeros, h_clamped)
+
+            log_softmax_hist.append(log_softmax)
+            h_hist.append(h_clamped)
+
+        return log_softmax_hist, h_hist
+
+# %%
+class SnnLocalConvNet1Layer(nn.Module):
+    def __init__(
+            self,
+            input_size,  # data size
+            hidden_channels: list,  # number of feature maps/channels per layer
+            kernel_size: list,
+            stride: list,
+            paddings: list,
+            out_dim: int,  # num classes
+            is_rec: list,
+            is_adapt_conv: bool,
+            dp_rate=0.3,
+            p_size=10,  # num prediction neurons
+            num_classes=10,
+            pooling=None,
+            dt = 0.5, 
+            bias = True
+    ):
+        super(SnnLocalConvNet1Layer, self).__init__()
+
+        self.hidden_channels = hidden_channels
+        self.out_dim = out_dim
+        self.is_adapt_conv = is_adapt_conv
+        self.pooling = pooling
+        self.dp = nn.Dropout2d(dp_rate)
+        self.input_size = input_size  # c*h*w
+        self.classify_population_sz = out_dim * p_size
+
+        self.conv1 = SNNLocalConvCell(input_size[0], hidden_channels[0], kernel_size[0], stride[0], paddings[0],
+                                      self.input_size, is_adapt=is_adapt_conv, pooling_type=None, is_rec=is_rec[0], 
+                                      dt=dt, bias=bias)
+
+        
+        self.input_to_pc_sz = self.conv1.output_shape[0] * self.conv1.output_shape[1] * self.conv1.output_shape[2]
+        # self.input_to_pc_sz = self.conv1.output_shape[0] * self.conv1.output_shape[1] * self.conv1.output_shape[2]
+
+        self.conv_to_pop = nn.Linear(self.input_to_pc_sz, p_size * num_classes, bias=bias)
+        nn.init.xavier_uniform_(self.conv_to_pop.weight)
+
+        self.pop_enc = SnnLayer(p_size * num_classes, p_size * num_classes, is_rec=True,
+                                is_adapt=is_adapt_conv, one_to_one=True, dt=dt)
+
+        # feedback weights
+        self.out2pop = nn.Linear(num_classes, p_size * num_classes, bias=bias)
+        nn.init.xavier_uniform_(self.out2pop.weight)
+        # self.out2pop.weight.data = self.out2pop.weight.data / 10
+
+        self.pop_to_conv = nn.Linear(p_size * num_classes, self.input_to_pc_sz, bias=bias)
+        nn.init.xavier_uniform_(self.pop_to_conv.weight)
+        # self.pop_to_conv.weight.data = self.pop_to_conv.weight.data / 50
+        
+        if bias:
+            nn.init.constant_(self.conv_to_pop.bias, 0)
+            nn.init.constant_(self.out2pop.bias, 0)
+            nn.init.constant_(self.pop_to_conv.bias, 0)
+
+        self.output_layer = OutputLayer(p_size * num_classes, out_dim, is_fc=False)
+
+        self.neuron_count = self.conv1.output_size + self.pop_enc.hidden_dim # + self.conv2.output_size  # + \
+        # self.h_layer.hidden_dim
+
+        self.fr_conv1 = 0
+        self.fr_h = 0
+        self.fr_conv2 = 0
+        self.fr_pop = 0
+
+        self.error1 = 0
+        self.error2 = 0
+        self.error3 = 0
+        
+        # self.error_h = 0
+        self.norm_outmem = 0
+        self.fb1 = 0
+        self.fb2 = 0
+
+    def forward(self, x_t, h):
+        batch_dim, c, height, width = x_t.size()
+        x_t = self.dp(x_t)
+        # poisson 
+        # x_t = x_t.gt(0.5).float()
+
+        self.fb1 = self.pop_to_conv(h[5])
+        soma_conv1, spk_conv1, a_curr_conv1, b_conv1 = self.conv1(ff=x_t, fb=self.fb1, soma_t=h[0],
+                                                                  spk_t=h[1],
+                                                                  a_curr_t=h[2], b_t=h[3])
+        # soma_conv1, spk_conv1, a_curr_conv1, b_conv1 = self.conv1(ff=x_t, fb=0, soma_t=h[0],
+        #                                                           spk_t=h[1],
+        #                                                           a_curr_t=h[2], b_t=h[3])
+
+        self.error1 = a_curr_conv1 - soma_conv1
+
+        in_to_pop = self.conv_to_pop(spk_conv1.view(batch_dim, -1))
+        # in_to_pc = spk2.view(batch_dim, -1)
+
+        self.norm_outmem = F.normalize(h[-1], dim=1)
+        # self.norm_outmem = torch.tanh(h[-1])
+        self.fb2 = self.out2pop(self.norm_outmem)
+        soma_pop, spk_pop, a_curr_pop, b_pop = self.pop_enc(ff=in_to_pop, fb=self.fb2,
+                                                            soma_t=h[4], spk_t=h[5], a_curr_t=h[6], b_t=h[7])
+        # soma_pop, spk_pop, a_curr_pop, b_pop = self.pop_enc(ff=in_to_pop, fb=0,
+        #                                                     soma_t=h[4], spk_t=h[5], a_curr_t=h[6], b_t=h[7])
+        self.error2 = a_curr_pop - soma_pop
+
+        mem_out = self.output_layer(spk_pop, h[-1])
+
+        h = (  # soma_h, spk_h.view(batch_dim, -1), a_curr_h, b_h,
+            soma_conv1, spk_conv1, a_curr_conv1, b_conv1,
+            # soma_conv2, spk_conv2, a_curr_conv2, b_conv2,
+            soma_pop, spk_pop, a_curr_pop, b_pop,
+            mem_out
+        )
+
+        self.fr_conv1 = self.fr_conv1 + spk_conv1.detach().cpu().numpy().mean()
+        # self.fr_h = self.fr_h + spk_h.detach().cpu().numpy().mean()
+        self.fr_pop = self.fr_pop + spk_pop.detach().cpu().numpy().mean()
+
+        log_softmax = F.log_softmax(mem_out, dim=1)
+
+        return log_softmax, h
+
+    def inference(self, x_t, h, T):
+        log_softmax_hist = []
+        h_hist = []
+
+        for t in range(T):
+            log_softmax, h = self.forward(x_t, h)
+
+            log_softmax_hist.append(log_softmax)
+            h_hist.append(h)
+
+        return log_softmax_hist, h_hist
+
+    def init_hidden(self, bsz):
+        weight = next(self.parameters()).data
+        sz1 = self.conv1.output_shape  # torch size object
+        return (
+            # conv1
+            weight.new(bsz, sz1[0], sz1[1], sz1[2]).uniform_(),
+            weight.new(bsz, sz1[0], sz1[1], sz1[2]).zero_(),
+            weight.new(bsz, sz1[0], sz1[1], sz1[2]).zero_(),
+            weight.new(bsz, sz1[0], sz1[1], sz1[2]).fill_(b_j0),
             # pop encode
             weight.new(bsz, self.pop_enc.hidden_dim).uniform_(),
             weight.new(bsz, self.pop_enc.hidden_dim).zero_(),
