@@ -45,7 +45,7 @@ wandb.init(project="spikingPC_voltageloss", entity="lucyzmf")
 
 # add wandb.config
 config = wandb.config
-config.adap_neuron = False  # whether use adaptive neuron or not
+config.adap_neuron = True  # whether use adaptive neuron or not
 config.clf_alpha = 1
 config.energy_alpha = energy_alpha  # - config.clf_alpha
 config.spike_alpha = 0.  # energy loss on spikes 

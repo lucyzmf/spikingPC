@@ -1190,6 +1190,175 @@ axes[1, 0].set_ylabel('w/o E', rotation=0, labelpad=20)
 plt.tight_layout()
 plt.show()
 
+# %%
+# clamp with noise 
+noise = torch.zeros(n_classes).to(device=device)
+clamp_class = 0
+steps=10
+clamp_T = T * 5
+
+def clamp_with_noise(layer, model, clamp_class=0):
+
+    noise_clamp = np.zeros((10, hidden_dim[layer])) 
+
+    for i in range(steps):
+        noise = torch.rand(10).to(device) 
+        with torch.no_grad():
+            model.eval()
+
+            hidden_i = model.init_hidden(1)
+
+            _, hidden_gen_E_ = model.clamped_generate(clamp_class, no_input, hidden_i, clamp_T, clamp_value=1., noise=noise)
+
+            # 
+            l1_E = get_states([hidden_gen_E_], 1+layer*4, hidden_dim[layer], 1, clamp_T, num_samples=1)
+
+
+            noise_clamp[i] += np.squeeze(l1_E.mean(axis=1))
+
+    torch.cuda.empty_cache()
+
+    return noise_clamp
+
+noise_l3_clamp_E = clamp_with_noise(layer, model_wE, clamp_class)
+
+# %%
+fig, axes = plt.subplots(1, steps, figsize=(10, 1.5))
+with torch.no_grad():
+    for s in range(steps):
+        img1 = decoders[0](torch.tensor(noise_l3_clamp_E[s].astype('float32')).to(device).view(-1, hidden_dim[layer])).reshape(28, 28).cpu()
+        axes[s].imshow(img1)
+        # axes[0][proj_class].axis('off')
+        axes[s].tick_params(left = False, right = False , labelleft = False ,
+                labelbottom = False, bottom = False)
+
+fig.suptitle('projection from clampled rep with random noise back to image plane layer %i' % layer)
+axes[0].set_ylabel('w E', rotation=0, labelpad=20)
+
+plt.tight_layout()
+plt.show()
+
+# %%
+# generate from half occluded image 
+
+# randomly sample one image from class 3
+three = images_all[target_all == 3][4]
+three[:14, :] = -1
+plt.imshow(three)
+plt.show()
+
+# %%
+sampled_image_reps = np.zeros((50, hidden_dim[layer]))
+
+for i in range(50):
+    # sample uniform noise with range [-1, 1] with size 10
+    noise = torch.rand(10).to(device) * 2 - 1
+    with torch.no_grad():
+        model_wE.eval()
+
+        hidden_i = model_wE.init_hidden(1)
+
+        _, hidden_gen_E_ = model_wE.clamped_generate(0, three.view(-1, IN_dim).to(device), 
+                                                     hidden_i, T*2, clamp_value=0, noise=noise)
+
+        spk_rep = get_states([hidden_gen_E_], 1+layer*4, hidden_dim[layer], 1, T*2, num_samples=1)
+        sampled_image_reps[i] += np.squeeze(spk_rep.mean(axis=1))
+
+print(sampled_image_reps.shape)
+
+# %%
+# create a grid of images from the sampled image representations
+fig, axes = plt.subplots(5, 10, figsize=(10, 5))
+for i in range(5):
+    for j in range(10):
+        img = decoders[0](torch.tensor(sampled_image_reps[i*10+j].astype('float32')).to(device).view(-1, hidden_dim[layer])).reshape(28, 28).cpu().detach()
+        axes[i][j].imshow(img)
+        axes[i, j].tick_params(left = False, right = False , labelleft = False ,
+                labelbottom = False, bottom = False)
+
+plt.tight_layout()
+plt.show()
+
+# %%
+# generate from noise at the input of layer 
+# randomly sample one image from class 3
+sampled_image_reps = np.zeros((50, hidden_dim[layer]))
+noise_p = 0.1  # percentage of neurons that is given nosie
+
+for i in range(50):
+    # sample uniform noise with range [-1, 1] with size 10
+    noise_vector = torch.zeros(hidden_dim[layer]).to(device)
+    noise_vector[torch.randint(high=hidden_dim[layer], size=(int(hidden_dim[layer]*noise_p),))] = \
+          torch.rand((int(hidden_dim[layer] * noise_p),)).to(device) - 0.5
+    
+    with torch.no_grad():
+        model_wE.eval()
+
+        hidden_i = model_wE.init_hidden(1)
+
+        _, hidden_gen_E_ = model_wE.clamp_withnoise(1, no_input, hidden_i, clamp_T, noise=noise_vector, 
+                                                    index = (2+layer*4), clamp_value=0.5)
+
+        spk_rep = get_states([hidden_gen_E_], 1+layer*4, hidden_dim[layer], 1, clamp_T, num_samples=1)
+        sampled_image_reps[i] += np.squeeze(spk_rep.mean(axis=1))
+
+print(sampled_image_reps.shape)
+
+# %%
+# create a grid of images from the sampled image representations
+fig, axes = plt.subplots(5, 10, figsize=(10, 5))
+for i in range(5):
+    for j in range(10):
+        img = plot_projection(sampled_image_reps[i*10+j], i*10+j, 
+                    decoders[0].weight.data.cpu().numpy(), 
+                    decoders[0].bias.data.cpu().numpy())
+        axes[i][j].imshow(img)
+        axes[i, j].tick_params(left = False, right = False , labelleft = False ,
+                labelbottom = False, bottom = False)
+
+plt.tight_layout()
+plt.show()
+
+
+# %%
+# # plt clamp result of pc1min
+# clamp_T = T * 5
+
+# with torch.no_grad():
+#     model_wE.eval()
+
+#     hidden_i = model_wE.init_hidden(1)
+
+#     _, hidden_gen_E_ = model_wE.clamped_generate(0, no_input, hidden_i, clamp_T, clamp_value=0, 
+#                                                  noise=torch.tensor(out_E[idx_min]).to(device))
+#     print('clamp done')
+#     # 
+#     l1_E = get_states([hidden_gen_E_], 1, hidden_dim[0], 1, clamp_T, num_samples=1)
+#     l2_E = get_states([hidden_gen_E_], 5, hidden_dim[1], 1, clamp_T, num_samples=1)
+#     l3_E = get_states([hidden_gen_E_], 9, hidden_dim[2], 1, clamp_T, num_samples=1)
+
+
+# # %%
+# fig, axes = plt.subplots(1, 2)
+
+# img1 = plot_projection(l3_E[0].mean(axis=1), 0, 
+#             decoders[0].weight.data.cpu().numpy(), 
+#             decoders[0].bias.data.cpu().numpy())
+# axes[0].imshow(img1)
+# # axes[0][proj_class].axis('off')
+# axes[0].tick_params(left = False, right = False , labelleft = False ,
+#         labelbottom = False, bottom = False)
+# axes[0].set_title('decoded sample specific clamp')
+
+# # plot original sample from subset
+# axes[1].set_title('original sample')
+# axes[1].imshow(subset.data[idx_min])
+
+# fig.suptitle('decoded image from sample specific clamp pattern %i' % layer)
+
+# plt.tight_layout()
+# plt.show()
+
 
 # %%
 ##############################################################
