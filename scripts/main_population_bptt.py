@@ -13,12 +13,22 @@ import numpy as np
 import wandb
 from datetime import date
 import os
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 
 from network_class import *
 from utils import *
 from bptt_train import *
 from test_function import test
+
+# %%
+parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+parser.add_argument('-a', '--energyalpha', default=0., type=float, help='set energy loss')
+parser.add_argument('-e', '--epoch', default=10, type=int, help='number of training epochs')
+
+args = vars(parser.parse_args())
+
+energy_alpha = args['energyalpha']
 
 # %%
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -36,23 +46,26 @@ wandb.init(project="spikingPC_voltageloss", entity="lucyzmf")
 config = wandb.config
 config.adap_neuron = True  # whether use adaptive neuron or not
 config.clf_alpha = 1
-config.energy_alpha = 0.  # - config.clf_alpha
-config.spike_alpha = 0  # energy loss on spikes 
+config.energy_alpha = energy_alpha  # - config.clf_alpha
+config.spike_alpha = 0.05  # energy loss on spikes 
 config.num_readout = 10
 config.onetoone = True
 config.lr = 1e-3
 config.alg = 'bptt'
 alg = config.alg
+config.k_updates = 10
 config.dp = 0.4
 config.is_rec = False
 
 # training parameters
-T = 40
+T = 50
+K = config.k_updates  # k_updates is num updates per sequence
+omega = int(T / K)  # update frequency
 clip = 1.
-log_interval = 10
-epochs = 20
+log_interval = 20
+epochs = args['epoch']
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_taux2_scaledinput05_dt0.5_outnorm_3layer'
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_taux2_dt0.5_exptau05_absloss_bias0_scheduler10_withspkloss' + str(epochs)
 
 # experiment name 
 exp_name = config.exp_name
@@ -103,7 +116,7 @@ for batch_idx, (data, target) in enumerate(train_loader):
 ###############################################################
 # set input and t param
 IN_dim = 784
-hidden_dim = [784, 512, 512]
+hidden_dim = [600, 500, 500]
 n_classes = 10
 
 # define network
@@ -119,7 +132,7 @@ print('total param count %i' % total_params)
 # define optimiser
 optimizer = optim.Adamax(model.parameters(), lr=config.lr, weight_decay=0.0001)
 # reduce the learning after 20 epochs by a factor of 10
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.5)
+scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.5)
 
 # %%
 ###############################################################################################

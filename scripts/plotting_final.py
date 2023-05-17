@@ -174,13 +174,13 @@ print(spike_E[0].shape)
 ##############################################################
 # spk rate by layer comparison 
 ##############################################################
-df_spk = pd.DataFrame(columns=['model', 'layer', 'mean spk', 't'])
+df_spk = pd.DataFrame(columns=['Model', 'L', r'Mean $R$', 't'])
 for i in range(len(hidden_dim)):
     df = pd.DataFrame(np.vstack((spike_E[i].T, spike_nE[i].T)))
-    df['model'] = ['E'] * T + ['nE'] * T 
-    df['layer'] = [i] * T * 2
+    df['Model'] = ['Energy'] * T + ['Control'] * T 
+    df['L'] = [i] * T * 2
     df['t'] = (np.concatenate((range(T), range(T))))
-    df = pd.melt(df, id_vars=['model', 't', 'layer'], value_name='mean spk', value_vars=range(len(testdata)), var_name='img idx')
+    df = pd.melt(df, id_vars=['Model', 't', 'L'], value_name=r'Mean $R$', value_vars=range(len(testdata)), var_name='img idx')
     
     df_spk = pd.concat([df_spk, df])
 
@@ -195,11 +195,11 @@ sns.set_style("whitegrid", {'axes.grid' : False})
 fig, ax1 = plt.subplots(figsize=(6, 5))
 ax2 = ax1.twiny()
 
-sns.lineplot(df_spk[df_spk['model']=='E'], x='t', hue='layer', y='mean spk', 
+sns.lineplot(df_spk[df_spk['Model']=='Energy'], x='t', hue='L', y=r'Mean $R$', 
             palette=sns.color_palette('Blues', n_colors=len(hidden_dim)), ax=ax1)
 ax1.legend(title='E layers', bbox_to_anchor=(1.05, 0.9), loc=2, borderaxespad=0., frameon=False)
 
-sns.lineplot(df_spk[df_spk['model']=='nE'], x='t', y='mean spk', hue='layer',
+sns.lineplot(df_spk[df_spk['Model']=='Control'], x='t', y=r'Mean $R$', hue='L',
                 palette=sns.color_palette('YlOrBr', n_colors=len(hidden_dim)), ax=ax2)
 ax2.xaxis.set_ticks_position('bottom')
 ax2.xaxis.set_label_position('bottom')
@@ -212,12 +212,13 @@ plt.show()
 
 # %%
 # mean spk rate per layer 
-sns.barplot(df_spk, x='layer', y='mean spk', hue='model', 
+fig = plt.figure(figsize=(6, 5))
+sns.barplot(df_spk, x='L', y=r'Mean $R$', hue='Model', 
             palette=[(0.1271049596309112, 0.4401845444059977, 0.7074971164936563), 
                      (0.9949711649365629, 0.5974778931180315, 0.15949250288350636)], 
-            capsize=0.1)
+            capsize=0.01)
 sns.despine()
-plt.legend(title='model', bbox_to_anchor=(1.05, 0.5), loc=2, borderaxespad=0., frameon=False)
+plt.legend(bbox_to_anchor=(1.05, 0.5), loc=2, borderaxespad=0., frameon=False)
 plt.show()
 
 # %%
@@ -230,13 +231,13 @@ mean_error_nE = [np.mean(error_nE[i], axis=0) for i in range(len(hidden_dim))]
 print(mean_error_E[1].shape)
 # %%
 # create df with columns model, layer, t, mean error
-df_all = pd.DataFrame(columns=['model', 'layer', 't', 'mean error'])
+df_all = pd.DataFrame(columns=['Model', 'layer', 't', 'Mean E'])
 for l in range(len(hidden_dim)):
     df = pd.DataFrame(np.vstack((mean_error_E[l], mean_error_nE[l])))
-    df['model'] = ['E'] * T + ['nE'] * T 
+    df['Model'] = ['Energy'] * T + ['Control'] * T 
     df['layer'] = [l] * T * 2
     df['t'] = (np.concatenate((range(T), range(T))))
-    df = pd.melt(df, id_vars=['model', 't', 'layer'], value_name='mean error', value_vars=range(500), var_name='neuron idx')
+    df = pd.melt(df, id_vars=['Model', 't', 'layer'], value_name='Mean E', value_vars=range(500), var_name='neuron idx')
     
     df_all = pd.concat([df_all, df])
 
@@ -247,17 +248,17 @@ df_all.head()
 fig, ax1 = plt.subplots()
 ax2 = ax1.twiny()
 
-sns.lineplot(df_all[df_all['model']=='E'], x='t', y='mean error', hue='layer', 
+sns.lineplot(df_all[df_all['Model']=='Energy'], x='t', y='Mean E', hue='layer', 
              palette=sns.color_palette('Blues', n_colors=len(hidden_dim)), ax=ax1)
 # change legend title and position to outside upper right
-ax1.legend(title='E layers', bbox_to_anchor=(1.05, 0.9), loc=2, borderaxespad=0., frameon=False)
+ax1.legend(title='Energy L', bbox_to_anchor=(1.05, 0.9), loc=2, borderaxespad=0., frameon=False)
 
-sns.lineplot(df_all[df_all['model']=='nE'], x='t', y='mean error', hue='layer',
+sns.lineplot(df_all[df_all['Model']=='Control'], x='t', y='Mean E', hue='layer',
                 palette=sns.color_palette('YlOrBr', n_colors=len(hidden_dim)), ax=ax2)
 ax2.xaxis.set_ticks_position('bottom')
 ax2.xaxis.set_label_position('bottom')
 # change legend title and position to outside lower right
-ax2.legend(title='nE layers', bbox_to_anchor=(1.05, 0.1), loc=3, borderaxespad=0., frameon=False)
+ax2.legend(title='Control L', bbox_to_anchor=(1.05, 0.1), loc=3, borderaxespad=0., frameon=False)
 
 # remove top and right spines
 sns.despine()

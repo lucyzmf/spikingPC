@@ -137,6 +137,8 @@ class SnnLayer(nn.Module):
         a_new = eta * a_curr + fb  # fb into apical tuft
 
         soma_new = alpha * soma + shifted_sigmoid(a_new) + ff - new_thre * spike
+        # soma_new = alpha * soma + 1/2 * (a_new) + ffs - new_thre * spike
+
         inputs_ = soma_new - new_thre
 
         spike = act_fun_adp(inputs_)  # act_fun : approximation firing function
@@ -338,7 +340,7 @@ class SnnNetwork(nn.Module):
 
         return log_softmax_hist, h_hist
     
-    def clamped_generate(self, test_class, zeros, h_clamped, T, clamp_value=0.5, batch=False):
+    def clamped_generate(self, test_class, zeros, h_clamped, T, clamp_value=0.5, batch=False, noise=None):
         """
         generate representations with mem of read out clamped 
         :param test_class: which class is clamped 
@@ -358,6 +360,9 @@ class SnnNetwork(nn.Module):
             else:
                 h_clamped[-1][:, :] = torch.full(h_clamped[-1].size(), -clamp_value).to(device)
                 h_clamped[-1][:, test_class] = clamp_value
+
+            if noise is not None:
+                    h_clamped[-1][:] += noise 
 
             # if t==0:
             #     print(h_clamped[-1])
@@ -525,6 +530,42 @@ class SnnNetwork2Layer(SnnNetwork):
             # sum spike
             weight.new(bsz, self.out_dim).zero_(),
         )
+    
+    def clamp_withnoise(self, test_class, zeros, h_clamped, T, noise, index, batch=False, clamp_value=0.5):
+        """
+        generate representations with mem of read out clamped 
+        :param test_class: which class is clamped 
+        :param zeros: input containing zeros, absence of input 
+        :param h: hidden states
+        :param T: sequence length
+        :param noise: noise values 
+        :param index: index in h where noise is added to
+        :return:
+        """
+
+        log_softmax_hist = []
+        h_hist = []
+
+        for t in range(T):
+            if not batch:
+                h_clamped[-1][0] = -clamp_value
+                h_clamped[-1][0, test_class] = clamp_value
+            else:
+                h_clamped[-1][:, :] = torch.full(h_clamped[-1].size(), -clamp_value).to(device)
+                h_clamped[-1][:, test_class] = clamp_value
+
+            if noise is not None:
+                h_clamped[index][:, :] += noise * h_clamped[index][:, :]
+
+            # if t==0:
+            #     print(h_clamped[-1])
+
+            log_softmax, h_clamped = self.forward(zeros, h_clamped)
+
+            log_softmax_hist.append(log_softmax)
+            h_hist.append(h_clamped)
+
+        return log_softmax_hist, h_hist
 
 
 

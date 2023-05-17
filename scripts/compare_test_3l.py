@@ -25,6 +25,7 @@ import seaborn as sns
 import IPython.display as ipd
 
 from scipy.ndimage import median_filter, gaussian_filter
+from scipy import stats
 
 from tqdm import tqdm
 
@@ -140,6 +141,10 @@ for name, param in model_woE.named_parameters():
 print(param_names_woE)
 
 # %%
+colors = [(0.1271049596309112, 0.4401845444059977, 0.7074971164936563), 
+                     (0.9949711649365629, 0.5974778931180315, 0.15949250288350636)]
+
+# %%
 weights = [x for x in param_names_wE if ('weight' in x) and ('bias' not in x) and 
            ('fc_weights' not in x) and ('out2layer2' not in x)]
 
@@ -156,19 +161,158 @@ plt.tight_layout()
 plt.show()
 
 # %%
+# compute mean and variance per set of weights 
+w_mean_wE = [np.mean(param_dict_wE[x]) for x in weights]
+w_mean_woE = [np.mean(param_dict_woE[x]) for x in weights]
 
+w_var_wE = [np.var(param_dict_wE[x]) for x in weights]
+w_var_woE = [np.var(param_dict_woE[x]) for x in weights]
+
+# create df with columns model, mean, var, weight
+df_wE = pd.DataFrame({'model': ['wE'] * len(weights), 'mean': w_mean_wE, 'log var': np.log(w_var_wE), 'weight': weights})
+df_woE = pd.DataFrame({'model': ['woE'] * len(weights), 'mean': w_mean_woE, 'log var': np.log(w_var_woE), 'weight': weights})
+
+df_both = pd.concat([df_wE, df_woE])
+
+# plot mean and var
+fig, axes = plt.subplots(1, 2, figsize=(8, 4))
+sns.barplot(x='weight', y='mean', hue='model', data=df_both, ax=axes[0])
+sns.barplot(x='weight', y='log var', hue='model', data=df_both, ax=axes[1])
+# rotate x labels
+for ax in axes:
+    for item in ax.get_xticklabels():
+        item.set_rotation(90)
+plt.tight_layout()
+plt.show()
+
+# %%
+# check for all neurons in the network, what proportion of exci vs inhi weights they have for 
+# ff and fb weights 
+
+def get_ff_fb_ex_inhi(weights, num_neurons, ax=1):
+    ex = np.zeros(num_neurons)
+    inh = np.zeros(num_neurons)
+
+    ex = np.mean(weights > 0, axis=ax)
+    inh = np.mean(weights < 0, axis=ax)
+
+    assert len(ex) == num_neurons
+
+    return ex, inh
+
+def get_exinhisplit_df(param_dict):
+    l1_ff_ex, l1_ff_inh = get_ff_fb_ex_inhi(param_dict['input_fc.weight'], hidden_dim[0])
+    l1_fb_ex, l1_fb_inh = get_ff_fb_ex_inhi(param_dict['layer2to1.weight'], hidden_dim[0])
+
+    l2_ff_ex, l2_ff_inh = get_ff_fb_ex_inhi(param_dict['layer1to2.weight'], hidden_dim[1])
+    l2_fb_ex, l2_fb_inh = get_ff_fb_ex_inhi(param_dict['layer3to2.weight'], hidden_dim[1])
+
+    l3_ff_ex, l3_ff_inh = get_ff_fb_ex_inhi(param_dict['layer2to3.weight'], hidden_dim[2])
+    l3_fb_ex, l3_fb_inh = get_ff_fb_ex_inhi(param_dict['out2layer3.weight'], hidden_dim[2])
+
+    df_ = pd.DataFrame({'layer': ['1'] * hidden_dim[0] + ['2'] * hidden_dim[1] + ['3'] * hidden_dim[2],
+                        'ff ex': np.concatenate([l1_ff_ex, l2_ff_ex, l3_ff_ex]),
+                        'ff inh': np.concatenate([l1_ff_inh, l2_ff_inh, l3_ff_inh]),
+                        'fb ex': np.concatenate([l1_fb_ex, l2_fb_ex, l3_fb_ex]),
+                        'fb inh': np.concatenate([l1_fb_inh, l2_fb_inh, l3_fb_inh])})
+    return df_
+
+# %%
+ex_inhi_split_wE = get_exinhisplit_df(param_dict_wE)
+ex_inhi_split_woE = get_exinhisplit_df(param_dict_woE)
+
+ex_inhi_split = pd.concat([ex_inhi_split_wE, ex_inhi_split_woE])
+ex_inhi_split['model'] = ['wE'] * len(ex_inhi_split_wE) + ['woE'] * len(ex_inhi_split_woE)
+
+ex_inhi_split.head()
+
+# %%
+# plot ex inh split
+fig, axes = plt.subplots(1, 2, figsize=(8, 4))
+sns.barplot(x='layer', y='ff ex', hue='model', data=ex_inhi_split, ax=axes[0])
+sns.barplot(x='layer', y='ff inh', hue='model', data=ex_inhi_split, ax=axes[1])
+
+plt.tight_layout()
+plt.show()
+
+# %%
+fig, axes = plt.subplots(1, 2, figsize=(8, 4))
+sns.barplot(x='layer', y='fb ex', hue='model', data=ex_inhi_split, ax=axes[0])
+sns.barplot(x='layer', y='fb inh', hue='model', data=ex_inhi_split, ax=axes[1])
+
+plt.tight_layout()
+plt.show()
+
+# %%
+sns.scatterplot(x='ff ex', y='fb ex', hue='model', data=ex_inhi_split)
+plt.show()
+
+# %%
+# compute the mean absoulte weight for each set of weights compared between models
+df_weights = pd.DataFrame(columns=['Model', 'weight', 'abs values'])
+
+# weights that connected spiking neurons 
+spike_weights = [x for x in weights if ('out' not in x)]
+print(spike_weights)
+
+for i in range(len(spike_weights)):
+    size = param_dict_wE[spike_weights[i]].size
+    d1 = pd.DataFrame({'Model': ['Energy'] * size, 
+                                    'weight': [spike_weights[i].replace('.weight', '')] * size,
+                                    'abs values': np.abs(param_dict_wE[spike_weights[i]]).flatten()})
+    d2 = pd.DataFrame({'Model': ['Control'] * size, 
+                                    'weight': [spike_weights[i].replace('.weight', '')] * size, 
+                                    'abs values': np.abs(param_dict_woE[spike_weights[i]]).flatten()})
+    df_weights = pd.concat([df_weights, d1, d2])
+
+df_weights.head()
+
+# %%
+# plot mean abs values
+sns.barplot(x='weight', y='abs values', hue='Model', data=df_weights, palette=colors)
+# rotate x labels
+for item in plt.gca().get_xticklabels():
+    item.set_rotation(90)
+sns.despine()
+plt.legend(frameon=False, bbox_to_anchor=(1.05, 1), loc='upper left')
+plt.show()
 
 # %%
 taus = [x for x in param_names_wE if ('tau' in x)]
+# move output_layer tau to the end
+taus.append(taus.pop(-4))
+print(taus)
 
-fig, axes = plt.subplots(1, len(taus), figsize=(len(taus) * 3, 3))
-for i in range(len(taus)):
-    axes[i].hist(param_dict_wE[taus[i]].flatten(), label='w E', histtype='step')
-    axes[i].hist(param_dict_woE[taus[i]].flatten(), label='w/o E', histtype='step')
-    axes[i].legend()
-    axes[i].set_title(taus[i])
+layers = ['L1', 'L2', 'L3']
+taus_label = [r'$\tau_{adp}$', r'$\tau_{s}$', r'$\tau_{a}$']
+
+fig, axes = plt.subplots(3, 3, figsize=(9, 8), sharey=True)
+for i in range(3):
+    sns.kdeplot(param_dict_wE[taus[i]].flatten()*2, label='Energy', ax=axes[0, i], 
+                 fill=True, alpha=0.5, color=colors[0])
+    sns.kdeplot(param_dict_woE[taus[i]].flatten()*2, label='Control', ax=axes[0, i], 
+                 fill=True, color=colors[1], alpha=0.5)
+    axes[0, i].set_title(layers[0] + ' ' + taus_label[i])
+    sns.despine()
+
+    sns.kdeplot(param_dict_wE[taus[i+3]].flatten()*2, label='Energy', ax=axes[1, i], 
+                 fill=True, color=colors[0], alpha=0.5)
+    sns.kdeplot(param_dict_woE[taus[i+3]].flatten()*2, label='Control', ax=axes[1, i], 
+                 fill=True, color=colors[1], alpha=0.5)
+    axes[1, i].set_title(layers[1] + ' ' + taus_label[i])
+    sns.despine()
+
+    sns.kdeplot(param_dict_wE[taus[i+6]].flatten()*2, label='Energy', ax=axes[2, i], 
+                 fill=True, color=colors[0], alpha=0.5)
+    sns.kdeplot(param_dict_woE[taus[i+6]].flatten()*2, label='Control', ax=axes[2, i], 
+                 fill=True, color=colors[1], alpha=0.5)
+    axes[2, i].set_title(layers[2] + ' ' + taus_label[i])
+    sns.despine()
+
 
 plt.tight_layout()
+# put legend to right of the figure
+plt.legend(title='Model', bbox_to_anchor=(1.05, 2.3), loc='upper left', frameon=False)
 plt.show()
 
 # %%
@@ -202,7 +346,7 @@ def usi(expected_curr, unexpected_curr, layer_idx, T, ts=None):
     # })
     df_usi = pd.DataFrame({
         'neuron idx': np.arange(hidden_dim[layer_idx]),
-        'usi': np.abs((df[df['condition'] == 'normal seq'].loc[:, 't' + str(ts[0]):'t' + str(ts[1]-1)].to_numpy() - df[
+        'MSD': ((df[df['condition'] == 'normal seq'].loc[:, 't' + str(ts[0]):'t' + str(ts[1]-1)].to_numpy() - df[
             df['condition'] == 'stim change seq'].loc[:, 't' + str(ts[0]):'t' + str(ts[1]-1)].to_numpy())).mean(axis=1) 
     })
 
@@ -253,7 +397,7 @@ hiddens_woE, preds_woE, _, _ = get_all_analysis_data(model_woE, test_loader, dev
                                                      occlusion_p=added_value)
 
 n_samples = len(preds_wE)
-target_all = testdata.targets.data[:n_samples]
+target_all = testdata.targets.data[normal_set_idx]
 
 # %%
 ###############################
@@ -298,21 +442,6 @@ plt.plot(np.arange(T), inhi_l2E, label='inhi topdown')
 plt.legend()
 plt.show()
 
-
-# %%
-_, _, error_l2_E = get_a_s_e(hiddens_wE, 1, batch_size=batch_size, n_samples=batches*batch_size, T=T)
-_, _, error_l2_nE= get_a_s_e(hiddens_woE, 1, batch_size=batch_size, n_samples=batches*batch_size, T=T)
-
-df = pd.DataFrame(np.vstack((error_l2_E.mean(axis=0), error_l2_nE.mean(axis=0))))
-df['model'] = ['E'] * T + ['nE'] * T 
-df['t'] = (np.concatenate((range(T), range(T))))
-df = pd.melt(df, id_vars=['model', 't'], value_name='mean error', value_vars=range(500), var_name='neuron idx')
-df.head()
-# sum episolon need to be normalised by mean spk rate 
-# %%
-sns.lineplot(df, x='t', y='mean error', hue='model')
-sns.despine()
-plt.show()
 
 # %%
 # spk mean at layer 1 
@@ -442,10 +571,10 @@ df_l2_a_woE, df_usi_l2_a_woE = usi(a_curr_l2_woE, conti_a_curr_l2_woE, 1, T, [fi
 df_l2_s_woE, df_usi_l2_s_woE = usi(soma_l2_woE, conti_soma_l2_woE, 1, T, [first_stim_t, T])
 
 # %%
-df_usi_compare = pd.concat([df_usi_l2_s_E, df_usi_l2_s_woE])
-df_usi_compare['model type'] = ['E'] * hidden_dim[1] + ['w/o E'] * hidden_dim[1]
+df_usi_compare_a = pd.concat([df_usi_l2_s_E, df_usi_l2_s_woE])
+df_usi_compare_a['model type'] = ['E'] * hidden_dim[1] + ['w/o E'] * hidden_dim[1]
 
-sns.histplot(df_usi_compare, x='usi', hue='model type', element="step", stat="density")
+sns.histplot(df_usi_compare_a, x='usi', hue='model type', element="step", stat="density")
 plt.title('compare usi of change exp layer2 by model type (soma)')
 plt.show()
 
@@ -490,6 +619,7 @@ def match_mismatch_ex(match_condition):
     h_nE = []
 
     clamp_class = match_dig if match_condition else np.random.choice(mismatch_dig)
+    print('clamp class: ', clamp_class)
 
     with torch.no_grad():
         model_wE.eval()
@@ -551,121 +681,38 @@ df_l2_a_matchexp_woE, df_usi_l2_a_matchexp_woE = usi(match_a_curr_l2_woE, mis_a_
 df_l2_s_matchexp_woE, df_usi_l2_s_matchexp_woE = usi(match_soma_l2_woE, mis_soma_l2_woE, 1, T, ts=[blank_t, blank_t+match_t])
 
 # %%
-df_usi_compare = pd.concat([df_usi_l2_s_matchexp_E, df_usi_l2_s_matchexp_woE])
-df_usi_compare['model type'] = ['E'] * hidden_dim[1] + ['w/o E'] * hidden_dim[1]
+df_usi_compare_a = pd.concat([df_usi_l2_a_matchexp_E, df_usi_l2_a_matchexp_woE])
+df_usi_compare_a['model type'] = ['E'] * hidden_dim[1] + ['w/o E'] * hidden_dim[1]
 
-sns.histplot(df_usi_compare, x='usi', hue='model type')
-plt.title('compare usi of match mismatch layer2 by model type (soma)')
-sns.despine()
-plt.show()
+print(stats.ks_2samp(df_usi_l2_a_matchexp_E['MSD'], df_usi_l2_a_matchexp_woE['MSD']))
 
+# increase size of font
+sns.set(font_scale=1.5)
+#set sns theme to be white and no grid lines
+sns.set_style("whitegrid", {'axes.grid' : False})
 
-# %%
-# plot grid of example neurons responding similar or different to exp vs unexp stimuli 
-low_usi_idx = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][:3].to_list()
-high_usi_idx = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][-3:].to_list()
+colors = [(0.1271049596309112, 0.4401845444059977, 0.7074971164936563), 
+                     (0.9949711649365629, 0.5974778931180315, 0.15949250288350636)]
 
-def plot_single_neuron_ax(idx, ax, match_curr, mismatch_curr):
-    df = df_single_neuron(match_curr[:sample_size], mismatch_curr[:sample_size], idx, conditions=['match', 'mismatch'])
-    sns.lineplot(df, x='t', y='volt', hue='condition', ax=ax)
-
-    range = ax.get_ylim()
-
-    ax.spines['bottom'].set_position('zero')
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
-    ax.fill_between(np.arange(T), range[0], range[1], where=np.logical_and(np.arange(T)>blank_t, (np.arange(T)<(blank_t+match_t))),
-    alpha=0.25, facecolor='grey')
-
-    ax.set_xticks([])
-    ax.set_xlabel('')
-    ax.set_title('idx %i' %idx)
-    ax.get_legend().remove()
-
-
-fig, axs = plt.subplots(2, 3, figsize=(10, 5))
-for i in range(len(low_usi_idx)):
-    plot_single_neuron_ax(low_usi_idx[i], axs[0][i], match_soma_l2_wE, mis_soma_l2_wE)
-    plot_single_neuron_ax(high_usi_idx[i], axs[1][i], match_soma_l2_wE, mis_soma_l2_wE)
-axs[0, 2].legend().set_visible(True)
-
-rows = ['low diff', 'high diff']
-
-pad = 20
-
-for ax, row in zip(axs[:, 0], rows):
-    ax.annotate(row, xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - pad / 2, 0),
-                xycoords=ax.yaxis.label, textcoords='offset points',
-                size='large', ha='right', va='center')
-
-plt.show()
-
-# %%
-# compare error 
-df_l2_e_matchexp_E, df_usi_l2_e_matchexp_E = usi(match_error_l2_wE, mis_error_l2_wE, 1, T, ts=[blank_t, blank_t+match_t])
-df_l2_e_matchexp_woE, df_usi_l2_e_matchexp_woE = usi(match_error_l2_woE, mis_error_l2_woE, 1, T, ts=[blank_t, blank_t+match_t])
-
-# %%
-df_usi_compare = pd.concat([df_usi_l2_e_matchexp_E, df_usi_l2_e_matchexp_woE])
-df_usi_compare['model type'] = ['E'] * hidden_dim[1] + ['w/o E'] * hidden_dim[1]
-
-sns.histplot(df_usi_compare, x='usi', hue='model type')
-plt.title('compare usi of match mismatch layer2 by model type (error)')
+fig = plt.figure(figsize=(7, 4))
+sns.histplot(df_usi_compare_a, x='MSD', hue='model type', bins=10, stat='percent', palette=colors)
+plt.title('L2 apical tuft')
+# remove legend
+plt.legend([],[], frameon=False)
 sns.despine()
 plt.show()
 
 # %%
-## with energy model 
-low_usi_idx = df_usi_l2_e_matchexp_E.sort_values(by='usi')['neuron idx'][:3].to_list()
-high_usi_idx = df_usi_l2_e_matchexp_E.sort_values(by='usi')['neuron idx'][-3:].to_list()
+df_usi_compare_s = pd.concat([df_usi_l2_s_matchexp_E, df_usi_l2_s_matchexp_woE])
+df_usi_compare_s['model type'] = ['E'] * hidden_dim[1] + ['w/o E'] * hidden_dim[1]
 
-fig, axs = plt.subplots(2, 3, figsize=(10, 5))
-for i in range(len(low_usi_idx)):
-    plot_single_neuron_ax(low_usi_idx[i], axs[0][i], match_error_l2_wE, mis_error_l2_wE)
-    plot_single_neuron_ax(high_usi_idx[i], axs[1][i], match_error_l2_wE, mis_error_l2_wE)
-axs[0, 2].legend().set_visible(True)
+print(stats.ks_2samp(df_usi_l2_s_matchexp_E['MSD'], df_usi_l2_s_matchexp_woE['MSD']))
 
-rows = ['low diff', 'high diff']
-
-pad = 20
-
-for ax, row in zip(axs[:, 0], rows):
-    ax.annotate(row, xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - pad / 2, 0),
-                xycoords=ax.yaxis.label, textcoords='offset points',
-                size='large', ha='right', va='center')
-
+fig = plt.figure(figsize=(7, 4))
+sns.histplot(df_usi_compare_s, x='MSD', hue='model type', bins=10, stat='percent', palette=colors)
+plt.title('L2 soma')
+sns.despine()
 plt.show()
-
-# %%
-## w/o energy model 
-low_usi_idx = df_usi_l2_e_matchexp_woE.sort_values(by='usi')['neuron idx'][:3].to_list()
-high_usi_idx = df_usi_l2_e_matchexp_woE.sort_values(by='usi')['neuron idx'][-3:].to_list()
-
-fig, axs = plt.subplots(2, 3, figsize=(10, 5))
-for i in range(len(low_usi_idx)):
-    plot_single_neuron_ax(low_usi_idx[i], axs[0][i], match_error_l2_wE, mis_error_l2_wE)
-    plot_single_neuron_ax(high_usi_idx[i], axs[1][i], match_error_l2_wE, mis_error_l2_wE)
-axs[0, 2].legend().set_visible(True)
-
-rows = ['low diff', 'high diff']
-
-pad = 20
-
-for ax, row in zip(axs[:, 0], rows):
-    ax.annotate(row, xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - pad / 2, 0),
-                xycoords=ax.yaxis.label, textcoords='offset points',
-                size='large', ha='right', va='center')
-# plt.title('error in single neurons during match mismatch woE l2')
-plt.show()
-
-# %%
-
-# high_usi_index = df_usi_l2_s_matchexp_E.sort_values(by='usi')['neuron idx'][499]
-
-# df_single_s = df_single_neuron(match_soma_l2_wE[:size_lim], mis_soma_l2_wE[:size_lim], high_usi_index, delta=True)
-# sns.lineplot(df_single_s, x='t', y='volt', hue='condition')
-# plt.title('high usi neuron delta soma voltage during seq match mismatch')
-# plt.show()
 
 # %%
 # compare spk rate in these conditions
@@ -693,120 +740,363 @@ sns.despine()
 plt.show()
 
 # %%
-# check distribution of delta spk rate between match and mismatch for both models 
-delta_spk_E = spk_l2_E_match.mean(axis=0).mean(axis=0) - spk_l2_E_mis.mean(axis=0).mean(axis=0)
-delta_spk_nE = spk_l2_nE_match.mean(axis=0).mean(axis=0)- spk_l2_nE_mis.mean(axis=0).mean(axis=0)
+# check distribution of delta spk rate between match and mismatch for both models during stim onset
+delta_spk_E = spk_l2_E_match[:, 25:75, :].mean(axis=0).mean(axis=0) - spk_l2_E_mis[:, 25:75, :].mean(axis=0).mean(axis=0)
+delta_spk_nE = spk_l2_nE_match[:, 25:75, :].mean(axis=0).mean(axis=0)- spk_l2_nE_mis[:, 25:75, :].mean(axis=0).mean(axis=0)
+
+print(stats.ks_2samp(delta_spk_E, delta_spk_nE))
 
 df = pd.DataFrame({
-    'delta spk': np.concatenate((delta_spk_E, delta_spk_nE)), 
+    r'$\delta R$': np.concatenate((delta_spk_E, delta_spk_nE)), 
     'model': ['E'] * len(delta_spk_E) + ['nE'] * len(delta_spk_nE)
 })
 
-sns.histplot(df, x='delta spk', hue='model')
+sns.set(font_scale=1.5)
+sns.set_style("whitegrid", {'axes.grid' : False})
+
+fig = plt.figure(figsize=(7, 4))
+sns.histplot(df, x=r'$\delta R$', hue='model', stat='percent', bins=10, palette=colors)
 sns.despine()
-plt.title('delta spk rate match vs mismatch distribution')
+plt.title('L2 ' + r'$\delta R$')
+plt.legend(frameon=False)
 plt.show()
+
+
+# %%
+# plot grid of example neurons responding similar or different to exp vs unexp stimuli 
+# create list for [0, low, high] mean diff index
+def get_indices(df_):
+    """get index of high, 0, low mean diff neurons"""
+    high_idx = df_.sort_values(by='mean diff')['neuron idx'].to_list()[-1]
+    zero_idx = df_.sort_values(by='mean diff')['neuron idx'].to_list()[int(len(df_)/2)]
+    low_idx = df_.sort_values(by='mean diff')['neuron idx'].to_list()[0]
+    return [low_idx, zero_idx, high_idx]
+
+apical_indices = get_indices(df_usi_l2_a_matchexp_E)
+soma_indices = get_indices(df_usi_l2_s_matchexp_E)
+# soma_indices = apical_indices
+
+print(apical_indices)
+
+# %%
+from matplotlib.patches import Patch
+
+two_blues = [(0.1271049596309112, 0.4401845444059977, 0.7074971164936563), 
+                     (0.5356862745098039, 0.746082276047674, 0.8642522106881968)]
+
+def plot_single_neuron_ax(idx, ax, match_curr, mismatch_curr):
+    df = df_single_neuron(match_curr[:sample_size], mismatch_curr[:sample_size], idx, conditions=['match', 'mismatch'])
+    sns.lineplot(df, x='t', y='volt', hue='condition', ax=ax, palette=two_blues)
+
+    range = ax.get_ylim()
+
+    ax.spines['bottom'].set_position('zero')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.fill_between(np.arange(T), range[0], range[1], where=np.logical_and(np.arange(T)>blank_t, (np.arange(T)<(blank_t+match_t))),
+    alpha=0.25, facecolor='grey')
+
+    ax.set_xticks([])
+    ax.set_xlabel('')
+    # ax.set_title('idx %i' %idx)
+    ax.get_legend().remove()
+
+
+sns.set(font_scale=1.)
+sns.set_style("whitegrid", {'axes.grid' : False})
+
+fig, axs = plt.subplots(2, 3, figsize=(8, 3), sharex=True)
+for i in range(len(apical_indices)):
+    plot_single_neuron_ax(apical_indices[i], axs[0][i], match_a_curr_l2_wE, mis_a_curr_l2_wE)
+    axs[0, i].set_title('MSD %.3f' %df_usi_l2_a_matchexp_E[df_usi_l2_a_matchexp_E['neuron idx']==apical_indices[i]]['mean diff'].values[0], 
+                        fontsize=10)
+
+    plot_single_neuron_ax(soma_indices[i], axs[1][i], match_soma_l2_wE, mis_soma_l2_wE)
+    axs[1, i].set_title('MSD %.3f' %df_usi_l2_s_matchexp_E[df_usi_l2_s_matchexp_E['neuron idx']==soma_indices[i]]['mean diff'].values[0], 
+                        fontsize=10)
+    # annotate at the bottom of the ax
+    axs[1, i].annotate('t', xy=(0.5, -0.2), xycoords='axes fraction', ha='center', va='center')
+
+
+# axs[0, 1].legend().set_visible(True)
+# realign legend to have both labels in one line and position center top outside of plot
+# axs[0, 1].legend(borderaxespad=0., ncols=2, loc='upper center', frameon=False)
+handles, labels = axs[0, 2].get_legend_handles_labels()
+handles.append(Patch(facecolor='grey', alpha=0.25))
+labels.append("stim onset")
+fig.legend(handles, labels, loc='upper center', frameon=False, ncol=3, bbox_to_anchor=(0.55, 1.08))
+
+# remove uncessary y labels 
+for i in range(3):
+    axs[1, i].set_xlabel('')
+
+axs[0, 1].set_ylabel('')
+axs[1, 1].set_ylabel('')
+
+axs[0, 2].set_ylabel('')
+axs[1, 2].set_ylabel('')
+
+# label columns
+rows = ['L2-apical', 'L2-soma']
+
+pad = 20
+
+for ax, row in zip(axs[:, 0], rows):
+    ax.annotate(row, xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - pad / 2, 0),
+                xycoords=ax.yaxis.label, textcoords='offset points',
+                size='large', ha='right', va='center')
+
+plt.tight_layout()
+plt.show()
+
+# %%
+# compare error 
+
+def abs_error(expected_curr, unexpected_curr, layer_idx, T, ts=None):
+    df = pd.DataFrame(np.vstack((expected_curr.mean(axis=0).T, unexpected_curr.mean(axis=0).T)),
+                      columns=['t%i' % i for i in range(T)])
+    df['neuron idx'] = np.concatenate((np.arange(hidden_dim[layer_idx]), np.arange(hidden_dim[layer_idx])))
+    df['condition'] = ['match'] * hidden_dim[layer_idx] + ['mismatch'] * hidden_dim[layer_idx]
+    df['mean abs error'] = np.concatenate((expected_curr.mean(axis=0).mean(axis=0), 
+                                  unexpected_curr.mean(axis=0).mean(axis=0)))
+
+    # compute mean abs error
+    df_usi = pd.DataFrame({
+        'neuron idx': np.arange(hidden_dim[layer_idx]),
+        'mean abs diff': np.abs(((df[df['condition'] == 'match'].loc[:, 't' + str(ts[0]):'t' + str(ts[1]-1)].to_numpy() - df[
+            df['condition'] == 'mismatch'].loc[:, 't' + str(ts[0]):'t' + str(ts[1]-1)].to_numpy()))).mean(axis=1) 
+    })
+
+    return df, df_usi
+
+df_l2_e_matchexp_E, df_usi_l2_e_matchexp_E = abs_error(match_error_l2_wE, mis_error_l2_wE, 1, T, ts=[blank_t, blank_t+match_t])
+df_l2_e_matchexp_woE, df_usi_l2_e_matchexp_woE = abs_error(match_error_l2_woE, mis_error_l2_woE, 1, T, ts=[blank_t, blank_t+match_t])
+
+# %%
+# plot distribution of errors for each model 
+sns.histplot(df_l2_e_matchexp_E, x='mean abs error', hue='condition', bins=10, stat='percent', palette=colors)
+plt.show()
+
+# %%
+df_l2_e_matchexp_E = df_l2_e_matchexp_E.melt(id_vars=['neuron idx', 'condition', 'mean abs error'],
+                                                value_vars=['t%i' % i for i in range(T)],
+                                                var_name='t', value_name='abs error')
+sns.lineplot(df_l2_e_matchexp_E, x='t', y='abs error', hue='condition', palette=colors)
+plt.show()
+
+# %%
+df_usi_compare_a = pd.concat([df_usi_l2_e_matchexp_E, df_usi_l2_e_matchexp_woE])
+df_usi_compare_a['model type'] = ['E'] * hidden_dim[1] + ['w/o E'] * hidden_dim[1]
+
+print(stats.ks_2samp(df_usi_l2_e_matchexp_E['mean abs diff'], df_usi_l2_e_matchexp_woE['mean abs diff']))
+
+sns.histplot(df_usi_compare_a, x='mean abs diff', hue='model type', bins=11, palette=colors)
+plt.title('compare usi of match mismatch layer2 by model type (error)')
+sns.despine()
+plt.show()
+
+# %%
+# compute the delta spk rate of layers for match and mismatch 
+def delta_spk_rate(spk_match, spk_mismatch, ts):
+    """compute delta spk rate of match and mismatch"""
+    delta_spk = spk_match[:, ts[0]:ts[1], :].mean(axis=0).mean(axis=0) - spk_mismatch[:, ts[0]:ts[1], :].mean(axis=0).mean(axis=0)
+    return delta_spk
+
+spk_l1_E_match = get_states([h_match_E], 1, hidden_dim[0], sample_size, T, sample_size)
+spk_l1_E_mis = get_states([h_mismatch_E], 1, hidden_dim[0], sample_size, T, sample_size)
+
+spk_l1_nE_match = get_states([h_match_nE], 1, hidden_dim[0], sample_size, T, sample_size)
+spk_l1_nE_mis = get_states([h_mismatch_nE], 1, hidden_dim[0], sample_size, T, sample_size)
+
+spk_l3_E_match = get_states([h_match_E], 9, hidden_dim[2], sample_size, T, sample_size)
+spk_l3_E_mis = get_states([h_mismatch_E], 9, hidden_dim[2], sample_size, T, sample_size)
+
+spk_l3_nE_match = get_states([h_match_nE], 9, hidden_dim[2], sample_size, T, sample_size)
+spk_l3_nE_mis = get_states([h_mismatch_nE], 9, hidden_dim[2], sample_size, T, sample_size)
+
+delta_spk_l1_E = delta_spk_rate(spk_l1_E_match, spk_l1_E_mis, [blank_t, blank_t+match_t])
+delta_spk_l1_nE = delta_spk_rate(spk_l1_nE_match, spk_l1_nE_mis, [blank_t, blank_t+match_t])
+
+delta_spk_l2_E = delta_spk_rate(spk_l2_E_match, spk_l2_E_mis, [blank_t, blank_t+match_t])
+delta_spk_l2_nE = delta_spk_rate(spk_l2_nE_match, spk_l2_nE_mis, [blank_t, blank_t+match_t])
+
+delta_spk_l3_E = delta_spk_rate(spk_l3_E_match, spk_l3_E_mis, [blank_t, blank_t+match_t])
+delta_spk_l3_nE = delta_spk_rate(spk_l3_nE_match, spk_l3_nE_mis, [blank_t, blank_t+match_t])
+
+# %%
+# create df with delta spk rate for each layer and model
+df_delta_spk = pd.DataFrame({
+    r'$\delta R$': np.concatenate((delta_spk_l1_E, delta_spk_l1_nE, delta_spk_l2_E, delta_spk_l2_nE, delta_spk_l3_E, delta_spk_l3_nE)),
+    'Layer': ['1'] * 2 * hidden_dim[0] + ['2'] * 2 * hidden_dim[1] + ['3'] * 2 * hidden_dim[2],
+    'Model': ['Energy'] * hidden_dim[0] + ['Control'] * hidden_dim[0] + \
+        ['Energy'] * hidden_dim[1] + ['Control'] * hidden_dim[1] + \
+        ['Energy'] * hidden_dim[2] + ['Control'] * hidden_dim[2]
+})
+
+sns.set(font_scale=1.5)
+sns.set_style("whitegrid", {'axes.grid' : False})
+
+fig = plt.figure(figsize=(7, 4))
+sns.barplot(data=df_delta_spk, x='Layer', y=r'$\delta R$', hue='Model', palette=colors, alpha=0.5)
+plt.title(r'$\delta R$ ' + 'match vs mismatch')
+plt.legend(frameon=False)
+sns.despine()
+plt.show()
+
+
+# %%
+
 
 # %%
 ###############################
 # see how adding pix value impact firing rate 
 ###############################
-added_value = np.arange(-2, 0.1, 0.5)
+added_value = np.arange(-2, 2.1, 1)
 
+test_loader_all = torch.utils.data.DataLoader(testdata, batch_size=batch_size, shuffle=False, num_workers=2)
 
-def add_pixel_test(occ_p, layer=0):
-    spk_E = []
-    spk_nE = []
+def add_pixel_test(added_v, layer=0):
+    spk_E = np.zeros((len(added_v), len(testdata), hidden_dim[layer]))
+    spk_nE = np.zeros((len(added_v), len(testdata), hidden_dim[layer]))
 
-    acc_E = []
-    acc_nE = []
+    acc_E = np.zeros(len(added_v))
+    acc_nE = np.zeros(len(added_v))
 
-    for p in occ_p:
-        print(p)
-        he, _, _, e = get_all_analysis_data(model_wE, test_loader, device, IN_dim, T, batch_no=3, occlusion_p=p, log=True)
-        hne, _, _, ne = get_all_analysis_data(model_woE, test_loader, device, IN_dim, T, batch_no=3, occlusion_p=p, log=True)
-        
-        spk_e = get_states(he, 1 + layer * 4, hidden_dim[layer], batch_size, num_samples=600, T=T)
-        spk_ne = get_states(hne, 1 + layer * 4, hidden_dim[layer], batch_size, num_samples=600, T=T)
+    in_E = np.zeros((len(added_v), len(testdata)))
+    in_nE = np.zeros((len(added_v), len(testdata)))
 
-        spk_E.append(spk_e)
-        spk_nE.append(spk_ne)
+    for step in range(len(added_v)):
+        print(added_v[step])
+        correct1 = 0
+        correct2 = 0
 
-        acc_E.append(e)
-        acc_nE.append(ne)
+        for i, (data, target) in enumerate(test_loader_all):
+            data += added_v[step]
 
+            data, target = data.to(device), target.to(device)
+            data = data.view(-1, model_wE.in_dim)
+ 
+            with torch.no_grad():
+                model_wE.eval()
+                model_woE.eval()
 
-    spk_E = np.stack(spk_E)
-    spk_nE = np.stack(spk_nE)
+                in_E[step, i*batch_size:(i+1)*batch_size] = model_wE.input_fc(data).mean(dim=1).detach().cpu().numpy()
+                in_nE[step, i*batch_size:(i+1)*batch_size] = model_woE.input_fc(data).mean(dim=1).detach().cpu().numpy()
+
+                hidden = model_wE.init_hidden(data.size(0))
+
+                o1, he = model_wE.inference(data, hidden, T)
+                o2, hne = model_woE.inference(data, hidden, T)
+
+                pred1 = o1[-1].data.max(1, keepdim=True)[1]
+                pred2 = o2[-1].data.max(1, keepdim=True)[1]
+
+                correct1 += pred1.eq(target.data.view_as(pred1)).sum()
+                correct2 += pred2.eq(target.data.view_as(pred2)).sum()
+            
+            spk_e = get_states([he], 1 + layer * 4, hidden_dim[layer], batch_size, num_samples=batch_size, T=T)
+            spk_ne = get_states([hne], 1 + layer * 4, hidden_dim[layer], batch_size, num_samples=batch_size, T=T)
+
+            spk_E[step, i*batch_size:(i+1)*batch_size] = spk_e.mean(axis=1)
+            spk_nE[step, i*batch_size:(i+1)*batch_size] = spk_ne.mean(axis=1)
+
+        acc_E[step] = correct1.cpu().numpy() / len(testdata)
+        acc_nE[step] = correct2.cpu().numpy() / len(testdata)
+
     print(spk_E.shape)
 
-    return spk_E, spk_nE, acc_E, acc_nE
+    return spk_E, spk_nE, acc_E, acc_nE, in_E, in_nE
 
+layer = 0
+spk_addpix_E, spk_addpix_nE, acc_E, acc_nE, input_E, input_nE = add_pixel_test(added_value, layer=layer)
 
-spk_addpix_E, spk_addpix_nE, acc_E, acc_nE = add_pixel_test(added_value)
+print(spk_addpix_E.shape)
+print(acc_E.shape)
+print(input_E.shape)
+# %%
+# create dataframe containing colums for mean input, spike rate per neuron avg across all samples, neuron index 
+def make_df_addpix(spk, input, added_value):
+    """
+    each value in spk is spk rate of a neuron for a sample
+    input is avg current input into each neuron per sample"""
+    df = pd.DataFrame(spk.mean(axis=1))
+    df['added value'] = added_value
+    df['avg input'] = input.mean(axis=1)
+    df[r'$\delta$ current'] = df['avg input'] - input.mean(axis=1)[int(len(added_value)/2)]
+    df = pd.melt(df, id_vars=['added value', 'avg input', r'$\delta$ current'], value_vars=range(500), var_name='neuron idx', value_name='spk rate')
+    return df
 
 # %%
-for i in range(len(added_value)):
-    plt.plot(spk_addpix_E[i].mean(axis=0).mean(axis=1), label=str(added_value[i]))
-plt.legend()
-plt.title('mean spk by t')
-plt.show()
+df_E = make_df_addpix(spk_addpix_E, input_E, added_value)
+df_nE = make_df_addpix(spk_addpix_nE, input_nE, added_value)
+
+df_all_addedpix = pd.concat([df_E, df_nE])
+df_all_addedpix['model'] = ['Energy'] * len(df_E) + ['Control'] * len(df_nE)
+
+df_all_addedpix[:10]
+
+# %%
+# plot lineplot, x axis is avg input, y value is spk rate, hue is model 
+sns.set(font_scale=1.5)
+sns.set_style("whitegrid", {'axes.grid' : False})
+
+colors = [(0.1271049596309112, 0.4401845444059977, 0.7074971164936563), 
+                     (0.9949711649365629, 0.5974778931180315, 0.15949250288350636)]
 
 
 # %%
-# facet plot
-df = pd.DataFrame(spk_addpix_E.mean(axis=1).mean(axis=1))
-df['added value'] = added_value
-df = pd.melt(df, id_vars='added value', value_vars=range(600), var_name='neuron idx', value_name='spk rate')
-df.head()
+# plot spk rate against normalised avg input for each model 
+def normalise_input(df):
+    """df of one model"""
+    df['Norm avg current'] = (df['avg input'] - df['avg input'].min()) / (df['avg input'].max() - df['avg input'].min())
+    return df
 
-sns.histplot(df, x='spk rate', hue='added value', element='step', fill=True, 
-             stat='percent')
+df_all_addedpix_norm_E = normalise_input(df_all_addedpix[df_all_addedpix['model']=='Energy'])
+df_all_addedpix_norm_nE = normalise_input(df_all_addedpix[df_all_addedpix['model']=='Control'])
+
+df_all_addedpix = pd.concat([df_all_addedpix_norm_E, df_all_addedpix_norm_nE])
+
+fig = plt.figure(figsize=(6, 5))
+sns.lineplot(data=df_all_addedpix, x='Norm avg current', y='spk rate', hue='model', palette=colors)
 sns.despine()
+plt.legend(frameon=False)
+plt.title('L' + str(layer+1))
 plt.show()
 
 # %%
-fig, axes = plt.subplots(1, len(added_value))
-for i in range(len(added_value)):
-    axes[i].set_title('added value %.2f' %added_value[i])
-    axes[i].imshow(spk_addpix_E[i].mean(axis=0).mean(axis=0).reshape(20, -1), vmin=0, vmax=1)
-plt.title('exp mean spk over imgs and time layer1')
-plt.tight_layout()
-plt.show()
-
-
-# %%
-df = pd.DataFrame({
-    'model': ['E'] * len(added_value) + ['w/o E'] * len(added_value),
-    'spk rate': np.concatenate(([spk_addpix_E[i].mean() for i in range(len(added_value))], [spk_addpix_nE[i].mean() for i in range(len(added_value))])),
-    'added value': np.round(np.concatenate((added_value, added_value)), decimals=1)
-})
-sns.barplot(df, x='added value', y='spk rate', hue='model')
-plt.title('spk rate with values added to input')
+# plot spk rate against avg input for each model
+fig = plt.figure(figsize=(6, 5))
+sns.lineplot(data=df_all_addedpix, x='avg input', y='spk rate', hue='model', palette=colors)
 sns.despine()
+plt.legend(frameon=False)
+plt.title('L' + str(layer+1))
 plt.show()
 
 # %%
+# appendix plot
 df = pd.DataFrame({
-    'model': ['E'] * len(added_value) + ['w/o E'] * len(added_value),
+    'model': ['Energy'] * len(added_value) + ['Control'] * len(added_value),
     'acc': np.concatenate((acc_E, acc_nE)),
     'added value': np.round(np.concatenate((added_value, added_value)), decimals=1)
 })
-sns.barplot(df, x='added value', y='acc', hue='model')
-plt.title('acc with values added to input')
+
+fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+sns.barplot(df, x='added value', y='acc', hue='model', palette=colors, ax=axes[0])
+axes[0].set_title('acc with values added to input')
+# set legend to be invisible
+axes[0].legend([],[], frameon=False)
+axes[0].set_xticklabels([int(i) for i in added_value])
 sns.despine()
+
+sns.lineplot(data=df_all_addedpix, x='added value', 
+            y=r'$\delta$ current', hue='model', palette=colors)
+axes[1].set_title(r'$\delta$ current'+' into L' + str(layer+1))
+axes[1].legend(frameon=False)
+plt.tight_layout()
 plt.show()
 
 # %%
-# corr between pixel value and total outgoing weight 
-plt.scatter(x=images_all.mean(axis=0).flatten(), y=param_dict_wE['input_fc.weight'].sum(axis=0))
-plt.title('corr between pixel value and total outgoing weight')
-plt.xlabel('mean pixel value')
-plt.ylabel('sum out going weights')
-plt.show()
-
-# %%
-mean_rate_by_neuron = spk_addpix_E.mean(axis=1).mean(axis=1)
+mean_rate_by_neuron = spk_addpix_E.mean(axis=1)
 # check proportion of saturating neuron 
 satur_p = [(mean_rate_by_neuron[i] == 1).mean() for i in range(len(added_value))]
 plt.plot(added_value, satur_p)
@@ -820,607 +1110,20 @@ plt.title('distribution of r between spk rate and added value')
 plt.show()
 
 # %%
-colors = ['b', 'r', 'g', 'purple', 'pink']
+colors_multi = ['b', 'r', 'g', 'purple', colors[1]]
+
+fig = plt.figure(figsize=(7, 5))
 random_sample = np.random.choice(mean_rate_by_neuron.shape[1], 20)
 for i in range(len(added_value)):
-    sns.barplot(x=np.arange(len(random_sample)), y=mean_rate_by_neuron[i, random_sample], label=str(added_value[i]), color=colors[i])
-plt.legend()
+    sns.barplot(x=np.arange(len(random_sample)), y=mean_rate_by_neuron[i, random_sample], label=str(added_value[i]), color=colors_multi[i])
+
+plt.legend(title='added value', frameon=False, bbox_to_anchor=(1, 1))
 plt.xlabel('randomly sampled neuron')
 plt.ylabel('spk rate')
 plt.title('spk rate per neuron at different input condition')
 sns.despine()
 plt.show()
 
-
-# %%
-##############################################################
-# test generative capacity of network with clamping 
-##############################################################
-dig = 0
-no_input = torch.zeros((1, IN_dim)).to(device)
-with torch.no_grad():
-    model_wE.eval()
-    model_woE.eval()
-
-    hidden_i = model_wE.init_hidden(1)
-
-    log_sm_E_gen, hidden_gen_E = model_wE.clamped_generate(dig, no_input, hidden_i, T * 2, clamp_value=10)
-    log_sm_nE_gen, hidden_gen_nE = model_woE.clamped_generate(dig, no_input, hidden_i, T * 2, clamp_value=10)
-torch.cuda.empty_cache()
-
-# %%
-spk_gen_l1_E = get_states([hidden_gen_E], 1, hidden_dim[0], 1, T, num_samples=1).squeeze().mean(axis=0)
-spk_gen_l1_nE = get_states([hidden_gen_nE], 1, hidden_dim[0], 1, T, num_samples=1).squeeze().mean(axis=0)
-
-fig, axes = plt.subplots(1, 2)
-pos = axes[0].imshow(spk_gen_l1_E.reshape(20, -1))
-fig.colorbar(pos, ax=axes[0], shrink=0.5)
-axes[0].set_title('w E mean spk l1 clamped generation')
-
-pos = axes[1].imshow(spk_gen_l1_nE.reshape(20, -1))
-fig.colorbar(pos, ax=axes[1], shrink=0.5)
-axes[1].set_title('w/o E mean spk l1 clamped generation')
-
-plt.tight_layout()
-plt.show()
-
-# %%
-spk_gen_l2_E = get_states([hidden_gen_E], 5, hidden_dim[1], 1, T, num_samples=1).squeeze().mean(axis=0)
-spk_gen_l2_nE = get_states([hidden_gen_nE], 5, hidden_dim[1], 1, T, num_samples=1).squeeze().mean(axis=0)
-
-fig, axes = plt.subplots(1, 2)
-pos = axes[0].imshow(spk_gen_l2_E.reshape(20, -1))
-fig.colorbar(pos, ax=axes[0], shrink=0.5)
-axes[0].set_title('w E mean spk l2 clamped generation')
-
-pos = axes[1].imshow(spk_gen_l2_nE.reshape(20, -1))
-fig.colorbar(pos, ax=axes[1], shrink=0.5)
-axes[1].set_title('w/o E mean spk l2 clamped generation')
-
-plt.tight_layout()
-plt.show()
-
-# %%
-fig, axes = plt.subplots(1, 2)
-pos = axes[0].imshow((param_dict_wE['layer2to1.weight'] @ spk_gen_l2_E).reshape(20, -1))
-fig.colorbar(pos, ax=axes[0], shrink=0.5)
-axes[0].set_title('w E mean l2 > l1 clamped generation')
-
-pos = axes[1].imshow((param_dict_wE['layer2to1.weight'] @ spk_gen_l2_nE).reshape(20, -1))
-fig.colorbar(pos, ax=axes[1], shrink=0.5)
-axes[1].set_title('w/o E mean l2 > l1 clamped generation')
-
-plt.tight_layout()
-plt.show()
-
-# %%
-# compute mean l2, l3 reps from E and nE model with clamped mode 
-l1_norm_E = np.zeros((10, hidden_dim[0]))
-l1_norm_nE = np.zeros((10, hidden_dim[0]))
-
-l2_norm_E = np.zeros((10, hidden_dim[1]))
-l3_norm_E = np.zeros((10, hidden_dim[2]))
-
-l2_norm_nE = np.zeros((10, hidden_dim[1]))
-l3_norm_nE = np.zeros((10, hidden_dim[2]))
-
-# get means from normal condition
-for i, (data, target) in enumerate(test_loader):
-    data, target = data.to(device), target.to(device)
-    data = data.view(-1, model_wE.in_dim)
-
-    with torch.no_grad():
-        model_wE.eval()
-        model_woE.eval()
-
-        hidden = model_wE.init_hidden(data.size(0))
-
-        _, h_E = model_wE.inference(data, hidden, T)
-        _, h_nE = model_woE.inference(data, hidden, T)
-
-        l1_E = get_states([h_E], 1, hidden_dim[0], batch_size, T=T, num_samples=batch_size)
-        l1_nE = get_states([h_nE], 1, hidden_dim[0], batch_size, T=T, num_samples=batch_size)
-
-        l2_E = get_states([h_E], 5, hidden_dim[1], batch_size, T=T, num_samples=batch_size)
-        l2_nE = get_states([h_nE], 5, hidden_dim[1], batch_size, T=T, num_samples=batch_size)
-
-        l3_E = get_states([h_E], 9, hidden_dim[2], batch_size, T=T, num_samples=batch_size)
-        l3_nE = get_states([h_nE], 9, hidden_dim[2], batch_size, T=T, num_samples=batch_size)
-
-        for i in range(n_classes):
-            l1_norm_E[i] += l1_E[target.cpu() == i].mean(axis=1).sum(axis=0)  # avg over t and sum over all samples 
-            l1_norm_nE[i] += l1_nE[target.cpu() == i].mean(axis=1).sum(axis=0)
-
-            l2_norm_E[i] += l2_E[target.cpu() == i].mean(axis=1).sum(axis=0)  # avg over t and sum over all samples 
-            l2_norm_nE[i] += l2_nE[target.cpu() == i].mean(axis=1).sum(axis=0)
-
-            l3_norm_E[i] += l3_E[target.cpu() == i].mean(axis=1).sum(axis=0)  # avg over t and sum over all samples 
-            l3_norm_nE[i] += l3_nE[target.cpu() == i].mean(axis=1).sum(axis=0)
-
-    torch.cuda.empty_cache()
-
-# avg all samples 
-l1_norm_E = l1_norm_E / len(images_all)
-l1_norm_nE = l1_norm_nE / len(images_all)
-
-l2_norm_E = l2_norm_E / len(images_all)
-l2_norm_nE = l2_norm_nE / len(images_all)
-
-l3_norm_E = l3_norm_E / len(images_all)
-l3_norm_nE = l3_norm_nE / len(images_all)
-
-# %%
-# clamped condition
-no_input = torch.zeros((1, IN_dim)).to(device)
-
-l1_clamp_E = np.zeros((10, hidden_dim[0]))
-l1_clamp_nE = np.zeros((10, hidden_dim[0]))
-
-l2_clamp_E = np.zeros((10, hidden_dim[1]))
-l3_clamp_E = np.zeros((10, hidden_dim[2]))
-
-l2_clamp_nE = np.zeros((10, hidden_dim[1]))
-l3_clamp_nE = np.zeros((10, hidden_dim[2]))
-
-clamp_T = T * 5
-
-for i in range(10):
-    print(i)
-    with torch.no_grad():
-        model_wE.eval()
-        model_woE.eval()
-
-        hidden_i = model_wE.init_hidden(1)
-
-        _, hidden_gen_E_ = model_wE.clamped_generate(i, no_input, hidden_i, clamp_T, clamp_value=10)
-        _, hidden_gen_nE_ = model_woE.clamped_generate(i, no_input, hidden_i, clamp_T, clamp_value=10)
-
-        # 
-        l1_E = get_states([hidden_gen_E_], 1, hidden_dim[0], 1, clamp_T, num_samples=1)
-        l1_nE = get_states([hidden_gen_nE_], 1, hidden_dim[0], 1, clamp_T, num_samples=1)
-
-        # get gen 
-        l2_E = get_states([hidden_gen_E_], 5, hidden_dim[1], 1, clamp_T, num_samples=1)
-        l2_nE = get_states([hidden_gen_nE_], 5, hidden_dim[1], 1, clamp_T, num_samples=1)
-
-        l3_E = get_states([hidden_gen_E_], 9, hidden_dim[2], 1, clamp_T, num_samples=1)
-        l3_nE = get_states([hidden_gen_nE_], 9, hidden_dim[2], 1, clamp_T, num_samples=1)
-
-        l1_clamp_E[i] += np.squeeze(l1_E.mean(axis=1))
-        l1_clamp_nE[i] += np.squeeze(l1_nE.mean(axis=1))
-
-        l2_clamp_E[i] += np.squeeze(l2_E.mean(axis=1))
-        l2_clamp_nE[i] += np.squeeze(l2_nE.mean(axis=1))
-
-        l3_clamp_E[i] += np.squeeze(l3_E.mean(axis=1))
-        l3_clamp_nE[i] += np.squeeze(l3_nE.mean(axis=1))
-
-    torch.cuda.empty_cache()
-
-# %%
-fig, axes = plt.subplots(2, 10, figsize=(25, 6))
-for i in range(10):
-    pos = axes[0][i].imshow(((param_dict_wE['layer2to1.weight']@l2_clamp_E[i]) @ param_dict_wE['input_fc.weight'] ).reshape(28, 28))
-    fig.colorbar(pos, ax=axes[0][i], shrink=0.5)
-    axes[0][i].set_title('w E l2 > l1 class%i' % i)
-
-    pos = axes[1][i].imshow(((param_dict_woE['layer2to1.weight']@l2_clamp_nE[i]) @ param_dict_woE['input_fc.weight'] ).reshape(28, 28))
-    fig.colorbar(pos, ax=axes[1][i], shrink=0.5)
-    axes[1][i].set_title('w/o E l2 > l1 class%i' % i)
-
-plt.tight_layout()
-plt.show()
-
-# %%
-# how classifiable are the generated representations 
-from scipy.spatial import distance
-
-dist_l2_E = []
-dist_l2_nE = []
-
-dist_l3_E = []
-dist_l3_nE = []
-
-for i in range(10):
-    dist_l2_E.append(distance.cosine(l2_clamp_E[i], l2_norm_E[i]))
-    dist_l2_nE.append(distance.cosine(l2_clamp_nE[i], l2_norm_nE[i]))
-
-    dist_l3_E.append(distance.cosine(l3_clamp_E[i], l3_norm_E[i]))
-    dist_l3_nE.append(distance.cosine(l3_clamp_nE[i], l3_norm_nE[i]))
-
-df = pd.DataFrame({
-    'cosine dist': dist_l2_E + dist_l3_E + dist_l2_nE + dist_l3_nE,
-    'class': np.concatenate((np.arange(10), np.arange(10), np.arange(10), np.arange(10))),
-    'model': ['w E'] * 20 + ['w/o E'] * 20,
-    'layer': np.concatenate((np.full(10, 2), np.full(10, 3), np.full(10, 2), np.full(10, 3)))
-})
-
-sns.catplot(df, x='class', y='cosine dist', hue='model', kind='bar', col='layer')
-plt.show()
-
-# %%
-from sklearn.metrics import pairwise_distances
-
-pair_dist_E_l3 = pairwise_distances(l3_clamp_E, l3_norm_E, metric='cosine')
-pair_dist_nE_l3 = pairwise_distances(l3_clamp_nE, l3_norm_nE, metric='cosine')
-
-pair_dist_E_l2 = pairwise_distances(l2_clamp_E, l2_norm_E, metric='cosine')
-pair_dist_nE_l2 = pairwise_distances(l2_clamp_nE, l2_norm_nE, metric='cosine')
-
-pair_dist_E_l1 = pairwise_distances(l1_clamp_E, l1_norm_E, metric='cosine')
-pair_dist_nE_l1 = pairwise_distances(l1_clamp_nE, l1_norm_nE, metric='cosine')
-
-max = np.max(np.concatenate((pair_dist_E_l2, pair_dist_nE_l2, pair_dist_E_l3, 
-                             pair_dist_nE_l3, pair_dist_E_l1, pair_dist_nE_l1)))
-
-fig, axes = plt.subplots(3, 2, figsize=(9, 11), sharex=True, sharey=True)
-sns.despine()
-sns.heatmap(1-pair_dist_E_l1, ax=axes[0, 0], cbar=True)
-axes[0, 0].set_ylabel('clamped reps')
-axes[0, 0].set_title('normal reps')
-axes[0, 0].tick_params(left=False, bottom=False)
-
-sns.heatmap(1-pair_dist_nE_l1, ax=axes[0, 1], cbar=True)
-axes[0, 1].set_title('normal reps')
-axes[0, 1].tick_params(left=False, bottom=False)
-
-sns.heatmap(1-pair_dist_E_l2, ax=axes[1, 0], cbar=True)
-axes[1, 0].set_ylabel('clamped reps')
-axes[1, 0].tick_params(left=False, bottom=False)
-
-sns.heatmap(1-pair_dist_nE_l2, ax=axes[1, 1], cbar=True)
-axes[1, 1].tick_params(left=False, bottom=False)
-
-sns.heatmap(1-pair_dist_E_l3, ax=axes[2, 0], cbar=True)
-axes[2, 0].set_ylabel('clamped reps')
-axes[2, 0].tick_params(left=False, bottom=False)
-
-sns.heatmap(1-pair_dist_nE_l3, ax=axes[2, 1], cbar=True)
-axes[2, 1].tick_params(left=False, bottom=False)
-
-cols = ['w E', 'w/o E']
-rows = ['layer1', 'layer2', 'layer3']
-
-pad = 20
-
-for ax, col in zip(axes[0], cols):
-    ax.annotate(col, xy=(0.5, 1), xytext=(0, pad),
-                xycoords='axes fraction', textcoords='offset points',
-                size='large', ha='center', va='baseline')
-
-for ax, row in zip(axes[:, 0], rows):
-    ax.annotate(row, xy=(0, 0.5), xytext=(-ax.yaxis.labelpad - pad / 2, 0),
-                xycoords=ax.yaxis.label, textcoords='offset points',
-                size='large', ha='right', va='center')
-
-# plt.tight_layout()
-plt.show()
-
-# %%
-##############################################################
-# decode from clamped representations 
-##############################################################
-
-MSE_loss = nn.MSELoss()
-
-test_loader2 = torch.utils.data.DataLoader(testdata, batch_size=batch_size,
-                                          shuffle=True, num_workers=2)
-
-def plot_projection(rep, label, weights, bias):
-    img = (weights @ rep + bias).reshape(28, 28)
-    # plt.imshow(img)
-    # plt.title(str(label))
-    # plt.show()
-    return img
-
-def train_linear_proj(layer, model):
-    linear_layer = nn.Linear(hidden_dim[layer], IN_dim, device=device)
-    optimiser = optim.Adam(linear_layer.parameters(), lr=0.001, weight_decay=0.0001)
-
-    loss_log = []
-
-    for e in range(20): 
-        for i, (data, target) in enumerate(test_loader2):
-            data, target = data.to(device), target.to(device)
-            data = data.view(-1, model_wE.in_dim)
-
-            with torch.no_grad():
-                model.eval()
-
-                hidden = model.init_hidden(data.size(0))
-
-                _, h = model.inference(data, hidden, T)
-
-            spks = get_states([h], 1+layer*4, hidden_dim[layer], batch_size, T, batch_size)
-
-            train_data = torch.tensor(spks.mean(axis=1)).to(device) 
-            # print(train_data.size())
-
-            optimiser.zero_grad()
-
-            out = linear_layer(train_data)
-            loss = MSE_loss(out, data)
-            loss_log.append(loss.data.cpu())
-
-            loss.backward()
-            optimiser.step()
-
-        print('%i train loss: %.4f' % (e, loss))
-
-    plt.plot(np.arange(len(loss_log)), [i.cpu() for i in loss_log])
-    plt.title('train loss')
-    plt.show()
-
-    linear_layer.eval()
-
-    return linear_layer
-
-# %%
-layer = 1
-l2_E_decoder = train_linear_proj(layer, model_wE)
-l2_nE_decoder = train_linear_proj(layer, model_woE)
-
-# %%
-fig, axes = plt.subplots(2, 10, figsize=(10, 2))
-decoders = [l2_E_decoder, l2_nE_decoder]
-
-with torch.no_grad():
-    for proj_class in range(n_classes):
-        img1 = plot_projection(l2_clamp_E[proj_class], proj_class, 
-                    decoders[0].weight.data.cpu().numpy(), 
-                    decoders[0].bias.data.cpu().numpy())
-        axes[0][proj_class].imshow(img1)
-        axes[0, proj_class].set_title(str(proj_class))
-        # axes[0][proj_class].axis('off')
-        axes[0, proj_class].tick_params(left = False, right = False , labelleft = False ,
-                labelbottom = False, bottom = False)
-
-        img2 = plot_projection(l2_clamp_nE[proj_class], proj_class, 
-                    decoders[1].weight.data.cpu().numpy(), 
-                    decoders[1].bias.data.cpu().numpy())
-        axes[1][proj_class].imshow(img2)
-        axes[1, proj_class].tick_params(left = False, right = False , labelleft = False ,
-                labelbottom = False, bottom = False)
-        # axes[1][proj_class].axis('off')
-
-fig.suptitle('projection from clampled rep back to image plane layer %i' % layer)
-axes[0, 0].set_ylabel('w E', rotation=0, labelpad=20)
-axes[1, 0].set_ylabel('w/o E', rotation=0, labelpad=20)
-
-plt.tight_layout()
-plt.show()
-
-# %%
-# clamp with noise 
-noise = torch.zeros(n_classes).to(device=device)
-clamp_class = 0
-steps=10
-clamp_T = T * 5
-
-def clamp_with_noise(layer, model, clamp_class=0):
-
-    noise_clamp = np.zeros((10, hidden_dim[layer])) 
-
-    for i in range(steps):
-        noise = torch.rand(10).to(device) 
-        with torch.no_grad():
-            model.eval()
-
-            hidden_i = model.init_hidden(1)
-
-            _, hidden_gen_E_ = model.clamped_generate(clamp_class, no_input, hidden_i, clamp_T, clamp_value=1., noise=noise)
-
-            # 
-            l1_E = get_states([hidden_gen_E_], 1+layer*4, hidden_dim[layer], 1, clamp_T, num_samples=1)
-
-
-            noise_clamp[i] += np.squeeze(l1_E.mean(axis=1))
-
-    torch.cuda.empty_cache()
-
-    return noise_clamp
-
-noise_l3_clamp_E = clamp_with_noise(layer, model_wE, clamp_class)
-
-# %%
-fig, axes = plt.subplots(1, steps, figsize=(10, 1.5))
-with torch.no_grad():
-    for s in range(steps):
-        img1 = decoders[0](torch.tensor(noise_l3_clamp_E[s].astype('float32')).to(device).view(-1, hidden_dim[layer])).reshape(28, 28).cpu()
-        axes[s].imshow(img1)
-        # axes[0][proj_class].axis('off')
-        axes[s].tick_params(left = False, right = False , labelleft = False ,
-                labelbottom = False, bottom = False)
-
-fig.suptitle('projection from clampled rep with random noise back to image plane layer %i' % layer)
-axes[0].set_ylabel('w E', rotation=0, labelpad=20)
-
-plt.tight_layout()
-plt.show()
-
-# %%
-# generate from half occluded image 
-
-# randomly sample one image from class 3
-three = images_all[target_all == 3][4]
-three[:14, :] = -1
-plt.imshow(three)
-plt.show()
-
-# %%
-sampled_image_reps = np.zeros((50, hidden_dim[layer]))
-
-for i in range(50):
-    # sample uniform noise with range [-1, 1] with size 10
-    noise = torch.rand(10).to(device) * 2 - 1
-    with torch.no_grad():
-        model_wE.eval()
-
-        hidden_i = model_wE.init_hidden(1)
-
-        _, hidden_gen_E_ = model_wE.clamped_generate(0, three.view(-1, IN_dim).to(device), 
-                                                     hidden_i, T*2, clamp_value=0, noise=noise)
-
-        spk_rep = get_states([hidden_gen_E_], 1+layer*4, hidden_dim[layer], 1, T*2, num_samples=1)
-        sampled_image_reps[i] += np.squeeze(spk_rep.mean(axis=1))
-
-print(sampled_image_reps.shape)
-
-# %%
-# create a grid of images from the sampled image representations
-fig, axes = plt.subplots(5, 10, figsize=(10, 5))
-for i in range(5):
-    for j in range(10):
-        img = decoders[0](torch.tensor(sampled_image_reps[i*10+j].astype('float32')).to(device).view(-1, hidden_dim[layer])).reshape(28, 28).cpu().detach()
-        axes[i][j].imshow(img)
-        axes[i, j].tick_params(left = False, right = False , labelleft = False ,
-                labelbottom = False, bottom = False)
-
-plt.tight_layout()
-plt.show()
-
-# %%
-# generate from noise at the input of layer 
-# randomly sample one image from class 3
-sampled_image_reps = np.zeros((50, hidden_dim[layer]))
-noise_p = 0.1  # percentage of neurons that is given nosie
-
-for i in range(50):
-    # sample uniform noise with range [-1, 1] with size 10
-    noise_vector = torch.zeros(hidden_dim[layer]).to(device)
-    noise_vector[torch.randint(high=hidden_dim[layer], size=(int(hidden_dim[layer]*noise_p),))] = \
-          torch.rand((int(hidden_dim[layer] * noise_p),)).to(device) - 0.5
-    
-    with torch.no_grad():
-        model_wE.eval()
-
-        hidden_i = model_wE.init_hidden(1)
-
-        _, hidden_gen_E_ = model_wE.clamp_withnoise(1, no_input, hidden_i, clamp_T, noise=noise_vector, 
-                                                    index = (2+layer*4), clamp_value=0.5)
-
-        spk_rep = get_states([hidden_gen_E_], 1+layer*4, hidden_dim[layer], 1, clamp_T, num_samples=1)
-        sampled_image_reps[i] += np.squeeze(spk_rep.mean(axis=1))
-
-print(sampled_image_reps.shape)
-
-# %%
-# create a grid of images from the sampled image representations
-fig, axes = plt.subplots(5, 10, figsize=(10, 5))
-for i in range(5):
-    for j in range(10):
-        img = plot_projection(sampled_image_reps[i*10+j], i*10+j, 
-                    decoders[0].weight.data.cpu().numpy(), 
-                    decoders[0].bias.data.cpu().numpy())
-        axes[i][j].imshow(img)
-        axes[i, j].tick_params(left = False, right = False , labelleft = False ,
-                labelbottom = False, bottom = False)
-
-plt.tight_layout()
-plt.show()
-
-
-# %%
-# # plt clamp result of pc1min
-# clamp_T = T * 5
-
-# with torch.no_grad():
-#     model_wE.eval()
-
-#     hidden_i = model_wE.init_hidden(1)
-
-#     _, hidden_gen_E_ = model_wE.clamped_generate(0, no_input, hidden_i, clamp_T, clamp_value=0, 
-#                                                  noise=torch.tensor(out_E[idx_min]).to(device))
-#     print('clamp done')
-#     # 
-#     l1_E = get_states([hidden_gen_E_], 1, hidden_dim[0], 1, clamp_T, num_samples=1)
-#     l2_E = get_states([hidden_gen_E_], 5, hidden_dim[1], 1, clamp_T, num_samples=1)
-#     l3_E = get_states([hidden_gen_E_], 9, hidden_dim[2], 1, clamp_T, num_samples=1)
-
-
-# # %%
-# fig, axes = plt.subplots(1, 2)
-
-# img1 = plot_projection(l3_E[0].mean(axis=1), 0, 
-#             decoders[0].weight.data.cpu().numpy(), 
-#             decoders[0].bias.data.cpu().numpy())
-# axes[0].imshow(img1)
-# # axes[0][proj_class].axis('off')
-# axes[0].tick_params(left = False, right = False , labelleft = False ,
-#         labelbottom = False, bottom = False)
-# axes[0].set_title('decoded sample specific clamp')
-
-# # plot original sample from subset
-# axes[1].set_title('original sample')
-# axes[1].imshow(subset.data[idx_min])
-
-# fig.suptitle('decoded image from sample specific clamp pattern %i' % layer)
-
-# plt.tight_layout()
-# plt.show()
-
-
-# %%
-##############################################################
-# spk rate by layer comparison 
-##############################################################
-mean_spk_bylayer_E = np.zeros(len(hidden_dim))
-mean_spk_bylayer_nE = np.zeros(len(hidden_dim))
-
-for i, (data, target) in enumerate(test_loader2):
-    data, target = data.to(device), target.to(device)
-    data = data.view(-1, model_wE.in_dim)
-
-    with torch.no_grad():
-        model_wE.eval()
-        model_woE.eval()
-
-
-        hidden = model_wE.init_hidden(data.size(0))
-
-        _, h_e = model_wE.inference(data, hidden, T)
-        _, h_ne = model_woE.inference(data, hidden, T)
-
-    for i in range(len(hidden_dim)):
-        spks_e = get_states([h_e], 1+layer*4, hidden_dim[layer], batch_size, T, batch_size)
-        mean_spk_bylayer_E[i] += spks_e.mean()
-
-        spks_ne = get_states([h_ne], 1+layer*4, hidden_dim[layer], batch_size, T, batch_size)
-        mean_spk_bylayer_nE[i] += spks_ne.mean()
-
-mean_spk_bylayer_E /= len(test_loader2)
-mean_spk_bylayer_nE /= len(test_loader2)
-
-# %%
-df = pd.DataFrame({
-    'mean spk': np.concatenate((mean_spk_bylayer_E, mean_spk_bylayer_nE)), 
-    'layer': np.concatenate((range(len(hidden_dim)), range(len(hidden_dim)))), 
-    'model': ['E'] * len(hidden_dim) + ['nE'] * len(hidden_dim)
-})
-
-sns.barplot(df, x='layer', hue='model', y='mean spk')
-sns.despine()
-plt.title('mean spk rate per layer')
-plt.show()
-
-# %%
-###############################
-# exci inhi divide for w E model top down signal 
-###############################
-ex = []
-inhi = []
-for i in range(10):
-    top_down = param_dict_wE['layer3to2.weight'] @ l3_norm_E[i]
-    ex.append(top_down[top_down > 0].sum())
-    inhi.append(-top_down[top_down < 0].sum())
-
-df = pd.DataFrame({
-    'class': np.concatenate((np.arange(10), np.arange(10))),
-    'strength': ex + inhi,
-    'type': ['ex'] * 10 + ['inhi'] * 10
-})
-sns.barplot(df, x='class', y='strength', hue='type')
-plt.show()
 
 
 

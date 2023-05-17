@@ -25,6 +25,8 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('-a', '--energyalpha', default=0., type=float, help='set energy loss')
 parser.add_argument('-e', '--epoch', default=10, type=int, help='number of training epochs')
+parser.add_argument('-s', '--seed', default=999, type=int, help='manual seed')
+
 
 args = vars(parser.parse_args())
 
@@ -36,11 +38,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(device)
 
 # set seed
-torch.manual_seed(999)
+torch.manual_seed(args['seed'])
 
 # wandb login
 wandb.login(key='25f10546ef384a6f1ab9446b42d7513024dea001')
-wandb.init(project="spikingPC_voltageloss", entity="lucyzmf")
+wandb.init(project="spikingPC_voltageloss_acctest", entity="lucyzmf")
 # wandb.init(mode="disabled")
 
 # add wandb.config
@@ -66,7 +68,8 @@ clip = 1.
 log_interval = 20
 epochs = args['epoch']
 
-config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_taux2_dt0.5_exptau05_absloss_bias0_adpF' + str(epochs)
+config.exp_name = config.alg + '_ener' + str(config.energy_alpha) + '_taux2_dt0.5_exptau05_absloss_bias0' + \
+      str(epochs) + str(args['seed'])
 
 # experiment name 
 exp_name = config.exp_name

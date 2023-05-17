@@ -140,7 +140,17 @@ for name, param in model_woE.named_parameters():
 print(param_names_woE)
 
 # %%
+# plot one sample image 
 
+# get one sample image
+sample = testdata[0][0]
+sample = sample.unsqueeze(0)
+
+# plot image
+fig, ax = plt.subplots()
+ax.imshow(sample.squeeze().numpy())
+ax.axis('off')
+plt.show()
 # %%
 ##############################################################
 # test generative capacity of network with clamping + noise
@@ -177,14 +187,17 @@ plt.show()
 spk_gen_l2_E = get_states([hidden_gen_E], 5, hidden_dim[1], 1, T, num_samples=1).squeeze().mean(axis=0)
 spk_gen_l2_nE = get_states([hidden_gen_nE], 5, hidden_dim[1], 1, T, num_samples=1).squeeze().mean(axis=0)
 
-fig, axes = plt.subplots(1, 2)
+fig, axes = plt.subplots(2, 1)
 pos = axes[0].imshow(spk_gen_l2_E.reshape(20, -1))
+axes[0].axis('off')
 fig.colorbar(pos, ax=axes[0], shrink=0.5)
-axes[0].set_title('w E mean spk l2 clamped generation')
+
+axes[0].set_title('w E mean spk L2 (clamp)')
 
 pos = axes[1].imshow(spk_gen_l2_nE.reshape(20, -1))
+axes[1].axis('off')
 fig.colorbar(pos, ax=axes[1], shrink=0.5)
-axes[1].set_title('w/o E mean spk l2 clamped generation')
+axes[1].set_title('w/o E mean spk l2 (clamp)')
 
 plt.tight_layout()
 plt.show()
@@ -216,8 +229,11 @@ l3_norm_E = np.zeros((10, hidden_dim[2]))
 l2_norm_nE = np.zeros((10, hidden_dim[1]))
 l3_norm_nE = np.zeros((10, hidden_dim[2]))
 
+# test loader with all images
+test_loader_all = torch.utils.data.DataLoader(testdata, batch_size=batch_size, shuffle=False, num_workers=2)
+
 # get means from normal condition
-for i, (data, target) in enumerate(test_loader):
+for i, (data, target) in enumerate(test_loader_all):
     data, target = data.to(device), target.to(device)
     data = data.view(-1, model_wE.in_dim)
 
@@ -252,14 +268,14 @@ for i, (data, target) in enumerate(test_loader):
     torch.cuda.empty_cache()
 
 # avg all samples 
-l1_norm_E = l1_norm_E / len(test_loader.data)
-l1_norm_nE = l1_norm_nE / len(test_loader.data)
+l1_norm_E = l1_norm_E / len(testdata.data)
+l1_norm_nE = l1_norm_nE / len(testdata.data)
 
-l2_norm_E = l2_norm_E / len(test_loader.data)
-l2_norm_nE = l2_norm_nE / len(test_loader.data)
+l2_norm_E = l2_norm_E / len(testdata.data)
+l2_norm_nE = l2_norm_nE / len(testdata.data)
 
-l3_norm_E = l3_norm_E / len(test_loader.data)
-l3_norm_nE = l3_norm_nE / len(test_loader.data)
+l3_norm_E = l3_norm_E / len(testdata.data)
+l3_norm_nE = l3_norm_nE / len(testdata.data)
 
 # %%
 # clamped condition
@@ -285,8 +301,8 @@ for i in range(10):
 
         hidden_i = model_wE.init_hidden(1)
 
-        _, hidden_gen_E_ = model_wE.clamped_generate(i, no_input, hidden_i, clamp_T, clamp_value=10)
-        _, hidden_gen_nE_ = model_woE.clamped_generate(i, no_input, hidden_i, clamp_T, clamp_value=10)
+        _, hidden_gen_E_ = model_wE.clamped_generate(i, no_input, hidden_i, clamp_T, clamp_value=1)
+        _, hidden_gen_nE_ = model_woE.clamped_generate(i, no_input, hidden_i, clamp_T, clamp_value=-1)
 
         # 
         l1_E = get_states([hidden_gen_E_], 1, hidden_dim[0], 1, clamp_T, num_samples=1)
@@ -391,8 +407,8 @@ axes[2, 0].tick_params(left=False, bottom=False)
 sns.heatmap(1-pair_dist_nE_l3, ax=axes[2, 1], cbar=True)
 axes[2, 1].tick_params(left=False, bottom=False)
 
-cols = ['w E', 'w/o E']
-rows = ['layer1', 'layer2', 'layer3']
+cols = ['Energy', 'Control']
+rows = ['L1', 'L2', 'L3']
 
 pad = 20
 
@@ -408,6 +424,51 @@ for ax, row in zip(axes[:, 0], rows):
 
 # plt.tight_layout()
 plt.show()
+
+# %%
+# compute the statistics of within and between class distances for each layer in both models 
+df_dist = pd.DataFrame(columns=['model', 'layer', 'within', 'between', 'class'])
+
+distances = [[pair_dist_E_l1, pair_dist_nE_l1], [pair_dist_E_l2, pair_dist_nE_l2], [pair_dist_E_l3, pair_dist_nE_l3]]
+
+for i in range(10):
+    for j in range(3):
+        df_1 = pd.DataFrame({'Model': 'Energy', 'L': str(j + 1), 
+                                  'within': distances[j][0][i, i], 
+                                  'between': np.delete(distances[j][0][i], i, 0).mean(), 
+                                  'class': i}, index=[0])
+        df_2 = pd.DataFrame({'Model': 'Control', 'L': str(j + 1),
+                                    'within': distances[j][1][i, i], 
+                                    'between': np.delete(distances[j][1][i], i, 0).mean(),
+                                    'class': i}, index=[0])
+        
+        df_dist = pd.concat([df_dist, df_1, df_2])
+
+df_dist = pd.melt(df_dist, id_vars=['Model', 'L', 'class'], value_vars=['within', 'between'],
+                    var_name='Similarity type', value_name='Similarity')
+df_dist.head()
+
+# %%
+sns.set(font_scale=1.5)
+sns.set_style("whitegrid", {'axes.grid' : False})
+colors = [(0.1271049596309112, 0.4401845444059977, 0.7074971164936563), 
+                     (0.9949711649365629, 0.5974778931180315, 0.15949250288350636)]
+
+sns.catplot(data=df_dist, x='L', y='Similarity', hue='Similarity type', col='Model', kind='bar', palette=colors)
+plt.show()
+
+# %%
+# compute confidence interval for each layer and model type and distance type
+for model in ['Energy', 'Control']:
+    for layer in [1, 2, 3]:
+        for dist_type in ['within', 'between']:
+            df_temp = df_dist[(df_dist['Model'] == model) & (df_dist['L'] == str(layer)) & (df_dist['distance type'] == dist_type)]
+            stats = df_temp['value'].agg(['mean', 'sem'])
+
+            print(model, layer, dist_type)
+            stats['ci95_hi'] = stats['mean'] + 1.96* stats['sem']
+            stats['ci95_lo'] = stats['mean'] - 1.96* stats['sem']
+            print('cf: %.4f, %.4f' % (stats['ci95_lo'], stats['ci95_hi']))
 
 # %%
 ##############################################################
@@ -495,45 +556,61 @@ def train_linear_proj(layer, model):
             plt.title('sample2 %i' % target[target == 0][1].item())
             plt.show()
 
-
-    plt.plot(np.arange(len(loss_log)), [i.cpu() for i in loss_log])
-    plt.title('train loss')
-    plt.show()
-
     torch.cuda.empty_cache()
 
     mlp.eval()
 
-    return mlp
+    return mlp, [i.cpu() for i in loss_log]
 
 # %%
-layer = 2
-l2_E_decoder = train_linear_proj(layer, model_wE)
-l2_nE_decoder = train_linear_proj(layer, model_woE)
+layer = 1
+l2_E_decoder, loss_E = train_linear_proj(layer, model_wE)
+l2_nE_decoder, loss_nE = train_linear_proj(layer, model_woE)
 
 decoders = [l2_E_decoder, l2_nE_decoder]
 
 # %%
-fig, axes = plt.subplots(2, 10, figsize=(10, 2))
+# plot loss curve of training
+colors = [(0.1271049596309112, 0.4401845444059977, 0.7074971164936563), 
+                     (0.9949711649365629, 0.5974778931180315, 0.15949250288350636)]
+sns.set_style("whitegrid", {'axes.grid' : False})
+
+fig, ax = plt.subplots(figsize=(5, 4))
+plt.rcParams.update({'font.size': 14})
+
+ax.plot(loss_E, label='Energy L%i' % (layer+1), color=colors[0])
+ax.plot(loss_nE, label='Control L%i' % (layer+1), color=colors[1])    
+ax.legend()
+# frame off 
+ax.spines[['right', 'top']].set_visible(False)
+ax.set_ylabel('MES loss')
+ax.set_xlabel('steps')
+plt.legend(frameon=False)
+# increase font size
+plt.show()
+
+
+# %%
+fig, axes = plt.subplots(2, 10, figsize=(10, 3))
 
 with torch.no_grad():
     for proj_class in range(n_classes):
-        img1 = decoders[0](torch.tensor(l3_clamp_E[proj_class].astype('float32')).to(device).view(-1, hidden_dim[layer])).reshape(28, 28).cpu()
-        axes[0][proj_class].imshow(img1)
+        img1 = decoders[0](torch.tensor(l2_clamp_E[proj_class].astype('float32')).to(device).view(-1, hidden_dim[layer])).reshape(28, 28).cpu()
+        axes[0][proj_class].imshow(img1, cmap='viridis')
         axes[0, proj_class].set_title(str(proj_class))
         # axes[0][proj_class].axis('off')
         axes[0, proj_class].tick_params(left = False, right = False , labelleft = False ,
                 labelbottom = False, bottom = False)
 
-        img2 = decoders[1](torch.tensor(l3_clamp_nE[proj_class].astype('float32')).to(device).view(-1, hidden_dim[layer])).reshape(28, 28).cpu()
-        axes[1][proj_class].imshow(img2)
+        img2 = decoders[1](torch.tensor(l2_clamp_nE[proj_class].astype('float32')).to(device).view(-1, hidden_dim[layer])).reshape(28, 28).cpu()
+        axes[1][proj_class].imshow(img2, cmap='viridis')
         axes[1, proj_class].tick_params(left = False, right = False , labelleft = False ,
                 labelbottom = False, bottom = False)
         # axes[1][proj_class].axis('off')
 
-fig.suptitle('projection from clampled rep back to image plane layer %i' % layer)
-axes[0, 0].set_ylabel('w E', rotation=0, labelpad=20)
-axes[1, 0].set_ylabel('w/o E', rotation=0, labelpad=20)
+fig.suptitle('projection from clampled rep back to image plane layer %i' % (layer+1))
+axes[0, 0].set_ylabel('Energy', rotation=0, labelpad=40)
+axes[1, 0].set_ylabel('Control', rotation=0, labelpad=40)
 
 plt.tight_layout()
 plt.show()
@@ -581,7 +658,7 @@ with torch.no_grad():
                 labelbottom = False, bottom = False)
 
 fig.suptitle('projection from clampled rep with random noise back to image plane layer %i' % layer)
-axes[0].set_ylabel('w E', rotation=0, labelpad=20)
+axes[0].set_ylabel('Energy', rotation=0, labelpad=20)
 
 plt.tight_layout()
 plt.show()
@@ -591,16 +668,53 @@ plt.show()
 images_all, target_all = next(iter(test_loader2))
 # generate from half occluded image 
 
-# randomly sample one image from class 3
-three = images_all[target_all == 3][4].squeeze()
+# from occluded image clamp generate 
+dig = 3
+idx = 9 #np.random.choice(10, size=1)
+print(idx)
+three = images_all[target_all == dig][idx].squeeze()
 three[:14, :] = -1
-plt.imshow(three)
+
+with torch.no_grad():
+    model_wE.eval()
+
+    hidden_i = model_wE.init_hidden(1)
+
+    _, hidden_gen_E_ = model_wE.clamped_generate(dig, three.view(-1, IN_dim).to(device), 
+                                                    hidden_i, clamp_T, clamp_value=1)
+    
+    _, hidden_gen_nE_ = model_woE.clamped_generate(dig, three.view(-1, IN_dim).to(device), 
+                                                    hidden_i, clamp_T, clamp_value=1)
+
+    spk_rep_e = get_states([hidden_gen_E_], 1+layer*4, hidden_dim[layer], 1, clamp_T, num_samples=1)
+    spk_rep_ne = get_states([hidden_gen_nE_], 1+layer*4, hidden_dim[layer], 1, clamp_T, num_samples=1)
+
+fig, axes = plt.subplots(1, 3, figsize=(6, 2))
+
+sns.set(font_scale=1.)
+
+axes[0].imshow(three, cmap='viridis')
+axes[0].set_title('Occluded input')
+axes[0].axis('off')
+
+axes[1].imshow(decoders[0](torch.tensor(spk_rep_e.mean(axis=1)).to(device).view(-1, hidden_dim[layer])).reshape(28, 28).cpu().detach(), 
+               cmap='viridis')
+axes[1].set_title('Energy')
+axes[1].axis('off')
+
+axes[2].imshow(decoders[1](torch.tensor(spk_rep_ne.mean(axis=1)).to(device).view(-1, hidden_dim[layer])).reshape(28, 28).cpu().detach(), 
+               cmap='viridis')
+axes[2].set_title('Control')
+axes[2].axis('off')
+
+plt.tight_layout()
 plt.show()
 
 # %%
-sampled_image_reps = np.zeros((50, hidden_dim[layer]))
+# reconstruction with noise 
+sampled_image_reps = np.zeros((20, hidden_dim[layer]))
 
-for i in range(50):
+for i in range(20):
     # sample uniform noise with range [-1, 1] with size 10
     noise = torch.rand(10).to(device) * 2 - 1
     with torch.no_grad():
@@ -609,7 +723,7 @@ for i in range(50):
         hidden_i = model_wE.init_hidden(1)
 
         _, hidden_gen_E_ = model_wE.clamped_generate(0, three.view(-1, IN_dim).to(device), 
-                                                     hidden_i, T*3, clamp_value=0, noise=noise)
+                                                     hidden_i, clamp_T, clamp_value=0, noise=noise)
 
         spk_rep = get_states([hidden_gen_E_], 1+layer*4, hidden_dim[layer], 1, T*3, num_samples=1)
         sampled_image_reps[i] += np.squeeze(spk_rep.mean(axis=1))
@@ -618,10 +732,10 @@ print(sampled_image_reps.shape)
 
 # %%
 # create a grid of images from the sampled image representations
-fig, axes = plt.subplots(5, 10, figsize=(10, 5))
-for i in range(5):
-    for j in range(10):
-        img = decoders[0](torch.tensor(sampled_image_reps[i*10+j].astype('float32')).to(device).view(-1, hidden_dim[layer])).reshape(28, 28).cpu().detach()
+fig, axes = plt.subplots(4, 5, figsize=(10, 5))
+for i in range(4):
+    for j in range(5):
+        img = decoders[0](torch.tensor(sampled_image_reps[i*5+j].astype('float32')).to(device).view(-1, hidden_dim[layer])).reshape(28, 28).cpu().detach()
         axes[i][j].imshow(img)
         axes[i, j].tick_params(left = False, right = False , labelleft = False ,
                 labelbottom = False, bottom = False)

@@ -281,11 +281,12 @@ for i in range(len(pc1_bins)-1):
         pc1_bin_idx[i] = principalDf[(principalDf['pc1'] >= pc1_bins[i]) & (principalDf['pc1'] < pc1_bins[i+1])].sort_values(by='pc1')['index'].values[0]
 
 # plot the images of the points in each bin
-fig, axes = plt.subplots(1, len(pc1_bins)-1)
+fig, axes = plt.subplots(1, len(pc1_bins)-1, figsize=((len(pc1_bins)-1)*2, 2))
 for i in range(len(pc1_bins)-1):
     axes[i].imshow(testdata.data[int(pc1_bin_idx[i])])
     axes[i].set_title(str(i))
     axes[i].axis('off')
+plt.tight_layout()
 plt.show()
 
 # %%
