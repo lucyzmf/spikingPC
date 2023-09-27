@@ -216,7 +216,7 @@ fig = plt.figure(figsize=(6, 5))
 sns.barplot(df_spk, x='L', y=r'Mean $R$', hue='Model', 
             palette=[(0.1271049596309112, 0.4401845444059977, 0.7074971164936563), 
                      (0.9949711649365629, 0.5974778931180315, 0.15949250288350636)], 
-            capsize=0.01)
+            )
 sns.despine()
 plt.legend(bbox_to_anchor=(1.05, 0.5), loc=2, borderaxespad=0., frameon=False)
 plt.show()
@@ -231,13 +231,13 @@ mean_error_nE = [np.mean(error_nE[i], axis=0) for i in range(len(hidden_dim))]
 print(mean_error_E[1].shape)
 # %%
 # create df with columns model, layer, t, mean error
-df_all = pd.DataFrame(columns=['Model', 'layer', 't', 'Mean E'])
+df_all = pd.DataFrame(columns=['Model', 'layer', 't', 'E'])
 for l in range(len(hidden_dim)):
     df = pd.DataFrame(np.vstack((mean_error_E[l], mean_error_nE[l])))
     df['Model'] = ['Energy'] * T + ['Control'] * T 
     df['layer'] = [l] * T * 2
     df['t'] = (np.concatenate((range(T), range(T))))
-    df = pd.melt(df, id_vars=['Model', 't', 'layer'], value_name='Mean E', value_vars=range(500), var_name='neuron idx')
+    df = pd.melt(df, id_vars=['Model', 't', 'layer'], value_name='E', value_vars=range(500), var_name='neuron idx')
     
     df_all = pd.concat([df_all, df])
 
@@ -248,12 +248,12 @@ df_all.head()
 fig, ax1 = plt.subplots()
 ax2 = ax1.twiny()
 
-sns.lineplot(df_all[df_all['Model']=='Energy'], x='t', y='Mean E', hue='layer', 
+sns.lineplot(df_all[df_all['Model']=='Energy'], x='t', y='E', hue='layer', 
              palette=sns.color_palette('Blues', n_colors=len(hidden_dim)), ax=ax1)
 # change legend title and position to outside upper right
 ax1.legend(title='Energy L', bbox_to_anchor=(1.05, 0.9), loc=2, borderaxespad=0., frameon=False)
 
-sns.lineplot(df_all[df_all['Model']=='Control'], x='t', y='Mean E', hue='layer',
+sns.lineplot(df_all[df_all['Model']=='Control'], x='t', y='E', hue='layer',
                 palette=sns.color_palette('YlOrBr', n_colors=len(hidden_dim)), ax=ax2)
 ax2.xaxis.set_ticks_position('bottom')
 ax2.xaxis.set_label_position('bottom')

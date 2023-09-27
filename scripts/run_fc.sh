@@ -1,7 +1,7 @@
 
-for alpha in 0.05
+for alpha in 0.0
 do
-    for seed in 28 37 43 49 7492 4985 2056 2020 2021 2022
+    for seed in 999
     do 
         python3 main_population.py -a $alpha -e 25 -s $seed
     done

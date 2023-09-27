@@ -380,44 +380,43 @@ plt.show()
 # %%
 from sklearn.metrics import pairwise_distances
 
-pair_dist_E_l3 = pairwise_distances(l3_clamp_E_bptt, l3_norm_E_bptt, metric='cosine')
-pair_dist_nE_l3 = pairwise_distances(l3_clamp_nE_bptt, l3_norm_nE_bptt, metric='cosine')
+pair_dist_E_l3_b = pairwise_distances(l3_clamp_E_bptt, l3_norm_E_bptt, metric='cosine')
+pair_dist_E_l3_f = pairwise_distances(l3_clamp_E_fptt, l3_norm_E_fptt, metric='cosine')
 
-pair_dist_E_l2 = pairwise_distances(l2_clamp_E_bptt, l2_norm_E_bptt, metric='cosine')
-pair_dist_nE_l2 = pairwise_distances(l2_clamp_nE_bptt, l2_norm_nE_bptt, metric='cosine')
+pair_dist_E_l2_b = pairwise_distances(l2_clamp_E_bptt, l2_norm_E_bptt, metric='cosine')
+pair_dist_E_l2_f = pairwise_distances(l2_clamp_E_fptt, l2_norm_E_fptt, metric='cosine')
 
-pair_dist_E_l1 = pairwise_distances(l1_clamp_E_bptt, l1_norm_E_bptt, metric='cosine')
-pair_dist_nE_l1 = pairwise_distances(l1_clamp_nE_bptt, l1_norm_nE_bptt, metric='cosine')
+pair_dist_E_l1_b = pairwise_distances(l1_clamp_E_bptt, l1_norm_E_bptt, metric='cosine')
+pair_dist_E_l1_f = pairwise_distances(l1_clamp_E_fptt, l1_norm_E_fptt, metric='cosine')
 
-max = np.max(np.concatenate((pair_dist_E_l2, pair_dist_nE_l2, pair_dist_E_l3, 
-                             pair_dist_nE_l3, pair_dist_E_l1, pair_dist_nE_l1)))
+sns.set(font_scale=1.5)
 
 fig, axes = plt.subplots(3, 2, figsize=(9, 11), sharex=True, sharey=True)
 sns.despine()
-sns.heatmap(1-pair_dist_E_l1, ax=axes[0, 0], cbar=True)
+sns.heatmap(1-pair_dist_E_l1_b, ax=axes[0, 0], cbar=True)
 axes[0, 0].set_ylabel('clamped reps')
 axes[0, 0].set_title('normal reps')
 axes[0, 0].tick_params(left=False, bottom=False)
 
-sns.heatmap(1-pair_dist_nE_l1, ax=axes[0, 1], cbar=True)
+sns.heatmap(1-pair_dist_E_l1_f, ax=axes[0, 1], cbar=True)
 axes[0, 1].set_title('normal reps')
 axes[0, 1].tick_params(left=False, bottom=False)
 
-sns.heatmap(1-pair_dist_E_l2, ax=axes[1, 0], cbar=True)
+sns.heatmap(1-pair_dist_E_l2_b, ax=axes[1, 0], cbar=True)
 axes[1, 0].set_ylabel('clamped reps')
 axes[1, 0].tick_params(left=False, bottom=False)
 
-sns.heatmap(1-pair_dist_nE_l2, ax=axes[1, 1], cbar=True)
+sns.heatmap(1-pair_dist_E_l2_f, ax=axes[1, 1], cbar=True)
 axes[1, 1].tick_params(left=False, bottom=False)
 
-sns.heatmap(1-pair_dist_E_l3, ax=axes[2, 0], cbar=True)
+sns.heatmap(1-pair_dist_E_l3_b, ax=axes[2, 0], cbar=True)
 axes[2, 0].set_ylabel('clamped reps')
 axes[2, 0].tick_params(left=False, bottom=False)
 
-sns.heatmap(1-pair_dist_nE_l3, ax=axes[2, 1], cbar=True)
+sns.heatmap(1-pair_dist_E_l3_f, ax=axes[2, 1], cbar=True)
 axes[2, 1].tick_params(left=False, bottom=False)
 
-cols = ['Energy', 'Control']
+cols = ['BPTT', 'FPTT']
 rows = ['L1', 'L2', 'L3']
 
 pad = 30
@@ -440,7 +439,7 @@ plt.show()
 # compute the statistics of within and between class distances for each layer in both models 
 df_dist = pd.DataFrame(columns=['model', 'layer', 'within', 'between', 'class'])
 
-distances = [[pair_dist_E_l1, pair_dist_nE_l1], [pair_dist_E_l2, pair_dist_nE_l2], [pair_dist_E_l3, pair_dist_nE_l3]]
+distances = [[pair_dist_E_l1_b, pair_dist_E_l1_b], [pair_dist_E_l2_b, pair_dist_E_l2_f], [pair_dist_E_l3_b, pair_dist_E_l3_f]]
 
 for i in range(10):
     for j in range(3):

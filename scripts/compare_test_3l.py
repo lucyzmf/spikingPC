@@ -268,13 +268,30 @@ for i in range(len(spike_weights)):
 df_weights.head()
 
 # %%
+# make a copy of df_weights
+df_all = df_weights.copy()
+
+df_all['weight'] = 'all weights'
+df_all.head()
+
+# %%
 # plot mean abs values
-sns.barplot(x='weight', y='abs values', hue='Model', data=df_weights, palette=colors)
-# rotate x labels
-for item in plt.gca().get_xticklabels():
+fig, axes = plt.subplots(1, 2, figsize=(7, 4), sharey=True, gridspec_kw={'width_ratios': [5, 1]})
+sns.barplot(x='weight', y='abs values', hue='Model', data=df_weights, palette=colors, ax=axes[0])
+# rotate x labels of axes[0]
+for item in axes[0].get_xticklabels():
     item.set_rotation(90)
 sns.despine()
-plt.legend(frameon=False, bbox_to_anchor=(1.05, 1), loc='upper left')
+axes[0].legend_.remove()
+
+sns.barplot(x='weight', y='abs values', hue='Model', data=df_all, palette=colors, ax=axes[1])
+# rotate x labels of axes[1]
+for item in axes[1].get_xticklabels():
+    item.set_rotation(90)
+sns.despine()
+axes[1].legend(frameon=False, bbox_to_anchor=(1.05, 1), loc='upper left')
+axes[1].set_ylabel('')
+axes[1].set_xlabel('')
 plt.show()
 
 # %%

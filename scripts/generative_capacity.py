@@ -59,7 +59,7 @@ images = torch.stack([img for img, _ in testdata]).squeeze()
 targets = testdata.targets
 
 # get all images as tensors
-n_per_class = 60
+n_per_class = 10
 n_classes = 10
 
 # per n_per_class contain index to that class of images
@@ -109,12 +109,12 @@ model_woE = SnnNetwork2Layer(IN_dim, hidden_dim, n_classes, is_adapt=adap_neuron
 model_woE.to(device)
 
 # load different models
-exp_dir_wE = '/home/lucy/spikingPC/results/Apr-17-2023/fptt_ener0.05_taux2_dt0.5_exptau05_absloss_bias025/'
+exp_dir_wE = '/home/lucy/spikingPC/results/Sep-27-2023/fptt_ener0.05_taux2_dt0.5_exptau05_absloss_bias025999/'
 saved_dict1 = model_result_dict_load(exp_dir_wE + 'onelayer_rec_best.pth.tar')
 
 model_wE.load_state_dict(saved_dict1['state_dict'])
 
-exp_dir_woE = '/home/lucy/spikingPC/results/Apr-17-2023/fptt_ener0.0_taux2_dt0.5_exptau05_absloss_bias025/'
+exp_dir_woE = '/home/lucy/spikingPC/results/Sep-27-2023/fptt_ener0.0_taux2_dt0.5_exptau05_absloss_bias025999/'
 saved_dict2 = model_result_dict_load(exp_dir_woE + 'onelayer_rec_best.pth.tar')
 
 model_woE.load_state_dict(saved_dict2['state_dict'])
@@ -145,6 +145,9 @@ print(param_names_woE)
 # get one sample image
 sample = testdata[0][0]
 sample = sample.unsqueeze(0)
+
+sns.set(font_scale=1.)
+sns.set_style("whitegrid", {'axes.grid' : False})
 
 # plot image
 fig, ax = plt.subplots()
@@ -302,7 +305,7 @@ for i in range(10):
         hidden_i = model_wE.init_hidden(1)
 
         _, hidden_gen_E_ = model_wE.clamped_generate(i, no_input, hidden_i, clamp_T, clamp_value=1)
-        _, hidden_gen_nE_ = model_woE.clamped_generate(i, no_input, hidden_i, clamp_T, clamp_value=-1)
+        _, hidden_gen_nE_ = model_woE.clamped_generate(i, no_input, hidden_i, clamp_T, clamp_value=1)
 
         # 
         l1_E = get_states([hidden_gen_E_], 1, hidden_dim[0], 1, clamp_T, num_samples=1)
@@ -410,7 +413,7 @@ axes[2, 1].tick_params(left=False, bottom=False)
 cols = ['Energy', 'Control']
 rows = ['L1', 'L2', 'L3']
 
-pad = 20
+pad = 30
 
 for ax, col in zip(axes[0], cols):
     ax.annotate(col, xy=(0.5, 1), xytext=(0, pad),
@@ -427,30 +430,29 @@ plt.show()
 
 # %%
 # compute the statistics of within and between class distances for each layer in both models 
-df_dist = pd.DataFrame(columns=['model', 'layer', 'within', 'between', 'class'])
+df_dist = pd.DataFrame(columns=['model', 'layer', 'same', 'different', 'class'])
 
 distances = [[pair_dist_E_l1, pair_dist_nE_l1], [pair_dist_E_l2, pair_dist_nE_l2], [pair_dist_E_l3, pair_dist_nE_l3]]
 
 for i in range(10):
     for j in range(3):
         df_1 = pd.DataFrame({'Model': 'Energy', 'L': str(j + 1), 
-                                  'within': distances[j][0][i, i], 
-                                  'between': np.delete(distances[j][0][i], i, 0).mean(), 
+                                  'same': 1-distances[j][0][i, i], 
+                                  'different': 1-np.delete(distances[j][0][i], i, 0).mean(), 
                                   'class': i}, index=[0])
         df_2 = pd.DataFrame({'Model': 'Control', 'L': str(j + 1),
-                                    'within': distances[j][1][i, i], 
-                                    'between': np.delete(distances[j][1][i], i, 0).mean(),
+                                    'same': 1-distances[j][1][i, i], 
+                                    'different': 1-np.delete(distances[j][1][i], i, 0).mean(),
                                     'class': i}, index=[0])
         
         df_dist = pd.concat([df_dist, df_1, df_2])
 
-df_dist = pd.melt(df_dist, id_vars=['Model', 'L', 'class'], value_vars=['within', 'between'],
+df_dist = pd.melt(df_dist, id_vars=['Model', 'L', 'class'], value_vars=['same', 'different'],
                     var_name='Similarity type', value_name='Similarity')
 df_dist.head()
 
 # %%
-sns.set(font_scale=1.5)
-sns.set_style("whitegrid", {'axes.grid' : False})
+
 colors = [(0.1271049596309112, 0.4401845444059977, 0.7074971164936563), 
                      (0.9949711649365629, 0.5974778931180315, 0.15949250288350636)]
 
@@ -461,7 +463,7 @@ plt.show()
 # compute confidence interval for each layer and model type and distance type
 for model in ['Energy', 'Control']:
     for layer in [1, 2, 3]:
-        for dist_type in ['within', 'between']:
+        for dist_type in ['same', 'different']:
             df_temp = df_dist[(df_dist['Model'] == model) & (df_dist['L'] == str(layer)) & (df_dist['distance type'] == dist_type)]
             stats = df_temp['value'].agg(['mean', 'sem'])
 
